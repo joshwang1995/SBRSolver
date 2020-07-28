@@ -219,6 +219,7 @@ void operator/=(Vect3d& a, const double s)
 	double inv = 1.0 / s;
 	a *= inv;
 }
+
 #pragma endregion
 
 #pragma region Vector Operations

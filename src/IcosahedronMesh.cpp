@@ -46,6 +46,9 @@ std::pair<std::vector<Vect3f>, std::vector<Vect3u>> ConstructIcosahedron(int sub
 	const double Z = .850650808352039932f;
 	const double N = 0.f;
 	
+	// Change radius of the icosahedron
+	// multiply all coordinates by r/(2*sin(2*pi/5))
+	
 	std::vector<Vect3f> initVertices =
 	{
 		{-X,N,Z}, {X,N,Z}, {-X,N,-Z}, {X,N,-Z},
