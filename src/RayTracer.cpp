@@ -1,4 +1,47 @@
-#include "RayTracing_Core.hpp"
+#include "IcosahedronMesh.hpp"
+#include "Vect_Utility.hpp"
+#include "Geometry.hpp"
+#include <vector>
+#include <iostream>
+
+using namespace std;
+
+struct SpherePoint
+{
+	double r;
+	double theta;
+	double phi;
+};
+
+struct RectCoord
+{
+	Vect3d ax;
+	Vect3d ay;
+	Vect3d az;
+};
+
+struct SphereCoord
+{
+	Vect3d ar;
+	Vect3d at;
+	Vect3d ap;
+};
+
+//Generate rays and ray tubes
+vector<vector<int>> ConstructRayTubes(vector<Vect3u>& faces, int num_vertices);
+vector<Ray> GetRaysOnIcosahedron(Vect3d originPoint, vector<Vect3f>& vertices, vector<Vect3u>& faces);
+vector<pair<double,double>> GetLaunchAngle(vector<Vect3d>& ray_vect);
+
+//Output and debug functions
+void print_ray(Ray& r);
+void print_ray_vect(vector<Ray> &r_vect);
+void print_rays(vector<pair<double,double>>& ray_dir, vector<vector<int>>& ray_tubes);
+
+//Coordinate transformation
+SpherePoint RectPoint2Sphere(Vect3d n);
+Vect3d SpherePoint2Rect(SpherePoint sph_point);
+double keep_between_zero_and_2pi(double angle);
+pair<double,double> calc_launch_angle (float x, float y, float z);
 
 int main(int argc, char** argv)
 {
@@ -7,44 +50,53 @@ int main(int argc, char** argv)
 	int subdivisions=0;
 	bool useRayTubes = false;
 	
-	cout << "Enter x-coordinate of origin: ";
-	cin >> x;
-	cout << "Enter y-coordinate of origin: ";
-	cin >> y;
-	cout << "Enter z-coordinate of origin: ";
-	cin >> z;
+	Vect3d origin = {0,0,0};
 	
-	cout << "Enter number of subdivisions for icosahedron: ";
-	cin >> subdivisions;
+	//Construct regular icosahedron (no tessellation), hence subdivision = 0
+	auto icosahedron = ConstructIcosahedron(0);
+	vector<Vect3f> vertices = icosahedron.first;
+	vector<Vect3u> faces = icosahedron.second;
 	
-	cout << "Generate ray tubes [1=true,0=false]: ";
-	cin >> useRayTubes;
+	vector<Ray> ray_vects = GetRaysOnIcosahedron(origin, vertices, faces);
+	//vector<vector<int>> ray_tubes = ConstructRayTubes(faces, vertices.size());
 	
-	Vect3f origin = {x,y,z};
+	//Create a square plane(4*4) that is 2.5m away from center of icosahedron
+	Vect3d p0 = make_Vect3d(2,2.5,2);
+	Vect3d p1 = make_Vect3d(-2,2.5,2);
+	Vect3d p2 = make_Vect3d(-2,2.5,-2);
+	Vect3d p3 = make_Vect3d(2,2.5,-2);
+	vector<Vect3d> p {p0,p1,p2,p3};
 	
-	//Construct regular icosahedron, hence subdivision = 0
-	auto icosahedron = ConstructIcosahedron(0);	
-	vector<Vect3f> ray_vects = GetRayVectOnIcosahedron(origin, icosahedron.first, icosahedron.second);
-	vector<pair<double,double>> ray_launch_angles = GetLaunchAngle(ray_vects);
-	vector<vector<int>> ray_tubes = ConstructRayTubes(icosahedron.second, icosahedron.first.size());
+	FinitePlane fp = FinitePlane(p);
+	
+	vector<Ray> ref_rays;
+	vector<Vect3u> subdivide_faces;
 	
 	//Find all rays from regular icosahedron that intersects the line/plane
-	
-	if (useRayTubes)
+	int j = 0;
+	while(j<4)
 	{
-		print_rays(ray_launch_angles, ray_tubes);
-	}
-	else
-	{
-		print_rays(ray_launch_angles);
+		cout<< "Ray vects size: " << ray_vects.size() << "\n";
+		for(int i=0; i<ray_vects.size(); i++)
+		{
+			Ray ref_ray;
+			if(fp.Intersects(ray_vects[i], ref_ray))
+			{
+				ref_rays.push_back(ref_ray);
+				subdivide_faces.push_back(faces[i]);
+			}
+		}
+		subdivide_faces = Subdivide(vertices, subdivide_faces);
+		ray_vects = GetRaysOnIcosahedron(origin, vertices, subdivide_faces);
+		j++;
 	}
 }
 
 //*************************************************************************************************************
 // Exposed Functions
-vector<Vect3f> GetRayVectOnIcosahedron(Vect3f originPoint, vector<Vect3f>& vertices, vector<Vect3u>& faces)
+vector<Ray> GetRaysOnIcosahedron(Vect3d originPoint, vector<Vect3f>& vertices, vector<Vect3u>& faces)
 {
-	vector<Vect3f> outbound_ray_vect;
+	vector<Ray> outbound_rays;
 	
 	for (int i = 0; i < faces.size(); i++)
 	{
@@ -52,11 +104,12 @@ vector<Vect3f> GetRayVectOnIcosahedron(Vect3f originPoint, vector<Vect3f>& verti
         double center_x = (vertices[faces[i].v0].x + vertices[faces[i].v1].x + vertices[faces[i].v2].x) / 3.0;
         double center_y = (vertices[faces[i].v0].y + vertices[faces[i].v1].y + vertices[faces[i].v2].y) / 3.0;
         double center_z = (vertices[faces[i].v0].z + vertices[faces[i].v1].z + vertices[faces[i].v2].z) / 3.0;
-		Vect3f center_Triangle = make_Vect3f(center_x, center_y, center_z);
-		outbound_ray_vect.push_back(normalize(center_Triangle - originPoint));
+		Vect3d center_Triangle = make_Vect3d(center_x, center_y, center_z);
+		Ray ray {originPoint, normalize(center_Triangle - originPoint)};
+		outbound_rays.push_back(ray);
 	}
 	
-	return outbound_ray_vect;
+	return outbound_rays;
 }
 
 vector<vector<int>> ConstructRayTubes(vector<Vect3u>& faces, int num_vertices)
@@ -94,10 +147,10 @@ vector<vector<int>> ConstructRayTubes(vector<Vect3u>& faces, int num_vertices)
 	return ray_tubes;
 }
 
-vector<pair<double,double>> GetLaunchAngle(vector<Vect3f>& ray_vect)
+vector<pair<double,double>> GetLaunchAngle(vector<Vect3d>& ray_vect)
 {
 	vector<pair<double,double>> result;
-	for(Vect3f ray: ray_vect)
+	for(Vect3d ray: ray_vect)
 	{
 		pair<double,double> launch_angle = calc_launch_angle(ray.x,ray.y,ray.z);
 		result.push_back(launch_angle);
@@ -110,7 +163,7 @@ vector<pair<double,double>> GetLaunchAngle(vector<Vect3f>& ray_vect)
 
 //*********************************************************
 //--------------- HELPER FUNCTIONS BEGIN ------------------
-SpherePoint RectPoint2Sphere(Vect3f n)
+SpherePoint RectPoint2Sphere(Vect3d n)
 {
 	SpherePoint result;
 	double r, theta, phi;
@@ -167,11 +220,17 @@ double keep_between_zero_and_2pi(double angle)
 
 //**************************************************
 //--------------- DEBUGGING BEGIN ------------------
-void print_rays(vector<pair<double,double>>& ray_dir)
+void print_ray(Ray& r)
 {
-	for(auto i: ray_dir)
+	cout << "Ray Equation: <" << r.orig.x << "," << r.orig.y << "," << r.orig.z << "> + t";
+	cout << "<" << r.dir.x << "," << r.dir.y  << "," << r.dir.z << ">\n";
+}
+
+void print_ray_vect(vector<Ray> &r_vect)
+{
+	for(Ray r: r_vect)
 	{
-		cout << "(Theta,Phi): (" << i.first << "," << i.second << ")\n";		
+		print_ray(r);
 	}
 }
 
@@ -200,5 +259,6 @@ void print_rays(vector<pair<double,double>>& ray_dir, vector<vector<int>>& ray_t
 		i++;
 	}
 }
+
 //----------------- DEBUGGING END ------------------
 //**************************************************
