@@ -3,8 +3,16 @@
 #include "Geometry.hpp"
 #include <vector>
 #include <iostream>
+#include <complex>
 
 using namespace std;
+
+struct Efield
+{	
+	Vect3d dir;
+	complex<double> mag;
+};
+
 
 struct SpherePoint
 {
@@ -30,7 +38,6 @@ struct SphereCoord
 //Generate rays and ray tubes
 vector<vector<int>> ConstructRayTubes(vector<Vect3u>& faces, int num_vertices);
 vector<Ray> GetRaysOnIcosahedron(Vect3d originPoint, vector<Vect3f>& vertices, vector<Vect3u>& faces);
-vector<pair<double,double>> GetLaunchAngle(vector<Vect3d>& ray_vect);
 
 //Output and debug functions
 void print_ray(Ray& r);
@@ -45,15 +52,15 @@ pair<double,double> calc_launch_angle (float x, float y, float z);
 
 int main(int argc, char** argv)
 {
-	float x,y,z;
-	float theta,phi;
-	int subdivisions=0;
-	bool useRayTubes = false;
-	
-	Vect3d origin = {0,0,0};
+	Vect3d origin = {0,0,0}; 
+	int subdivisions=3;
+	const double SPEED_OF_LIGHT = 2.99792458e8;
+	double freq = 2.4e9;
+	double lamda = SPEED_OF_LIGHT/freq;
+	double k = (2*M_PI)/lamda;
 	
 	//Construct regular icosahedron (no tessellation), hence subdivision = 0
-	auto icosahedron = ConstructIcosahedron(0);
+	auto icosahedron = ConstructIcosahedron(subdivisions);
 	vector<Vect3f> vertices = icosahedron.first;
 	vector<Vect3u> faces = icosahedron.second;
 	
@@ -66,31 +73,33 @@ int main(int argc, char** argv)
 	Vect3d p2 = make_Vect3d(-2,2.5,-2);
 	Vect3d p3 = make_Vect3d(2,2.5,-2);
 	vector<Vect3d> p {p0,p1,p2,p3};
-	
 	FinitePlane fp = FinitePlane(p);
 	
-	vector<Ray> ref_rays;
-	vector<Vect3u> subdivide_faces;
+	// Create a global coordinate system
+	RectCoord global_coord {make_Vect3d(1,0,0), make_Vect3d(0,1,0), make_Vect3d(0,0,1)};
 	
-	//Find all rays from regular icosahedron that intersects the line/plane
-	int j = 0;
-	while(j<4)
+	complex<double> propagation_term;
+	double r;
+	Ray ref_ray;
+	
+	
+	for (Ray ray: ray_vects)
 	{
-		cout<< "Ray vects size: " << ray_vects.size() << "\n";
-		for(int i=0; i<ray_vects.size(); i++)
+		if(fp.Intersects(ray, ref_ray))
 		{
-			Ray ref_ray;
-			if(fp.Intersects(ray_vects[i], ref_ray))
-			{
-				ref_rays.push_back(ref_ray);
-				subdivide_faces.push_back(faces[i]);
-			}
+			r = length(ref_ray.orig - ray.orig);
+			propagation_term.real(cos(-1*k*r)/r);
+			propagation_term.imag(sin(-1*k*r)/r);
+			
+			double theta = AngleBetween(global_coord.az, ray.dir, false,true);
+			complex<double> e_theta = 3*sin(theta)*propagation_term;
+			cout << "Efield Theta: " << e_theta << "\n";
+			//num_int++;
 		}
-		subdivide_faces = Subdivide(vertices, subdivide_faces);
-		ray_vects = GetRaysOnIcosahedron(origin, vertices, subdivide_faces);
-		j++;
 	}
 }
+
+
 
 //*************************************************************************************************************
 // Exposed Functions
@@ -147,16 +156,6 @@ vector<vector<int>> ConstructRayTubes(vector<Vect3u>& faces, int num_vertices)
 	return ray_tubes;
 }
 
-vector<pair<double,double>> GetLaunchAngle(vector<Vect3d>& ray_vect)
-{
-	vector<pair<double,double>> result;
-	for(Vect3d ray: ray_vect)
-	{
-		pair<double,double> launch_angle = calc_launch_angle(ray.x,ray.y,ray.z);
-		result.push_back(launch_angle);
-	}
-	return result;
-}
 // End of Exposed Functions
 //*************************************************************************************************************
 

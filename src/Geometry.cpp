@@ -10,12 +10,6 @@ Geometry::Geometry()
 	unit_norm = make_Vect3d(0,0,0);
 }
 
-Geometry::Geometry(std::vector<Vect3d> vertices_)
-{
-	vertices = vertices_;
-	unit_norm = CalcUnitNorm(vertices);
-}
-
 Geometry::~Geometry()
 {
 	vertices.clear();
@@ -34,33 +28,66 @@ Vect3d Geometry::CalcUnitNorm(std::vector<Vect3d> p)
 	
 	return n;
 }
+
+bool Geometry::IsCoplanar(std::vector<Vect3d> p)
+{
+	// (p2 - p0) DOT [(p1-p0) x (p3-p2)] = 0
+	// a DOT (b x c)
+	
+	Vect3d a = p[2] - p[0];
+	Vect3d b = p[1] - p[0];
+	Vect3d c = p[3] - p[2];
+
+	double ans = dot(a,cross(b,c));
+
+	if (fabs(ans) < 0.0001)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+bool Geometry::IsValidPolygon(std::vector<Vect3d> p)
+{
+	// Check if point cloud form a self-intersecting polygon
+	// Check if shape is convex
+	// Check orientation of points cw or ccw
+	
+	
+}
+
 // *******************************************
 // End of Geometry Class
 
 
 // *********************************************
 // FinitePlane Class Derived from Geometry Class
-FinitePlane::FinitePlane(std::vector<Vect3d> vertices_):Geometry(vertices_)
+FinitePlane::FinitePlane(std::vector<Vect3d> vertices_)
 {
-	d = -1*(dot(unit_norm,vertices[0]));
+	if(IsCoplanar(vertices_))
+	{
+		vertices = vertices_;
+		unit_norm = CalcUnitNorm(vertices);
+		d = -1*(dot(unit_norm,vertices[0]));
+	}
+	else
+	{
+		//Throw an error
+	}
 }
 
-FinitePlane::FinitePlane(Vect3d unit_norm_, Vect3d p)
+FinitePlane::FinitePlane(Vect3d unit_norm_, double d_)
 {
 	unit_norm = unit_norm_;
-	d = -1*(dot(unit_norm,p));
+	d = d_;
 }
 
 FinitePlane::~FinitePlane()
 {
 	d = 0;
-}
-
-std::vector<Vect3d> FinitePlane::generatePoints(int num_points)
-{
-	//plane equation: ax+by+cz+d = 0;
-	//while x,y,z are with in the boundary of the plane:
-	//	
 }
 
 bool FinitePlane::Intersects(Ray ray, Ray& ref_ray)

@@ -28,6 +28,25 @@ Vect3d make_Vect3d(const double s)
 {
 	return make_Vect3d(s, s, s);
 }
+
+Vect3fSph make_Vect3fSph(float r, float theta, float phi)
+{
+	Vect3fSph t_Vect{ r, theta, phi };
+	return t_Vect;
+}
+
+Vect3fSph make_Vect3fSph(double r, double theta, double phi)
+{
+	Vect3fSph t_Vect{ static_cast<float>(r), static_cast<float>(theta), static_cast<float>(phi) };
+	return t_Vect;
+}
+
+Vect3dSph make_Vect3dSph(double r, double theta, double phi)
+{
+	Vect3dSph t_Vect{ r, theta, phi };
+	return t_Vect;
+}
+
 #pragma endregion
 
 #pragma region Operators

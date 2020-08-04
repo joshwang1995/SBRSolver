@@ -17,7 +17,6 @@ class Geometry
 	public:
 		//Constructor and destructor
 		Geometry();
-		Geometry(std::vector<Vect3d> vertices_);
 		virtual ~Geometry();
 		
 		//Member functions
@@ -25,6 +24,8 @@ class Geometry
 		
 		//Static functions are class object independent
 		static Vect3d CalcUnitNorm(std::vector<Vect3d> p);
+		static bool IsCoplanar(std::vector<Vect3d> p);
+		static bool IsValidPolygon(std::vector<Vect3d> p);
 };
 
 
@@ -35,9 +36,8 @@ class FinitePlane: public Geometry
 		
 	public:
 		FinitePlane(std::vector<Vect3d> vertices_);
-		FinitePlane(Vect3d unit_norm_, Vect3d p);
+		FinitePlane(Vect3d unit_norm_, double d);
 		~FinitePlane();
 		
-		std::vector<Vect3d> generatePoints(int num_points);
 		bool Intersects(Ray ray, Ray& ref_ray);
 };
