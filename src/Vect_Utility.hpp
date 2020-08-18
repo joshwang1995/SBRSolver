@@ -18,16 +18,6 @@ struct Vect3u
 	unsigned v0, v1, v2;
 };
 
-// New
-struct Vect3fSph
-{
-	float r,theta,phi;
-};
-
-struct Vect3dSph
-{
-	double r,theta,phi;
-};
 
 #pragma region Constructors
 Vect3f make_Vect3f(float x, float y, float z);
@@ -35,8 +25,7 @@ Vect3f make_Vect3f(double x, double y, double z);
 Vect3f make_Vect3f(const float s);
 Vect3d make_Vect3d(double x, double y, double z);
 Vect3d make_Vect3d(const double s);
-Vect3fSph make_Vect3fSph(float r, float theta, float phi); // New
-Vect3dSph make_Vect3dSph(double r, double theta, double phi); //New
+
 #pragma endregion
 
 #pragma region Operators
@@ -93,4 +82,6 @@ Vect3d reflect(const Vect3d& i, const Vect3d& n);
 float DistanceBetween(Vect3f pt1, Vect3f pt2);
 float AngleBetween(Vect3f pt1, Vect3f pt2, bool alreadyNormalized = false, bool resulInRadian = false);
 double AngleBetween(Vect3d pt1, Vect3d pt2, bool alreadyNormalized = false, bool resulInRadian = false);
+Vect3d toSphereVect(const Vect3d& a);
+Vect3d toRectVect(const Vect3d& a);
 #pragma endregion

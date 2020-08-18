@@ -29,24 +29,6 @@ Vect3d make_Vect3d(const double s)
 	return make_Vect3d(s, s, s);
 }
 
-Vect3fSph make_Vect3fSph(float r, float theta, float phi)
-{
-	Vect3fSph t_Vect{ r, theta, phi };
-	return t_Vect;
-}
-
-Vect3fSph make_Vect3fSph(double r, double theta, double phi)
-{
-	Vect3fSph t_Vect{ static_cast<float>(r), static_cast<float>(theta), static_cast<float>(phi) };
-	return t_Vect;
-}
-
-Vect3dSph make_Vect3dSph(double r, double theta, double phi)
-{
-	Vect3dSph t_Vect{ r, theta, phi };
-	return t_Vect;
-}
-
 #pragma endregion
 
 #pragma region Operators
@@ -345,4 +327,26 @@ double AngleBetween(Vect3d pt1, Vect3d pt2, bool alreadyNormalized, bool resulIn
 
 	return resulInRadian ? theta : theta * (180.0 / M_PI);
 }
+
+Vect3d toSphereVect(const Vect3d& a)
+{
+    Vect3d result;
+	
+    // In this case, x,y,z coresponds to r,theta,phi
+	result.x = sqrt(a.x*a.x + a.y*a.y +a.z*a.z);
+	result.y = atan(sqrt(a.x*a.x + a.y*a.y)/a.z); // Note: atan restricts the result to be between -pi/2 to pi/2
+	result.z = atan(a.y/a.x);
+	return result;
+}
+
+Vect3d toRectVect(const Vect3d& a)
+{
+    Vect3d result;
+	result.x = a.x*sin(a.y)*cos(a.z);
+	result.y = a.x*sin(a.y)*sin(a.z);
+	result.z = a.x*sin(a.y);
+	return result;
+}
+
+
 #pragma endregion

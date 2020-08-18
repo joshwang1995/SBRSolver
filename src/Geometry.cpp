@@ -52,7 +52,7 @@ bool Geometry::IsCoplanar(std::vector<Vect3d> p)
 
 bool Geometry::IsValidPolygon(std::vector<Vect3d> p)
 {
-	// Check if point cloud form a self-intersecting polygon
+	// Check if point cloud forms a self-intersecting polygon
 	// Check if shape is convex
 	// Check orientation of points cw or ccw
 	
