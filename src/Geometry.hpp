@@ -1,5 +1,6 @@
 #pragma once
 #include "Vect_Utility.hpp"
+#include "Constants.hpp"
 #include <vector>
 
 struct Ray
@@ -8,36 +9,38 @@ struct Ray
 	Vect3d dir;
 };
 
+struct RectCoord
+{
+	Vect3d ax;
+	Vect3d ay;
+	Vect3d az;
+};
+
 class Geometry
 {
-	protected:
-		std::vector<Vect3d> vertices;
-		Vect3d unit_norm;
-		
 	public:
-		//Constructor and destructor
-		Geometry();
-		virtual ~Geometry();
+		//Virtual functions
+		virtual bool Intersects(const Ray& inc_ray, Ray& ref_ray) = 0;
 		
-		//Member functions
-		virtual bool Intersects(Ray ray, Ray& ref_ray) = 0;
-		
-		//Static functions are class object independent
-		static Vect3d CalcUnitNorm(std::vector<Vect3d> p);
-		static bool IsCoplanar(std::vector<Vect3d> p);
-		static bool IsValidPolygon(std::vector<Vect3d> p);
+		//Static functions
+		static Vect3d CalcUnitNorm(const std::vector<Vect3d>& p);
+		static bool IsCoplanar(const std::vector<Vect3d>& p);
+		static bool IsValidPolygon(const std::vector<Vect3d>& p);
 };
 
 
 class FinitePlane: public Geometry
 {
 	protected:
-		double d;
+		std::vector<Vect3d> vertices_;
+		Vect3d unit_norm_;
+		double d_;
 		
 	public:
-		FinitePlane(std::vector<Vect3d> vertices_);
-		FinitePlane(Vect3d unit_norm_, double d);
+		FinitePlane(std::vector<Vect3d> vertices);
+		FinitePlane(std::vector<Vect3d> vertices, Vect3d unit_norm, double d);
 		~FinitePlane();
 		
-		bool Intersects(Ray ray, Ray& ref_ray);
+		bool Intersects(const Ray& inc_ray, Ray& ref_ray);
+		Ray Compute_Reflect_Ray(const Ray& inc_ray);
 };

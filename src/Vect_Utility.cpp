@@ -347,6 +347,4 @@ Vect3d toRectVect(const Vect3d& a)
 	result.z = a.x*sin(a.y);
 	return result;
 }
-
-
 #pragma endregion

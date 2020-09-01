@@ -42,12 +42,14 @@ std::vector<Vect3u> Subdivide(std::vector<Vect3f>& vertices, std::vector<Vect3u>
 
 std::pair<std::vector<Vect3f>, std::vector<Vect3u>> ConstructIcosahedron(int subdivisions)
 {
+	// X,Z,N are coordinates of a icosahedron with edge-length = 2
+	// To change radius of the icosahedron
+	// multiply all coordinates by r/(2*sin(2*pi/5))
+	// Source: https://math.stackexchange.com/questions/441327/coordinates-of-icosahedron-vertices-with-variable-radius
+	
 	const double X = .525731112119133606f;
 	const double Z = .850650808352039932f;
 	const double N = 0.f;
-	
-	// Change radius of the icosahedron
-	// multiply all coordinates by r/(2*sin(2*pi/5))
 	
 	std::vector<Vect3f> initVertices =
 	{
