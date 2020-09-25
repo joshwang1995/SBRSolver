@@ -395,6 +395,24 @@ Vect3<T> VectSphToRect(const Vect3Sph<T>& vect_sph, U theta, U phi)
 	return result;
 }
 
+template <typename T, typename U>
+Vect3Sph<T> VectRectToSph(const Vect3<T>& vect, U theta, U phi)
+{
+	U st = sin(theta); 
+	U sp = sin(phi) ; 
+	U ct = cos(theta); 
+	U cp = cos(phi) ; 
+	
+	RectCoord_T<U> Rsc {Vect3<U>(st*cp,st*sp,ct),Vect3<U>(ct*cp,ct*sp,-st),Vect3<U>(-sp,cp,0)};
+
+	Vect3Sph<T> result;
+	result.r = Rsc.ax.x*vect.x + Rsc.ax.y*vect.y + Rsc.ax.z*vect.z;
+	result.theta = Rsc.ay.x*vect.x + Rsc.ay.y*vect.y + Rsc.ay.z*vect.z;
+	result.phi = Rsc.az.x*vect.x + Rsc.az.y*vect.y + Rsc.az.z*vect.z;
+	
+	return result;
+}
+
 
 template <typename T>
 Vect3Sph<T> PointRectToSph(const Vect3<T>& a)

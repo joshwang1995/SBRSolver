@@ -16,7 +16,6 @@ class Geometry
         static bool IsPointInPolygon(const std::vector<Vect3d>& v, const Vect3d&);
 };
 
-
 class FinitePlane: public Geometry
 {
 	public:

@@ -13,14 +13,11 @@ using namespace std;
 vector<vector<Ray>> ConstructRayTubes(const vector<Ray>& ico_rays,const vector<Vect3u>& faces, int num_vertices);
 vector<Ray> GetRaysOnIcosahedron(Vect3d originPoint, const vector<Vect3f>& vertices, const vector<Vect3u>& faces);
 
-Cvect3dsph ComputeAnalyticalEfield
+Cvect3dsph GetAnalyticEfieldPattern
 (
 	int antenna_type,
-	double r,
 	double theta,
 	double phi,
-	const RectCoord& global_coord_sys, 
-	const RectCoord& local_coord_sys,
 	double pt
 );
 
@@ -41,7 +38,31 @@ void tm_coeff
     complex<double> &ref_coeff, complex<double> &tran_coeff
 );
 
-RectCoord GetSurfCoordSys(FinitePlane& wall, const Ray& inc_ray);
+RectCoord GetSurfCoordSys(FinitePlane& surf, const Ray& inc_ray);
+
+Cvect3dsph ComputeRefcField
+(
+	const Cvect3dsph& efield_i_sph,
+	double rel_perm, 
+	double sigma, 
+	double freq, 
+	double theta_i,
+	double width, 
+	bool inf_wall
+);
+
+Cvect3dsph ComputeTransField
+(
+	const Cvect3dsph& efield_i_sph,
+	double rel_perm, 
+	double sigma, 
+	double freq, 
+	double theta_i,
+	double width, 
+	bool inf_wall
+);
+
+
 complex<double> trans_angle (double theta_i, complex<double> e_i, complex<double> e_t);
 complex<double> invsin (const complex<double> &z);
 
@@ -99,65 +120,91 @@ int main(int argc, char** argv)
 	
 	vector<Ray> icosahedron_rays = GetRaysOnIcosahedron(tx_origin, vertices, faces);
 	
-    // Create scene. In this case we just have a finite plane
+    // Create scene. In this case we just have finite planes
 	Vect3d p0 = Vect3d(6,2,1);
 	Vect3d p1 = Vect3d(6,6,1);
 	Vect3d p2 = Vect3d(2,6,1);
 	Vect3d p3 = Vect3d(2,2,1);
 	vector<Vect3d> p {p0,p1,p2,p3};
-	FinitePlane fp = FinitePlane(p);
+	// Only surf_0 is a part of the scene, the other two finite planes are query planes used for validaiton
+	FinitePlane surf_0 = FinitePlane(p);
+	double surf_sigma = 10.0;
+	double surf_rel_perm = 100.0;
+	double surf_width = 10.0;
 	
-	// Create transmitter coordinate system
+	p0 = Vect3d(6,2,0);
+	p1 = Vect3d(6,6,0);
+	p2 = Vect3d(2,6,0);
+	p3 = Vect3d(2,2,0);
+	p = {p0,p1,p2,p3};
+	FinitePlane check_trans_field_plane = FinitePlane(p);
+	
+	p0 = Vect3d(6,6,3);
+	p1 = Vect3d(6,10,3);
+	p2 = Vect3d(2,10,3);
+	p3 = Vect3d(2,6,3);
+	p = {p0,p1,p2,p3};
+	FinitePlane check_refct_field_plane = FinitePlane(p);
     
     cout << "Start logging efield to efield.csv\n";
     ofstream efield_csv;
     efield_csv.open("efield.csv");
     efield_csv << "X,Y,Z,Ex_real,Ex_imag,Ey_real,Ey_imag,Ez_real,Ez_imag\n";
 	
-	
 	RectCoord tx_coord {Vect3d(0,0,-1), Vect3d(1,0,0), Vect3d(0,-1,0)};
 	double transmitter_power = 1.0;
 	
+	// First pass, fire rays from icosahedron
+	// Return all reflected and transmitted rays + fields
+	
+	RectCoord current_coord_sys = global_coord;
+	RectCoord next_coord_sys = tx_coord;
 	for (Ray ray: icosahedron_rays)
 	{
 		Vect3d p_int;
-		if (fp.Intersects(ray, p_int))
+		if (surf_0.Intersects(ray, p_int))
 		{
-			/* Computing the electric field for direct path */
-			
 			// Step 1: Get ray path vector in global coordinate system
 			Vect3d ray_global = p_int - ray.orig;
 
 			// Step 2: Rotate vector from global to local coordinate system
-			Vect3d ray_local = VectRectToRect(global_coord,tx_coord,ray_global);
-
+			Vect3d ray_local = VectRectToRect(current_coord_sys,next_coord_sys,ray_global);
+			current_coord_sys = next_coord_sys;
+			
 			// Step 3: Convert vector from local rectangular to local spherical coordinate system
 			Vect3dSph ray_local_sph = PointRectToSph(ray_local);
 
-			double r_i = ray_local_sph.r;
-			double theta_i = ray_local_sph.theta;
-			double phi_i = ray_local_sph.phi;
+			double r = ray_local_sph.r;
+			double theta = ray_local_sph.theta;
+			double phi = ray_local_sph.phi;
 			
-			// Step 4: Compute analytical efield in spherical coordinate system
-			Cvect3dsph efield_sph = ComputeAnalyticalEfield(antenna_type, r_i, theta_i, phi_i, global_coord, tx_coord, transmitter_power);
+			// Step 4: Apply the analytical efield pattern in spherical coordinate system
+			Cvect3dsph efield_pattern = GetAnalyticEfieldPattern(antenna_type, theta, phi, transmitter_power);
+			
+			complex<double> propagation_term;
+			propagation_term.real(cos(-1*k*r)/r);
+			propagation_term.imag(sin(-1*k*r)/r);
+			Cvect3dsph efield_local_sph;
+			efield_local_sph.r = efield_pattern.r * propagation_term;
+			efield_local_sph.theta = efield_pattern.theta * propagation_term;
+			efield_local_sph.phi = efield_pattern.phi * propagation_term;
 			
 			// Step 5: Convert efield from SCS to RCS
-			Cvect3d efield_rect = VectSphToRect(efield_sph, theta_i, phi_i);
+			Cvect3d efield_rect = VectSphToRect(efield_local_sph, theta, phi);
 			
-			// Step 6: Convert efield from LCS to GCS
-			Cvect3d e_i = VectRectToRect(tx_coord, global_coord, efield_rect);
+			// Step 6: Convert coord system to next facet-fixed coord sys
+			next_coord_sys = GetSurfCoordSys(surf_0, ray);
+			Cvect3d efield_incdnt = VectRectToRect(current_coord_sys, next_coord_sys, efield_rect);
+			ray_local = VectRectToRect(current_coord_sys,next_coord_sys,ray_local);
+			ray_local_sph = PointRectToSph(ray_local);
 			
+			r = ray_local_sph.r;
+			theta = ray_local_sph.theta;
+			phi = ray_local_sph.phi;
 			
-			/* Computing the electric field for indirect path */
-			
-			// Step 1: Convert efield to facet-fixed coordinate system
-			RectCoord surf_coord_sys = GetSurfCoordSys(fp, ray);
-			
-			//Cvect3d  = VectRectToRect(global_coord,facet_fixed,e_i);
-			
-			
-			
-			
+			Cvect3dsph efield_incdnt_sph = VectRectToSph(efield_incdnt,theta,phi);
+			Cvect3dsph efield_ref_sph = ComputeRefcField(efield_incdnt_sph, surf_rel_perm, surf_sigma, freq, theta, surf_width, true);
+			Cvect3dsph efield_trans_sph = ComputeTransField(efield_incdnt_sph, surf_rel_perm, surf_sigma, freq, theta, surf_width, true);
 			
 			//csv_writeln(efield_csv, p_int, e_total);
 		}
@@ -165,7 +212,16 @@ int main(int argc, char** argv)
 	efield_csv.close();
 }
 
-Cvect3d ComputeRefcField(const Cvect3d& efield_i, double rel_perm, double sigma, double freq, double theta_i)
+Cvect3dsph ComputeRefcField
+(
+	const Cvect3dsph& efield_i_sph,
+	double rel_perm, 
+	double sigma, 
+	double freq, 
+	double theta_i,
+	double width, 
+	bool inf_wall
+)
 {
 	complex<double> e_t;
 	e_t.real(rel_perm);
@@ -182,43 +238,70 @@ Cvect3d ComputeRefcField(const Cvect3d& efield_i, double rel_perm, double sigma,
 	tm_coeff (theta_i, theta_t, e_i, e_t, lamda, width, inf_wall, tm_refc, tm_tranc);
 	te_coeff (theta_i, theta_t, e_i, e_t, lamda, width, inf_wall, te_refc, te_tranc);
     
-    
+	Cvect3dsph refc_field;
+	refc_field.r = efield_i_sph.r;
+	refc_field.phi = efield_i_sph.phi * te_refc;
+	refc_field.theta = efield_i_sph.theta* tm_refc;
+	
+	return refc_field;
 }
 
-//Cvect3d ComputeTransField(double r, )
-//{
+Cvect3dsph ComputeTransField
+(
+	const Cvect3dsph& efield_i_sph,
+	double rel_perm, 
+	double sigma, 
+	double freq, 
+	double theta_i,
+	double width, 
+	bool inf_wall
+)
+{
+	complex<double> e_t;
+	e_t.real(rel_perm);
+	e_t.imag(sigma/(E0*2*PI*freq));
+    
+    double lamda = SPEED_OF_LIGHT/freq;
 	
-//}
+	// Permittivity of air
+	complex<double> e_i(1,0);
+	
+	complex<double> theta_t = trans_angle(theta_i, e_i, e_t);
 
-Cvect3dsph ComputeAnalyticalEfield
+	complex<double> te_refc, tm_refc, te_tranc, tm_tranc;
+	tm_coeff (theta_i, theta_t, e_i, e_t, lamda, width, inf_wall, tm_refc, tm_tranc);
+	te_coeff (theta_i, theta_t, e_i, e_t, lamda, width, inf_wall, te_refc, te_tranc);
+    
+	Cvect3dsph trans_field;
+	trans_field.r = efield_i_sph.r;
+	trans_field.phi = efield_i_sph.phi * te_tranc;
+	trans_field.theta = efield_i_sph.theta* tm_tranc;
+	
+	return trans_field;
+}
+
+Cvect3dsph GetAnalyticEfieldPattern
 (
 	int antenna_type,
-	double r,
 	double theta,
 	double phi,
-	const RectCoord& global_coord_sys, 
-	const RectCoord& local_coord_sys,
 	double pt
 )
 {
 	Cvect3dsph e_field_sph (0,0,0);
 	
-	complex<double> propagation_term;
-	propagation_term.real(cos(-1*k*r)/r);
-	propagation_term.imag(sin(-1*k*r)/r);
-	
 	if(antenna_type == 1)
 	{
 		// Field of Hertzian Dipole in TX Spherical Coordinate System
 		e_field_sph.r = 0;
-		e_field_sph.theta = sin(theta)*propagation_term;
+		e_field_sph.theta = sin(theta);
 		e_field_sph.phi = 0;
 	}
 	else if(antenna_type == 2)
 	{
 		// Field of half wave dipole in TX SphereCoord
 		e_field_sph.r = 0;
-		e_field_sph.theta = sqrt(60*pt)*(cos(PI*cos(theta)/2.0)/sin(theta))*propagation_term;
+		e_field_sph.theta = sqrt(60*pt)*(cos(PI*cos(theta)/2.0)/sin(theta));
 		e_field_sph.phi = 0;
 	}
 	
@@ -402,15 +485,16 @@ void tm_coeff
     if(inf_wall)
 	{
 		ref_coeff = gamma_tm;
-		trans_coeff = 0;
+		tran_coeff = 0;
 	}
 	else
 	{
         complex<double> q = (TWOPI*width/lamda)* sqrt(n_t - (sin_i*sin_i));
-        complex<double> phi_factor = exp(-1i*2.0*q);
+		complex<double> j (0.0,1.0);
+        complex<double> phi_factor = exp(-j*2.0*q);
         complex<double> denom = 1.0 - (gamma_tm*gamma_tm*phi_factor);
         ref_coeff = (gamma_tm*(1.0 - phi_factor)) / denom;
-        trans_coeff = ((1.0 - gamma_tm*gamma_tm)*phi_factor)/ denom;
+        tran_coeff = ((1.0 - gamma_tm*gamma_tm)*phi_factor)/ denom;
 	}
 }
 
@@ -434,15 +518,16 @@ void te_coeff
 	if(inf_wall)
 	{
 		ref_coeff = gamma_te;
-		trans_coeff = 0;
+		tran_coeff = 0;
 	}
 	else
 	{
         complex<double> q = (TWOPI*width/lamda)* sqrt(n_t - (sin_i*sin_i));
-        complex<double> phi_factor = exp(-1i*2.0*q);
+		complex<double> j (0.0,1.0);
+        complex<double> phi_factor = exp(-j*2.0*q);
         complex<double> denom = 1.0 - (gamma_te*gamma_te*phi_factor);
         ref_coeff = (gamma_te*(1.0 - phi_factor)) / denom;
-        trans_coeff = ((1.0 - gamma_te*gamma_te)*phi_factor)/ denom;
+        tran_coeff = ((1.0 - gamma_te*gamma_te)*phi_factor)/ denom;
 	}
 }
 
