@@ -8,7 +8,7 @@ clear all ;
 xs =  2:.05: 6 ; 
 Nx = length(xs) ; 
 ys =  2:.05: 6 ; 
-Ny = length(ys) ; 
+Ny = length(ys) ;
 
 zs = 1 ; 
 

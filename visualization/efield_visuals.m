@@ -33,9 +33,9 @@ xlabel('x'); ylabel('y'); zlabel('z');
 
 % Visualize Ex, Ey and Ez
 [xq,yq] = meshgrid(2:.05:6, 2:.05:6);
-Fieldx = griddata(X,Y,Ex,xq,yq);
-Fieldy = griddata(X,Y,Ey,xq,yq);
-Fieldz = griddata(X,Y,Ez,xq,yq);
+Fieldx = griddata(X,Y,Ex,xq,yq,'nearest');
+Fieldy = griddata(X,Y,Ey,xq,yq,'nearest');
+Fieldz = griddata(X,Y,Ez,xq,yq,'nearest');
 
 xx = [max(max(abs(Fieldx)))  max(max(abs(Fieldy)))  max(max(abs(Fieldz)))]; 
 maxfield = max(xx) ; 
@@ -43,7 +43,7 @@ maxfield = max(xx) ;
 %maxfield = 1 % no normalization 
 
 %%%% NORMALIZED MAGNITUDE PLOTS
-figure(1) 
+figure(1)
 pcolor(xq,yq,abs(Fieldx)/maxfield);
 shading interp
 caxis([0 1])

@@ -221,6 +221,26 @@ void operator/=(Vect3d& a, const double s)
 	a *= inv;
 }
 
+bool operator==(const Vect3d& a, const Vect3d& b) 
+{
+	double diff_x = fabs(a.x-b.x);
+	double diff_y = fabs(a.y-b.y);
+	double diff_z = fabs(a.z-b.z);
+	double diff_tot = diff_x + diff_y + diff_z;
+	
+	return diff_tot < SMALL_DOUBLE? true:false;
+}
+
+bool operator!=(const Vect3d& a, const Vect3d& b) 
+{
+	double diff_x = fabs(a.x-b.x);
+	double diff_y = fabs(a.y-b.y);
+	double diff_z = fabs(a.z-b.z);
+	double diff_tot = diff_x + diff_y + diff_z;
+	
+	return diff_tot < SMALL_DOUBLE? false:true;
+}
+
 #pragma endregion
 
 #pragma region Vector Operations
