@@ -17,8 +17,8 @@ void InterpPattern
 	const std::vector<std::vector<double>>& Gxy, 
 	const std::vector<std::vector<double>>& Gxz, 
 	const std::vector<std::vector<double>>& Gyz,
-	double & gain_db,
-	double & phase_rad
+	double & GBS,
+	double & GBP
 );
 
 void InterpLine
