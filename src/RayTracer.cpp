@@ -1,11 +1,12 @@
 #include "IcosahedronMesh.hpp"
 #include "Vect_Utility.hpp"
 #include "Geometry.hpp"
+#include "Constants.hpp"
+#include "Interpolation.hpp"
 #include <vector>
 #include <iostream>
 #include <complex>
 #include <fstream>
-#include "Constants.hpp"
 
 using namespace std;
 
@@ -18,7 +19,7 @@ Cvect3dsph GetAnalyticEfieldPattern
 	int antenna_type,
 	double theta,
 	double phi,
-	double pt
+	double pt = 0.0
 );
 
 // Functions to compute Fresnel reflection and transmission coefficients
@@ -299,12 +300,15 @@ Cvect3dsph GetAnalyticEfieldPattern
 	}
 	else if(antenna_type == 2)
 	{
-		// Field of half wave dipole in TX SphereCoord
+		// Field of half wave dipole in TX Spherical Coordinate System
 		e_field_sph.r = 0;
 		e_field_sph.theta = sqrt(60*pt)*(cos(PI*cos(theta)/2.0)/sin(theta));
 		e_field_sph.phi = 0;
 	}
-	
+	else if(antenna_type == 3)
+	{
+		// Field of antenna array in TX Spherical Coordinate System
+	}
 	return e_field_sph;
 }
 
@@ -452,7 +456,8 @@ complex<double> trans_angle (double theta_i, complex<double> e_i, complex<double
 
 	complex<double> n_i = sqrt(e_i);
 	complex<double> n_t = sqrt(e_t);
-	t_t = invsin(n_i*sin(t_i)/n_t);
+	//t_t = invsin(n_i*sin(t_i)/n_t);
+	t_t = asin(n_i*sin(t_i)/n_t);
 	return t_t;
 }
 
@@ -490,7 +495,6 @@ void tm_coeff
 	else
 	{
         complex<double> q = (TWOPI*width/lamda)* sqrt(n_t - (sin_i*sin_i));
-		complex<double> j (0.0,1.0);
         complex<double> phi_factor = exp(-j*2.0*q);
         complex<double> denom = 1.0 - (gamma_tm*gamma_tm*phi_factor);
         ref_coeff = (gamma_tm*(1.0 - phi_factor)) / denom;

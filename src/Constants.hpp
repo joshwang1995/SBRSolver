@@ -3,6 +3,7 @@
 #define CONSTANTS
 
 #include <cmath>
+#include <complex>
 #define _USE_MATH_DEFINES
 
 const double SPEED_OF_LIGHT = 2.99792458e8;
@@ -18,5 +19,8 @@ const double LARGE_DOUBLE = 1e300;
 // Easy way to reference 2PI
 const double TWOPI = 2*M_PI;
 const double PI = M_PI;
+
+// Complex number
+const std::complex<double> j (0.0,1.0);
 
 #endif
