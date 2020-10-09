@@ -1,4 +1,6 @@
-#pragma once
+#ifndef GEOMETRY
+#define GEOMETRY
+
 #include "Vect_Utility.hpp"
 #include "Constants.hpp"
 #include <vector>
@@ -38,3 +40,5 @@ class Box: public Geometry
 		Box(double length, double width, double height, Vect3d center); 
 }
 */
+
+#endif
