@@ -1,2 +1,2 @@
 # raytracer
-Ray tracing development
+ EM raytracing solver

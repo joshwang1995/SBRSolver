@@ -91,13 +91,35 @@ bool Geometry::IsPointInPolygon(const std::vector<Vect3d>& v, const Vect3d& p_te
     {
         return false;
     }
-    
 }
 // *********************************************
 
 // *********************************************
-// FinitePlane Class Derived from Geometry Class
-FinitePlane::FinitePlane(std::vector<Vect3d> v_vect)
+// Geometry_List Class Derived from Geometry Class
+bool Geometry_List::Intersects(const Ray& inc_ray, Interaction& record) const
+{
+    bool intersect_occur = false;
+    double min_distance = INF;
+	double dist_to_obj;
+	Interaction temp_record;
+    
+	for(int i = 0; i<objects.size(); ++i)
+	{
+		if(objects[i] -> Intersects(inc_ray, temp_record))
+		{
+			if(temp_record.ray_length < min_distance)
+			{
+				intersect_occur = true;
+				record = temp_record;
+			}
+		}
+	}
+	return intersect_occur;
+}
+
+// *********************************************
+// RectWall Class Derived from Geometry Class
+RectWall::RectWall(std::vector<Vect3d> v_vect, double depth_, double sigma_, double rel_perm_)
 {
 	if(IsCoplanar(v_vect))
 	{
@@ -105,6 +127,9 @@ FinitePlane::FinitePlane(std::vector<Vect3d> v_vect)
 		vertices = v_vect;
 		unit_norm = CalcUnitNorm(v_vect);
 		d = -1*(dot(unit_norm,v_vect[0]));
+		depth = depth_;
+		sigma = sigma_;
+		rel_perm = rel_perm_;
 	}
 	else
 	{
@@ -112,11 +137,14 @@ FinitePlane::FinitePlane(std::vector<Vect3d> v_vect)
 	}
 }
 
-FinitePlane::FinitePlane(std::vector<Vect3d> v_vect, Vect3d n_hat, double d_)
+RectWall::RectWall(std::vector<Vect3d> v_vect, Vect3d n_hat, double d_, double depth_, double sigma_, double rel_perm_)
 {
 	vertices = v_vect;
 	unit_norm = n_hat;
 	d = d_;
+	depth = depth_;
+	sigma = sigma_;
+	rel_perm = rel_perm_;
 }
 
 /**
@@ -128,7 +156,7 @@ FinitePlane::FinitePlane(std::vector<Vect3d> v_vect, Vect3d n_hat, double d_)
   *     
   * @return true if test point is within the polygon, false if it is not or the test point is the one of the vertices
 */
-bool FinitePlane::Intersects(const Ray& inc_ray, Vect3d& p_int)
+bool RectWall::Intersects(const Ray& inc_ray, Interaction& record) const
 {
 	// ALGORITHM: To find whether the ray intersects with the finite plane or not
 	// compute the sum of the angles between the test point and every pair of edge
@@ -136,7 +164,7 @@ bool FinitePlane::Intersects(const Ray& inc_ray, Vect3d& p_int)
 	// plane. The angle sum will tend to 0 the further away the test point becomes.
 
 	double t = 0;
-	Vect3d p_i;
+	Point3d p_i;
 	double denom = dot(inc_ray.dir,unit_norm);
 	
 	if (denom != 0)
@@ -147,12 +175,65 @@ bool FinitePlane::Intersects(const Ray& inc_ray, Vect3d& p_int)
 	if (t > 0)
 	{
 		p_i = inc_ray.orig + inc_ray.dir*t;
-        if(IsPointInPolygon(vertices,p_i) == true)
+        if(IsPointInPolygon(vertices,p_i))
         {
-			p_int = p_i;
+			record.p_int = p_i;
+			record.normal = unit_norm;
+			record.ray_length = DistanceBetween(p_i, inc_ray.orig);
             return true;
         }
 	}
-	p_int = Vect3d(LARGE_DOUBLE,LARGE_DOUBLE,LARGE_DOUBLE);
 	return false;
+}
+
+// *********************************************
+// ReceptionSphere Class Derived from Geometry Class
+
+bool ReceptionSphere::Intersects(const Ray& inc_ray, Interaction& record) const
+{
+	// solve the quad eqation at^2 + bt + c = 0
+	// a = r_d * r_d
+	// b = 2 * r_d * (r_o  - s_c)
+	// c = (r_o - s_c)*(r_o - s_c) - s_r^2
+	// Also need the normal at the point of intersection
+	// n = (2(x - xc), 2(y - yc), 2(z - zc))
+	
+	Vect3d n;
+	double a, b, c, t0, t1;
+	t0 = 0.0;
+	t1 = 1.0;
+	a = dot(inc_ray.dir,inc_ray.dir);
+	b = 2.0*dot(inc_ray.dir,(inc_ray.orig - center));
+	c = dot((inc_ray.orig - center),(inc_ray.orig - center)) - radius*radius;
+	double disc = b*b - 4.0*a*c;
+	
+	if (disc >= 0)
+	{
+		// Then there is an intersection
+		t0 = -(b + sqrt(disc))/(2.0*a);
+		if (t0 >= 0)
+		{
+			record.p_int = inc_ray.orig + t0*inc_ray.dir;
+			record.normal = 2.0*(record.p_int - center);
+			record.ray_length = DistanceBetween(record.p_int, inc_ray.orig);
+			return true;
+		}
+		else
+		{
+			t1 = -(b - sqrt(disc))/(2.0*a);
+			if (t1 >= 0)
+			{
+				record.p_int = inc_ray.orig + t1*inc_ray.dir;
+				record.normal = 2.0*(record.p_int - center);
+				record.ray_length = DistanceBetween(record.p_int, inc_ray.orig);
+				return true;
+			}		
+		}		
+	}
+	return false;
+}
+
+inline Vect3d ReceptionSphere::get_sphere_norm(Point3d p)
+{
+	return 2.0*(p - center);
 }

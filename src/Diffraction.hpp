@@ -3,8 +3,18 @@
 
 #include "Vect_Utility.hpp"
 #include "Constants.hpp"
+#include "Geometry.hpp"
 #include <vector>
 #include <complex>
+
+Cvect3dsph ComputeDiffrField
+(
+	const Cvect3dsph& efield_i_sph,
+	double lambda,
+	Vect3dSph ray_incident,
+	RectWall face0,
+	RectWall facen
+);
 
 void wedge_diff_coeff
 (

@@ -444,7 +444,8 @@ typedef Vect3<std::complex<double>> Cvect3d;
 typedef Vect3Sph<double> Vect3dSph;
 typedef Vect3Sph<std::complex<double>> Cvect3dsph;
 
-typedef Ray_T<double> Ray;
+//typedef Ray_T<double> Ray;
 typedef RectCoord_T<double> RectCoord;
 
+using Point3d = Vect3<double>;
 #endif

@@ -12,7 +12,7 @@ void InterpPattern
 )
 {
 	double theta1, theta2;
-	if(islessequal(theta,PI/2.0))
+	if(std::islessequal(theta,PI/2.0))
 	{
 		theta1 = theta;
 		theta2 = PI/2.0 - theta;
@@ -29,9 +29,9 @@ void InterpPattern
 		phi = 0;
 	}
 	
-	if(islessequal(phi, PI))
+	if(std::islessequal(phi, PI))
 	{
-		if(islessequal(phi, PI/2.0))
+		if(std::islessequal(phi, PI/2.0))
 		{
 			phi1 = phi;
 			phi2 = (PI/2.0) - phi;
@@ -44,7 +44,7 @@ void InterpPattern
 	}
 	else
 	{
-		if(islessequal(phi,3.0*PI/2.0))
+		if(std::islessequal(phi,3.0*PI/2.0))
 		{
 			phi1 = phi - PI;
 			phi2 = (3.0*PI/2.0) - phi;
@@ -260,7 +260,7 @@ std::complex<double> interp1(std::vector<double> &x, std::vector<std::complex<do
 
 int findNearestNeighbourIndex(double value, std::vector< double > &x )
 {
-    double dist = LARGE_DOUBLE;
+    double dist = INF;
     int idx = -1;
     for( int i = 0; i < x.size(); ++i ) 
 	{

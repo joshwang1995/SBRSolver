@@ -6,7 +6,6 @@
 #include <vector>
 #include <iostream>
 #include <complex>
-#include <fstream>
 
 using namespace std;
 
@@ -39,7 +38,7 @@ void tm_coeff
     complex<double> &ref_coeff, complex<double> &tran_coeff
 );
 
-RectCoord GetSurfCoordSys(FinitePlane& surf, const Ray& inc_ray);
+RectCoord GetSurfCoordSys(RectWall& surf, const Ray& inc_ray);
 
 Cvect3dsph ComputeRefcField
 (
@@ -63,14 +62,7 @@ Cvect3dsph ComputeTransField
 	bool inf_wall
 );
 
-
 complex<double> trans_angle (double theta_i, complex<double> e_i, complex<double> e_t);
-complex<double> invsin (const complex<double> &z);
-
-//Output and debug functions
-void csv_writeln(ofstream& file, Vect3d point_int, Vect3<complex<double>> E);
-void log_rays(const vector<Ray>& rays);
-void log_ray_tubes(const vector<vector<Ray>>& ray_tube);
 
 /*
 ****************************
@@ -84,7 +76,7 @@ double freq = 2.4e9;
 double lamda = SPEED_OF_LIGHT/freq;
 double k = (2*PI)/lamda;
 RectCoord global_coord {Vect3d(1,0,0), Vect3d(0,1,0), Vect3d(0,0,1)};
-Vect3d tx_origin = {4,4,3}; //In global coordinate system
+Point3d tx_origin = {4,4,3}; //In global coordinate system
 //****************************
 
 int main(int argc, char** argv)
@@ -122,35 +114,11 @@ int main(int argc, char** argv)
 	vector<Ray> icosahedron_rays = GetRaysOnIcosahedron(tx_origin, vertices, faces);
 	
     // Create scene. In this case we just have finite planes
-	Vect3d p0 = Vect3d(6,2,1);
-	Vect3d p1 = Vect3d(6,6,1);
-	Vect3d p2 = Vect3d(2,6,1);
-	Vect3d p3 = Vect3d(2,2,1);
-	vector<Vect3d> p {p0,p1,p2,p3};
-	// Only surf_0 is a part of the scene, the other two finite planes are query planes used for validaiton
-	FinitePlane surf_0 = FinitePlane(p);
-	double surf_sigma = 10.0;
-	double surf_rel_perm = 100.0;
-	double surf_width = 10.0;
-	
-	p0 = Vect3d(6,2,0);
-	p1 = Vect3d(6,6,0);
-	p2 = Vect3d(2,6,0);
-	p3 = Vect3d(2,2,0);
-	p = {p0,p1,p2,p3};
-	FinitePlane check_trans_field_plane = FinitePlane(p);
-	
-	p0 = Vect3d(6,6,3);
-	p1 = Vect3d(6,10,3);
-	p2 = Vect3d(2,10,3);
-	p3 = Vect3d(2,6,3);
-	p = {p0,p1,p2,p3};
-	FinitePlane check_refct_field_plane = FinitePlane(p);
-    
-    cout << "Start logging efield to efield.csv\n";
-    ofstream efield_csv;
-    efield_csv.open("efield.csv");
-    efield_csv << "X,Y,Z,Ex_real,Ex_imag,Ey_real,Ey_imag,Ez_real,Ez_imag\n";
+	vector<Point3d> p {Point3d(6,2,1),Point3d(6,6,1),Point3d(2,6,1),Point3d(2,2,1)};
+	vector<Point3d> p2 {Point3d(6,2,2),Point3d(6,6,2),Point3d(2,6,2),Point3d(2,2,2)};
+	Geometry_List Scene;
+	Scene.add(make_shared<RectWall>(p, 0.0, 0.1, 5));
+	Scene.add(make_shared<RectWall>(p2, 0.0, 0.1, 5));
 	
 	RectCoord tx_coord {Vect3d(0,0,-1), Vect3d(1,0,0), Vect3d(0,-1,0)};
 	double transmitter_power = 1.0;
@@ -160,6 +128,8 @@ int main(int argc, char** argv)
 	
 	RectCoord current_coord_sys = global_coord;
 	RectCoord next_coord_sys = tx_coord;
+	
+	/*
 	for (Ray ray: icosahedron_rays)
 	{
 		Vect3d p_int;
@@ -211,6 +181,19 @@ int main(int argc, char** argv)
 		}
 	}
 	efield_csv.close();
+	*/
+}
+
+Cvect3dsph Execute_Ray_Tracing
+(
+	vector<Interaction> path,
+	const Geometry_List& scene, 
+	const Point3d& rx_loc, 
+	vector<Ray>& ref_rays,
+	int depth
+)
+{
+	
 }
 
 Cvect3dsph ComputeRefcField
@@ -405,7 +388,7 @@ vector<vector<Ray>> ConstructRayTubes(const vector<Ray>& ico_rays, const vector<
 	return ray_tubes;
 }
 
-RectCoord GetSurfCoordSys(FinitePlane& wall, const Ray& inc_ray)
+RectCoord GetSurfCoordSys(RectWall& wall, const Ray& inc_ray)
 {
 	// Fail-safe procedure: ensure both ray direction and wall norm
 	// 	is unit vector
@@ -456,18 +439,8 @@ complex<double> trans_angle (double theta_i, complex<double> e_i, complex<double
 
 	complex<double> n_i = sqrt(e_i);
 	complex<double> n_t = sqrt(e_t);
-	//t_t = invsin(n_i*sin(t_i)/n_t);
 	t_t = asin(n_i*sin(t_i)/n_t);
 	return t_t;
-}
-
-inline complex<double> invsin (const complex<double> &z)
-{
-	//http://mathworld.wolfram.com/InverseSine.html
-	// asin(z) = -i ln[iz + sqrt(1 - z^2)]
-	complex<double> i(0, 1);
-	complex<double> one(1, 0);
-	return -1.0*i*log(i*z + sqrt(one - z*z));	
 }
 
 void tm_coeff 
@@ -533,48 +506,4 @@ void te_coeff
         ref_coeff = (gamma_te*(1.0 - phi_factor)) / denom;
         tran_coeff = ((1.0 - gamma_te*gamma_te)*phi_factor)/ denom;
 	}
-}
-
-
-/* Logging Functions */
-void csv_writeln(ofstream& file, Vect3d point_int, Cvect3d E)
-{
-    file << point_int.x << "," << point_int.y << "," << point_int.z << ",";
-    file << real(E.x) << "," << imag(E.x) << ",";
-    file << real(E.y) << "," << imag(E.y) << ",";
-    file << real(E.z) << "," << imag(E.z) << "\n";
-}
-
-void log_rays(const vector<Ray>& rays)
-{
-    ofstream log_file;
-    log_file.open("rays.csv");
-    log_file << "x0,y0,z0,xr,yr,zr\n";
-    
-    for(Ray r: rays)
-    {
-		log_file << r.orig.x << "," << r.orig.y << "," << r.orig.z << ",";
-		log_file << r.dir.x << "," << r.dir.y << "," << r.dir.z << "\n";
-    }
-    log_file.close();
-}
-
-void log_ray_tubes(const vector<vector<Ray>>& ray_tube)
-{
-    ofstream log_file;
-    log_file.open("../visualization/raytube.csv");
-    log_file << "x0,y0,z0,xr,yr,zr,ray_tube\n";
-    int idx_ray_group = 1;
-    
-    for(vector<Ray> ray_group: ray_tube)
-    {
-        for(Ray r: ray_group)
-        {
-            log_file << r.orig.x << "," << r.orig.y << "," << r.orig.z << ",";
-            log_file << r.dir.x << "," << r.dir.y << "," << r.dir.z << ",";
-            log_file << idx_ray_group << "\n";
-        }
-        idx_ray_group += 1;
-    }
-    log_file.close();
 }
