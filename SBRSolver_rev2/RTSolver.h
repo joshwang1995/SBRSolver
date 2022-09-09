@@ -20,6 +20,7 @@ public:
 	void Cleanup();
 	int ExecuteRayTracing(Vec3 sourcePoint, int maxBounceCount, double maxPathLoss, int txTesslation = 0);
 	bool SavePathsAsVtk(std::string fname);
+	bool SaveIcosahedronAsVtk(std::string fname, Vec3 rayOrg, int tessellation);
 	void DebugFunc();
 protected:
 	bool _isSceneInitialized;
@@ -30,6 +31,7 @@ protected:
 	Paths* _rayPaths;
 	int _pathsCount;
 	BVH<Triangle>* _bvh;
+	std::vector<Vec3>* _shootRayList;
 private:
 	std::mutex _mutex;
 	void RayLaunch(PathTreeNode* rayTreeNode, Vec3& sourcePoint, Vec3& directionPoint, int transmissionLossId, int reflectionMaterialId, int bounceCnt, int penetrationCnt, double totalLoss, bool isRoot, float lastAnglefromN);

@@ -77,13 +77,13 @@ std::pair<std::vector<Vec3>, std::vector<Idx3>> ConstructIcosahedron(int subdivi
 	return{ vertices, triangles };
 }
 
-std::vector<Vec3> GenerateRaysOnIcosahedron(int tessellation, Vec3 origin)
+std::vector<Vec3>* GenerateRaysOnIcosahedron(int tessellation, Vec3 origin)
 {
 	auto icosahedron = ConstructIcosahedron(tessellation);
 	std::vector<Vec3> vertices = icosahedron.first;
 	std::vector<Idx3> faces = icosahedron.second;
 
-	std::vector<Vec3> outbound_rays;
+	std::vector<Vec3>* outbound_rays = new std::vector<Vec3>;
 
 	for (int i = 0; i < faces.size(); i++)
 	{
@@ -91,8 +91,8 @@ std::vector<Vec3> GenerateRaysOnIcosahedron(int tessellation, Vec3 origin)
 		double center_x = (vertices[faces[i](0)](0) + vertices[faces[i](1)](0) + vertices[faces[i](2)](0)) / 3.0f;
 		double center_y = (vertices[faces[i](0)](1) + vertices[faces[i](1)](1) + vertices[faces[i](2)](1)) / 3.0f;
 		double center_z = (vertices[faces[i](0)](2) + vertices[faces[i](1)](2) + vertices[faces[i](2)](2)) / 3.0f;
-		Vec3 direction = (Vec3(center_x, center_y, center_z) - origin).normalized();
-		outbound_rays.push_back(direction);
+		Vec3 direction = (Vec3(center_x, center_y, center_z)).normalized();
+		outbound_rays->push_back(direction);
 	}
 	return outbound_rays;
 }
