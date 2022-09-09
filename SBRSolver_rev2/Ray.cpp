@@ -85,16 +85,18 @@ Paths::Paths(PathTreeNode* rootNode)
 		{
 			if (p.second->childDirect != nullptr)
 			{
+				bool terminate = p.first.second || p.second->childDirect->ray.reflectionMaterialId >= 0 || p.second->childDirect->ray.penetrationMaterialId >= 0;
 				std::vector<Ray> newVect(p.first.first);
 				newVect.push_back(p.second->childDirect->ray);
-				q.push(std::make_pair(std::make_pair(newVect, p.first.second || p.second->childDirect->ray.reflectionMaterialId >= 0), p.second->childDirect));
+				q.push(std::make_pair(std::make_pair(newVect, terminate), p.second->childDirect));
 			}
 
 			if (p.second->childReflect != nullptr)
 			{
+				bool terminate = p.first.second || p.second->childReflect->ray.reflectionMaterialId >= 0 || p.second->childReflect->ray.penetrationMaterialId >= 0;
 				std::vector<Ray> newVect(p.first.first);
 				newVect.push_back(p.second->childReflect->ray);
-				q.push(std::make_pair(std::make_pair(newVect, p.first.second || p.second->childReflect->ray.reflectionMaterialId >= 0), p.second->childReflect));
+				q.push(std::make_pair(std::make_pair(newVect, terminate), p.second->childReflect));
 			}
 		}
 		else
