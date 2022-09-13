@@ -18,22 +18,48 @@ public:
 	virtual ~RTSolver();
 	int Init(MaterialProperties materialProperties[], int materialPropertiesCount, BVH<Triangle>& triangles);
 	void Cleanup();
-	int ExecuteRayTracing(Vec3 sourcePoint, int maxBounceCount, double maxPathLoss, int txTesslation = 0);
+	int ExecuteRayTracing
+	(
+		Vec3 sourcePoint, 
+		int maxReflectionCount, 
+		int maxTransmissionCount, 
+		VecVec3 receivers,
+		int txTesslation = 0
+	);
 	bool SavePathsAsVtk(std::string fname);
 	bool SaveIcosahedronAsVtk(std::string fname, Vec3 rayOrg, int tessellation);
-	void DebugFunc();
+	void CmdLineDebug();
 protected:
 	bool _isSceneInitialized;
 	MaterialProperties* _materialProperties = nullptr;
-	int _maxPenetrationCount;
-	int _maxBounceCount;
-	double _maxPathLoss;
+	std::vector<Vec3>* _receivers = nullptr;
+	int _maxTransmissionCount;
+	int _maxReflectionCount;
 	Paths* _rayPaths;
 	int _pathsCount;
 	BVH<Triangle>* _bvh;
 	std::vector<Vec3>* _shootRayList;
 private:
-	std::mutex _mutex;
-	void RayLaunch(PathTreeNode* rayTreeNode, Vec3& sourcePoint, Vec3& directionPoint, int transmissionLossId, int reflectionMaterialId, int bounceCnt, int penetrationCnt, double totalLoss, bool isRoot, float lastAnglefromN);
-	bool RayLaunch2(Vec3& rayOrig, Vec3& rayDir, double totalPathLen, int bounceCnt, int penetrationCnt);
+	void RayLaunch
+	(
+		PathTreeNode* rayTreeNode, 
+		Vec3& sourcePoint, 
+		Vec3& directionPoint, 
+		int transMaterialID,
+		int refMaterialID,
+		int reflectionCnt,
+		int transmissionCnt,
+		double totalPathLength,
+		bool isRoot, 
+		double lastAnglefromN
+	);
 };
+
+bool HitReceptionSphere
+(
+	const Vec3& rayOrig,
+	const Vec3& rayDir,
+	const Vec3& sphereCenter,
+	double pathLength,
+	Vec3& capturePoint
+);

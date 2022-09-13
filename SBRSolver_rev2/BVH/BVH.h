@@ -303,7 +303,6 @@ bool BVH<T>::RayIntersects
 			for (T* object : nodes[index].objects)
 			{
 				HitInfo currentInfo;
-				currentInfo.distance = INF;
 				if(object->RayIntersects(rayOrg, rayDir, currentInfo))
 				{
 					if (currentInfo.distance < info.distance)
@@ -312,6 +311,7 @@ bool BVH<T>::RayIntersects
 						info.distance = currentInfo.distance;
 						info.normal = object->norm;
 						info.pointIntersect = currentInfo.pointIntersect;
+						info.materialID = currentInfo.materialID;
 					}
 				}
 			}

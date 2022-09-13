@@ -105,50 +105,7 @@ bool Triangle::RayIntersects
         info.pointIntersect = rayOrg + rayDir * t;
         info.distance = (info.pointIntersect - rayOrg).norm();
         info.normal = *&norm;
-        return true;
-    }
-    else // This means that there is a line intersection but not a ray intersection.
-        return false;
-};
-
-bool Triangle::RayIntersects
-(
-    const Vec3& rayOrg,
-    const Vec3& rayDir,
-    double& distance,
-    Vec3& pointIntersect
-)
-{
-    Vec3 edge1, edge2, h, s, q;
-    double a, f, u, v;
-
-    edge1 = v2 - v1;
-    edge2 = v3 - v1;
-    h = rayDir.cross(edge2);
-    a = edge1.dot(h);
-
-    if (a > -EPSILON && a < EPSILON)
-        return false;    // This ray is parallel to this triangle.
-
-    f = 1.0 / a;
-
-    s = rayOrg - v1;
-    u = f * s.dot(h);
-    if (u < 0.0 || u > 1.0)
-        return false;
-
-    q = s.cross(edge1);
-    v = f * rayDir.dot(q);
-
-    if (v < 0.0 || u + v > 1.0)
-        return false;
-
-    // At this stage we can compute t to find out where the intersection point is on the line.
-    double t = f * edge2.dot(q);
-    if (t > EPSILON) // ray intersection
-    {
-        pointIntersect = rayOrg + rayDir * t;
-        distance = (rayDir * t).norm();
+        info.materialID = materialID;
         return true;
     }
     else // This means that there is a line intersection but not a ray intersection.

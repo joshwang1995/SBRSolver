@@ -2,7 +2,15 @@
 
 extern std::atomic<int> RayGlobalId = 0;
 
-PathTreeNode* newPathTreeNode(Vec3 SourcePoint, Vec3 TargetPoint, int PenetrationMaterialId, int ReflectionMaterialId, double AngleFromSurfaceNormal)
+PathTreeNode* newPathTreeNode
+(
+	Vec3 SourcePoint, 
+	Vec3 TargetPoint, 
+	int PenetrationMaterialId, 
+	int ReflectionMaterialId, 
+	double PathLength, 
+	double AngleFromSurfaceNormal
+)
 {
 	PathTreeNode* result = new PathTreeNode;
 	result->ray.id = RayGlobalId++;
@@ -11,6 +19,7 @@ PathTreeNode* newPathTreeNode(Vec3 SourcePoint, Vec3 TargetPoint, int Penetratio
 	result->ray.penetrationMaterialId = PenetrationMaterialId;
 	result->ray.reflectionMaterialId = ReflectionMaterialId;
 	result->ray.angleFromSurfaceNormal = AngleFromSurfaceNormal;
+	result->ray.pathLength = PathLength;
 	result->childDirect = nullptr;
 	result->childReflect = nullptr;
 	return result;
