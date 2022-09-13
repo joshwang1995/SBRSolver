@@ -18,7 +18,9 @@ struct Ray
 	Vec3 targetPoint;
 	int penetrationMaterialId;
 	int reflectionMaterialId;
-	float angleFromSurfaceNormal;
+	double angleFromSurfaceNormal;
+	double pathLength;
+	bool captured = false;
 	int id;
 };
 
@@ -37,7 +39,15 @@ struct PathTreeNode
 	PathTreeNode* childDirect;
 	PathTreeNode* childReflect;
 };
-PathTreeNode* newPathTreeNode(Vec3 sourcePoint, Vec3 targetPoint, int penetrationMaterialId, int reflectionMaterialId, double angleFromSurfaceNormal);
+PathTreeNode* newPathTreeNode
+(
+	Vec3 SourcePoint,
+	Vec3 TargetPoint,
+	int PenetrationMaterialId,
+	int ReflectionMaterialId,
+	double PathLength,
+	double AngleFromSurfaceNormal
+);
 
 class Paths
 {

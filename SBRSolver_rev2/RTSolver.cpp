@@ -42,22 +42,29 @@ void RTSolver::Cleanup()
 	_isSceneInitialized = false;
 }
 
-int RTSolver::ExecuteRayTracing(Vec3 sourcePoint, int maxBounceCount, double maxPathLoss, int txTesslation)
+int RTSolver::ExecuteRayTracing
+(
+	Vec3 sourcePoint,
+	int maxReflectionCount,
+	int maxTransmissionCount,
+	VecVec3 receivers,
+	int txTesslation
+)
 {
 	if (_rayPaths != nullptr)
 	{
 		delete[] _rayPaths;
 		_rayPaths = nullptr;
 	}
-	_maxBounceCount = maxBounceCount;
-	_maxPathLoss = maxPathLoss;
+	_maxReflectionCount = maxReflectionCount;
+	_maxTransmissionCount = maxTransmissionCount;
 	RayGlobalId = 0;
 	_shootRayList = GenerateRaysOnIcosahedron(txTesslation, sourcePoint);
 	_rayPaths = new Paths[_shootRayList->size()];
 
-	Timer timer;
-	timer.start();
-	#pragma omp parallel for
+	// Timer timer;
+	// timer.start();
+	// #pragma omp parallel for
 	for (int i = 0; i < _shootRayList->size(); i++)
 	{
 		PathTreeNode rootNode;
@@ -67,15 +74,27 @@ int RTSolver::ExecuteRayTracing(Vec3 sourcePoint, int maxBounceCount, double max
 		RayLaunch(&rootNode, sourcePoint, _shootRayList->at(i), -1, -1, 0, 0, 0, true, FLT_MAX);
 		_rayPaths[i] = Paths(&rootNode);
 	}
-	std::cout << "\tTotal Time in for loop -> " << timer.getTime() << std::endl;
+	// std::cout << "\tTotal Time in for loop -> " << timer.getTime() << std::endl;
 	_pathsCount = static_cast<int>(_shootRayList->size());
 	return _pathsCount;
 }
 
 
-void RTSolver::RayLaunch(PathTreeNode* rayTreeNode, Vec3& sourcePoint, Vec3& directionPoint, int transmissionLossId, int reflectionMaterialId, int bounceCnt, int penetrationCnt, double totalLoss, bool isRoot, float lastAnglefromN)
+void RTSolver::RayLaunch
+(
+	PathTreeNode* rayTreeNode, 
+	Vec3& sourcePoint, 
+	Vec3& directionPoint, 
+	int transMaterialID, 
+	int refMaterialID, 
+	int reflectionCnt, 
+	int transmissionCnt, 
+	double totalPathLength,
+	bool isRoot, 
+	double lastAnglefromN
+)
 {
-	if (bounceCnt >= _maxBounceCount || penetrationCnt >= 2)
+	if (reflectionCnt >= _maxReflectionCount || transmissionCnt >= _maxTransmissionCount)
 	{
 		return;
 	}
@@ -90,12 +109,21 @@ void RTSolver::RayLaunch(PathTreeNode* rayTreeNode, Vec3& sourcePoint, Vec3& dir
 
 	if (hasHit)
 	{
-		float anglefromN = AngleBetween(hitResult.normal, directionPoint);
+		double anglefromN = AngleBetween(hitResult.normal, directionPoint);
 		PathTreeNode* newRayTreeNode = rayTreeNode;
 		if (!isRoot)
 		{
-			PathTreeNode* newNode = newPathTreeNode(sourcePoint, hitResult.pointIntersect, transmissionLossId, reflectionMaterialId, lastAnglefromN);
-			if (reflectionMaterialId >= 0)
+			PathTreeNode* newNode = newPathTreeNode
+			(
+				sourcePoint,
+				hitResult.pointIntersect,
+				transMaterialID,
+				refMaterialID,
+				totalPathLength + hitResult.distance,
+				lastAnglefromN
+			);
+
+			if (refMaterialID >= 0)
 				rayTreeNode->childReflect = newNode;
 			else
 				rayTreeNode->childDirect = newNode;
@@ -105,52 +133,73 @@ void RTSolver::RayLaunch(PathTreeNode* rayTreeNode, Vec3& sourcePoint, Vec3& dir
 		{
 			rayTreeNode->ray.sourcePoint = sourcePoint;
 			rayTreeNode->ray.targetPoint = hitResult.pointIntersect;
-			rayTreeNode->ray.penetrationMaterialId = transmissionLossId;
-			rayTreeNode->ray.reflectionMaterialId = reflectionMaterialId;
+			rayTreeNode->ray.penetrationMaterialId = transMaterialID;
+			rayTreeNode->ray.reflectionMaterialId = refMaterialID;
+			rayTreeNode->ray.pathLength = hitResult.distance;
 			rayTreeNode->ray.angleFromSurfaceNormal = lastAnglefromN;
 		}
 
-		if ((bounceCnt < _maxBounceCount && penetrationCnt == 0) || (bounceCnt < _maxBounceCount && penetrationCnt > 0))
+		if (reflectionCnt < _maxReflectionCount)
 		{
-			Vec3 inRay = directionPoint;
-			Vec3 wallNormal = hitResult.normal;
-			Vec3 newDirectionPoint = Reflect(inRay, wallNormal).normalized();
+			Vec3 newDirectionPoint = Reflect(directionPoint, hitResult.normal).normalized();
 			// Rebounce ray
-			RayLaunch(newRayTreeNode, hitResult.pointIntersect, newDirectionPoint, -1, 0, bounceCnt + 1, penetrationCnt, totalLoss, false, anglefromN);
+			RayLaunch
+			(
+				newRayTreeNode, 
+				hitResult.pointIntersect, 
+				newDirectionPoint, 
+				-1, 
+				hitResult.materialID, 
+				reflectionCnt + 1,
+				transmissionCnt,
+				totalPathLength + hitResult.distance,
+				false, 
+				anglefromN
+			);
 		}
 
-		// Forward ray
-		//Vec3 pointIntersectOffset = hitResult.pointIntersect + (directionPoint * EPSILON);
-		RayLaunch(newRayTreeNode, hitResult.pointIntersect, directionPoint, 0, -1, bounceCnt, penetrationCnt + 1, totalLoss, false, anglefromN);
+		if (transmissionCnt < _maxTransmissionCount)
+		{
+			// Forward ray
+			RayLaunch
+			(
+				newRayTreeNode,
+				hitResult.pointIntersect,
+				directionPoint,
+				hitResult.materialID,
+				-1,
+				reflectionCnt,
+				transmissionCnt + 1,
+				totalPathLength + hitResult.distance,
+				false,
+				anglefromN
+			);
+		}
+
 	}
 	else
 	{
-		if (bounceCnt > 0)
+		if (reflectionCnt > 0)
 		{
-			PathTreeNode* newNode = newPathTreeNode(sourcePoint, sourcePoint + (directionPoint * 1E2), transmissionLossId, reflectionMaterialId, lastAnglefromN);
-			if (reflectionMaterialId >= 0)
+			PathTreeNode* newNode = newPathTreeNode
+			(
+				sourcePoint, 
+				sourcePoint + (directionPoint * 1E2), 
+				transMaterialID,
+				refMaterialID,
+				FLT_MAX,
+				lastAnglefromN
+			);
+			if (refMaterialID >= 0)
 				rayTreeNode->childReflect = newNode;
-			else
+			else if (transMaterialID >= 0)
 				rayTreeNode->childDirect = newNode;
 		}
+
 	}
 }
 
-bool RTSolver::RayLaunch2(Vec3& rayOrig, Vec3& rayDir, double totalPathLen, int bounceCnt, int penetrationCnt)
-{
-
-	HitInfo hitResult;
-	bool hasHit = _bvh->RayIntersects(0, rayOrig, rayDir, hitResult);
-
-	// Either a direct ray or ray with no interation
-	if (!hasHit)
-	{
-
-	}
-	return true;
-}
-
-void RTSolver::DebugFunc()
+void RTSolver::CmdLineDebug()
 {
 	using namespace std;
 	Eigen::IOFormat CommaInitFmt(Eigen::StreamPrecision, Eigen::DontAlignCols, " ", " ", "", "", "", "");
@@ -265,6 +314,39 @@ bool RTSolver::SaveIcosahedronAsVtk(std::string fname, Vec3 rayOrg, int tessella
 	ofs.close();
 	cout << "\tSaved " << _shootRayList->size() << " ray paths into " << fname << endl;
 	cout << "[Leaving] RTSolver::SaveIcosahedronAsVtk" << endl;
+
+	return true;
+}
+
+bool HitReceptionSphere
+(
+	const Vec3& rayOrig,
+	const Vec3& rayDir,
+	const Vec3& sphereCenter,
+	double pathLength,
+	Vec3& capturePoint
+)
+{
+	// Find the optimal reception sphere radius
+
+
+	// Find the closest distance between the ray and the sphere center
+	// Reference: https://www.geometrictools.com/Documentation/DistancePointLine.pdf
+	double t0 = rayDir.dot(sphereCenter - rayOrig) / rayDir.norm();
+
+	if (t0 < 0)
+	{
+		// Projection is negative, receiver is behind the ray origin, not hit
+		return false;
+	}
+
+	double distance = (sphereCenter - (rayOrig + t0 * rayDir)).norm();
+	//if (distance > sphereRadius)
+	//{
+		// Distance from closest point on the ray to sphere center is smaller
+		// than the sphere radius, therefore it is not captured
+		//return false;
+	//}
 
 	return true;
 }

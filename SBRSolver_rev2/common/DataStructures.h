@@ -10,6 +10,7 @@ struct HitInfo
 {
 	Vec3 normal;
 	Vec3 pointIntersect;
+	int materialID;
 	double distance = INF;
 };
 

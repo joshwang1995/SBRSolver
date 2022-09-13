@@ -15,13 +15,14 @@ public:
         :
         v1(a), v2(b), v3(c), norm(d), bbox(e), center(f) {}
 
-    Triangle(Vec3 a, Vec3 b, Vec3 c); //v1, v2, v3
-    Triangle(Vec3 a, Vec3 b, Vec3 c, Vec3 d); //v1, v2, v3, normal
+    Triangle(Vec3 a, Vec3 b, Vec3 c); //v1, v2, v3, materialID
+    Triangle(Vec3 a, Vec3 b, Vec3 c, Vec3 d); //v1, v2, v3, normal, materialID
 
     Vec3 v1; // Vertex 1
     Vec3 v2; // Vertex 2
     Vec3 v3; // Vertex 3
     Vec3 norm; // Triangle Normal
+    int materialID = 0; //Default materail ID is 0
     Mat23 bbox; // Bounding box
     Vec3 center; // Bounding box center
 
@@ -33,13 +34,5 @@ public:
         const Vec3& rayOrg,
         const Vec3& rayDir,
         HitInfo& info
-    );
-
-    bool RayIntersects
-    (
-        const Vec3& rayOrg,
-        const Vec3& rayDir,
-        double& distance,
-        Vec3& pointIntersect
     );
 };

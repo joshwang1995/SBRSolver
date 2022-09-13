@@ -22,15 +22,16 @@ int main()
 
 	std::string txPatternFileName = "./data/TxPatternTest.dat";
 	std::string rxLocationFileName = "./data/RxLocations.dat";
-	std::string stlFileName = "./data/stl_files/bahen.stl";
-	std::string bvhFileName = "./data/stl_files/BVH.vtk";
-	std::string rayPathFileName = "./data/RayPath.vtk";
-	std::string icosahedronFileName = "./data/Icosahedron.vtk";
+	std::string stlFileName = "./data/stl_files/ground.stl";
+	std::string bvhFileName = "./data/output/BVH.vtk";
+	std::string rayPathFileName = "./data/output/RayPath.vtk";
+	std::string icosahedronFileName = "./data/output/Icosahedron.vtk";
 	Timer timer;
 
-	double freq = 2.45e9; // frequency
+	double freq = 1.8e9; // frequency
 	double Pt = 1; // transmit power in Watt
 	int maxReflection = 5;
+	int maxTransmission = 2;
 
 #if DEBUG
 	std::cout << "\tTX Pattern File Name  -> " << txPatternFileName << std::endl;
@@ -39,6 +40,7 @@ int main()
 	std::cout << "\tFrequency             -> " << freq << std::endl;
 	std::cout << "\tTransmit Power        -> " << Pt << std::endl;
 	std::cout << "\tMax Reflection        -> " << maxReflection << std::endl;
+	std::cout << "\tMax Transmission      -> " << maxTransmission << std::endl;
 #endif
 
 	std::cout << "[Entering] Preprocessor" << std::endl;
@@ -62,29 +64,47 @@ int main()
 
 	std::cout << "[Leaving] Preprocessor" << std::endl;
 
-	Vec3 rayOrig{ -0.5, -12.5, 1 }; // for bahen stl file
-	// Vec3 rayOrig{ 0, 0, 5 };
+	//Vec3 rayOrig{ -0.5, -12.5, 1 }; // for bahen stl file
+	Vec3 rayOrig{ 0, 0, 5 };
 
-	MaterialProperties materials[2];
-	// Material 1
-	materials[0].frequency = 2.4e9;
-	materials[0].reflectionLoss = 2;
-	materials[0].relConductivity = 58.7e6;
-	materials[0].relPermittivityRe = INFINITE;
-	materials[0].relPermittivityIm = 0;
-	materials[0].transmissionLoss = 0;
-	// Material 2
-	materials[1].frequency = 2.4e9;
-	materials[1].reflectionLoss = 2;
-	materials[1].relConductivity = 58.7e6;
-	materials[1].relPermittivityRe = INFINITE;
-	materials[1].relPermittivityIm = 0;
-	materials[1].transmissionLoss = 10;
+	MaterialProperties materials[4];
+	// Material 0 [Concrete] -> Default material
+	materials[0].frequency = 1.8e9;
+	materials[0].reflectionLoss = -1;
+	materials[0].transmissionLoss = -1;
+	materials[0].relConductivity = 0.09;
+	materials[0].relPermittivityRe = 9;
+	materials[0].relPermittivityIm = 0.9;
+
+	// Material 2 [plaster board]
+	materials[1].frequency = 1.8e9;
+	materials[1].reflectionLoss = -1;
+	materials[1].transmissionLoss = -1;
+	materials[1].relConductivity = 0.03;
+	materials[1].relPermittivityRe = 2.5;
+	materials[1].relPermittivityIm = 0.3;
+
+	// Material 3 [wood]
+	materials[2].frequency = 1.8e9;
+	materials[2].reflectionLoss = -1;
+	materials[2].transmissionLoss = -1;
+	materials[2].relConductivity = 0.03;
+	materials[2].relPermittivityRe = 1.8;
+	materials[2].relPermittivityIm = 0.3;
+
+	// Material 4 [Glass]
+	materials[3].frequency = 1.8e9;
+	materials[3].reflectionLoss = -1;
+	materials[3].transmissionLoss = -1;
+	materials[3].relConductivity = 0.005;
+	materials[3].relPermittivityRe = 6;
+	materials[3].relPermittivityIm = 0.05;
+
 
 	int tessllation = 0;
 	RTSolver* rayTracer = new RTSolver();
-	rayTracer->Init(materials, 2, bvh);
-	int total_paths = rayTracer->ExecuteRayTracing(rayOrig, 1, 3, tessllation);
+	rayTracer->Init(materials, 4, bvh);
+	int total_paths = rayTracer->ExecuteRayTracing(rayOrig, maxReflection, maxTransmission, rxLocation, tessllation);
 
 	//rayTracer->DebugFunc();
 	rayTracer->SavePathsAsVtk(rayPathFileName);
