@@ -32,7 +32,7 @@ public:
 protected:
 	bool _isSceneInitialized;
 	MaterialProperties* _materialProperties = nullptr;
-	std::vector<Vec3>* _receivers = nullptr;
+	VecVec3* _receivers = nullptr;
 	int _maxTransmissionCount;
 	int _maxReflectionCount;
 	Paths* _rayPaths;

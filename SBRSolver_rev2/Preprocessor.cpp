@@ -113,3 +113,35 @@ void Preprocessor::GenerateRxPlane(double xMin, double yMin, double xMax, double
 void Preprocessor::GenerateAntennaPattern(std::string, double resolution)
 {
 }
+
+bool SaveLocationAsVtk(std::string fileName, const VecVec3& location)
+{
+    using namespace std;
+
+    cout << "[Entering] Preprocessor::SaveLocationAsVtk ..." << endl;
+
+    ofstream ofs;
+    ofs.open(fileName);
+
+    // write header
+    ofs << "# vtk DataFile Version 2.0" << endl;
+    ofs << "TX or RX Location Visualization" << endl;
+    ofs << "ASCII" << endl;
+    ofs << "DATASET POLYDATA" << endl;
+    ofs << endl;
+
+    ofs << "POINTS " << location.size() << " float" << endl;
+    for (const Vec3& v : location)
+    {
+        ofs << " "
+            << v.x() << " "
+            << v.y() << " "
+            << v.z() << endl;
+    }
+
+    ofs.close();
+    cout << "\tSaved " << location.size() << " points into " << fileName << endl;
+    cout << "[Leaving] Preprocessor::SaveLocationAsVtk" << endl;
+
+    return true;
+}

@@ -21,4 +21,7 @@ namespace Preprocessor
 	// Functions to generate data [to be implemented]
 	void GenerateRxPlane(double xMin, double yMin, double xMax, double yMax, double height, double resolution);
 	void GenerateAntennaPattern(std::string type, double resolution);
+	
+	// Functions to save data to VTK files
+	bool SaveLocationAsVtk(std::string fileName, const VecVec3& location);
 }

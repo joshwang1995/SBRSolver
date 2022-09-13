@@ -58,9 +58,18 @@ int RTSolver::ExecuteRayTracing
 	}
 	_maxReflectionCount = maxReflectionCount;
 	_maxTransmissionCount = maxTransmissionCount;
+	_receivers = &receivers;
 	RayGlobalId = 0;
 	_shootRayList = GenerateRaysOnIcosahedron(txTesslation, sourcePoint);
 	_rayPaths = new Paths[_shootRayList->size()];
+
+	double avgAngle = 0.0;
+	for (int i = 0; i < _shootRayList->size() - 1; i++)
+	{
+		avgAngle += AngleBetween(_shootRayList->at(i), _shootRayList->at(i + 1));
+		std::cout << "Angle: " << AngleBetween(_shootRayList->at(i), _shootRayList->at(i + 1)) << std::endl;
+	}
+	std::cout << "Average Angle: " << avgAngle / _shootRayList->size() - 1 << std::endl;
 
 	// Timer timer;
 	// timer.start();
@@ -206,10 +215,10 @@ void RTSolver::CmdLineDebug()
 
 	for (int i = 0; i < _pathsCount; i++)
 	{
-		cout << "Path " << i << ":" << endl;
+		cout << "Launch ID " << i << ":" << endl;
 		for (int j = 0; j < _rayPaths[i].rayPaths.size(); j++)
 		{
-			cout << "\t Vector " << j << ":" << endl;
+			cout << "\t Path " << j << ":" << endl;
 			for (int k = 0; k < _rayPaths[i].rayPaths[j].size(); k++)
 			{
 				Ray r = _rayPaths[i].rayPaths[j][k];
@@ -304,7 +313,7 @@ bool RTSolver::SaveIcosahedronAsVtk(std::string fname, Vec3 rayOrg, int tessella
 	}
 
 	ofs << "LINES " << _shootRayList->size() << " " << 3 * _shootRayList->size() << endl;
-	for (int i = 0; i < _shootRayList->size(); i++)
+	for (int i = 1; i < _shootRayList->size() + 1; i++)
 	{
 		ofs << " 2"
 			<< " 0 "
