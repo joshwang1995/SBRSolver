@@ -53,8 +53,10 @@ class Paths
 {
 public:
 	std::vector<std::vector<Ray>> rayPaths;
+	std::vector<std::vector<Ray>> capturedRays;
 	Paths();
 	Paths(TreeNode* rootNode);
 	Paths(PathTreeNode* rootNode);
+	Paths(PathTreeNode* rootNode, VecVec3 receivers, int txTesslation);
 	~Paths();
 };

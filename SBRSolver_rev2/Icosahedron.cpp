@@ -85,6 +85,9 @@ std::vector<Vec3>* GenerateRaysOnIcosahedron(int tessellation, Vec3 origin)
 
 	std::vector<Vec3>* outbound_rays = new std::vector<Vec3>;
 
+
+	// Launch from the face center
+	/*
 	for (int i = 0; i < faces.size(); i++)
 	{
 		//Compute the cente of the triangle
@@ -94,5 +97,14 @@ std::vector<Vec3>* GenerateRaysOnIcosahedron(int tessellation, Vec3 origin)
 		Vec3 direction = (Vec3(center_x, center_y, center_z)).normalized();
 		outbound_rays->push_back(direction);
 	}
+	*/
+	
+	
+	// Launch from the vertices
+	for (int i = 0; i < vertices.size(); i++)
+	{
+		outbound_rays->push_back(vertices[i].normalized());
+	}
+	
 	return outbound_rays;
 }

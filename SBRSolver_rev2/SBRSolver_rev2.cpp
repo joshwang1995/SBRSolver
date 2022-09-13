@@ -30,7 +30,7 @@ int main()
 
 	double freq = 1.8e9; // frequency
 	double Pt = 1; // transmit power in Watt
-	int maxReflection = 5;
+	int maxReflection = 2;
 	int maxTransmission = 2;
 
 #if DEBUG
