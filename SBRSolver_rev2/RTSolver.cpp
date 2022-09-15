@@ -61,30 +61,26 @@ int RTSolver::ExecuteRayTracing
 	_receivers = &receivers;
 	RayGlobalId = 0;
 	_shootRayList = GenerateRaysOnIcosahedron(txTesslation, sourcePoint);
-	_rayPaths = new Paths[_shootRayList->size()];
-
-	double avgAngle = 0.0;
-	for (int i = 0; i < _shootRayList->size() - 1; i++)
-	{
-		avgAngle += AngleBetween(_shootRayList->at(i), _shootRayList->at(i + 1));
-		std::cout << "Angle: " << AngleBetween(_shootRayList->at(i), _shootRayList->at(i + 1)) << std::endl;
-	}
-	std::cout << "Average Angle: " << avgAngle / _shootRayList->size() - 1 << std::endl;
+	_rayPaths = new Paths[_shootRayList->size() * receivers.size()];
 
 	// Timer timer;
 	// timer.start();
 	// #pragma omp parallel for
-	for (int i = 0; i < _shootRayList->size(); i++)
+	for (const Vec3& r : receivers)
 	{
-		PathTreeNode rootNode;
-		rootNode.ray.id = RayGlobalId++;
-		rootNode.childDirect = nullptr;
-		rootNode.childReflect = nullptr;
-		RayLaunch(&rootNode, sourcePoint, _shootRayList->at(i), -1, -1, 0, 0, 0, true, FLT_MAX);
-		_rayPaths[i] = Paths(&rootNode);
+		for (int i = 0; i < _shootRayList->size(); i++)
+		{
+			PathTreeNode rootNode;
+			rootNode.ray.id = RayGlobalId++;
+			rootNode.childDirect = nullptr;
+			rootNode.childReflect = nullptr;
+			RayLaunch(&rootNode, sourcePoint, _shootRayList->at(i), -1, -1, 0, 0, 0, true, FLT_MAX);
+			_rayPaths[i] = Paths(&rootNode);
+		}
 	}
+
 	// std::cout << "\tTotal Time in for loop -> " << timer.getTime() << std::endl;
-	_pathsCount = static_cast<int>(_shootRayList->size());
+	_pathsCount = static_cast<int>(_shootRayList->size()*receivers.size());
 	return _pathsCount;
 }
 
@@ -106,11 +102,6 @@ void RTSolver::RayLaunch
 	if (reflectionCnt >= _maxReflectionCount || transmissionCnt >= _maxTransmissionCount)
 	{
 		return;
-	}
-
-	if (isRoot)
-	{
-		directionPoint = directionPoint;
 	}
 
 	HitInfo hitResult;
@@ -206,6 +197,67 @@ void RTSolver::RayLaunch
 		}
 
 	}
+}
+
+void RTSolver::RayCapture(PathTreeNode* rayTreeNode, const Vec3& receivers)
+{
+	
+}
+
+void RTSolver::UpdatePathTree(PathTreeNode* rayTreeNode, const Vec3& receiver, double totalPathLength)
+{
+	static bool captured = false;
+	if (rayTreeNode->childDirect == nullptr || rayTreeNode->childReflect == nullptr || captured)
+	{
+		return;
+	}
+
+	Vec3 capturePoint;
+	captured = HitReceptionSphere(rayTreeNode->ray.sourcePoint, rayTreeNode->ray.targetPoint, receiver, rayTreeNode->ray.pathLength, 0, capturePoint);
+	UpdatePathTree()
+
+}
+
+bool HitReceptionSphere
+(
+	const Vec3& sourcePoint,
+	const Vec3& targetPoint,
+	const Vec3& sphereCenter,
+	double pathLength,
+	int txTesslation,
+	Vec3& capturePoint
+)
+{
+	// Find the optimal reception sphere radius
+	// Reference: 191115_Ray_Launching.pdf
+	double beta = 1.0 / (3.0 * txTesslation) * acos(-1.0 / sqrt(5.0));
+	double sphereRadius = pathLength * tan(beta);
+
+	// Find the closest distance between the ray and the sphere center
+	// Reference: https://www.geometrictools.com/Documentation/DistancePointLine.pdf
+	Vec3 rayDir = targetPoint - sourcePoint; // Do not normalize, this is a line segment
+	double t0 = rayDir.dot(sphereCenter - sourcePoint) / rayDir.norm();
+
+	if (t0 < 0)
+	{
+		// Projection is negative, receiver is in the opposite direction of the ray direction
+		return false;
+	}
+	else if (t0 >= 1)
+	{
+		t0 = 1; // Clamp t0 to 1 because the closest point is the target point
+	}
+
+	double distance = (sphereCenter - (sourcePoint + t0 * rayDir)).norm();
+	if (distance > sphereRadius)
+	{
+		// Distance from closest point on the ray to sphere center is smaller
+		// than the sphere radius, therefore it is not captured
+		return false;
+	}
+
+	capturePoint = sourcePoint + t0 * rayDir;
+	return true;
 }
 
 void RTSolver::CmdLineDebug()
@@ -323,39 +375,6 @@ bool RTSolver::SaveIcosahedronAsVtk(std::string fname, Vec3 rayOrg, int tessella
 	ofs.close();
 	cout << "\tSaved " << _shootRayList->size() << " ray paths into " << fname << endl;
 	cout << "[Leaving] RTSolver::SaveIcosahedronAsVtk" << endl;
-
-	return true;
-}
-
-bool HitReceptionSphere
-(
-	const Vec3& rayOrig,
-	const Vec3& rayDir,
-	const Vec3& sphereCenter,
-	double pathLength,
-	Vec3& capturePoint
-)
-{
-	// Find the optimal reception sphere radius
-
-
-	// Find the closest distance between the ray and the sphere center
-	// Reference: https://www.geometrictools.com/Documentation/DistancePointLine.pdf
-	double t0 = rayDir.dot(sphereCenter - rayOrig) / rayDir.norm();
-
-	if (t0 < 0)
-	{
-		// Projection is negative, receiver is behind the ray origin, not hit
-		return false;
-	}
-
-	double distance = (sphereCenter - (rayOrig + t0 * rayDir)).norm();
-	//if (distance > sphereRadius)
-	//{
-		// Distance from closest point on the ray to sphere center is smaller
-		// than the sphere radius, therefore it is not captured
-		//return false;
-	//}
 
 	return true;
 }

@@ -53,6 +53,11 @@ private:
 		bool isRoot, 
 		double lastAnglefromN
 	);
+	void RayCapture
+	(
+		PathTreeNode* rayTreeNode,
+		VecVec3& receivers
+	);
 };
 
 bool HitReceptionSphere
