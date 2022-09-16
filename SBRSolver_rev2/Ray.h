@@ -36,8 +36,8 @@ public:
 struct PathTreeNode
 {
 	Ray ray;
-	PathTreeNode* childDirect;
-	PathTreeNode* childReflect;
+	PathTreeNode* childDirect = nullptr;
+	PathTreeNode* childReflect = nullptr;
 };
 PathTreeNode* newPathTreeNode
 (
@@ -48,6 +48,7 @@ PathTreeNode* newPathTreeNode
 	double PathLength,
 	double AngleFromSurfaceNormal
 );
+PathTreeNode* DeleteChildNodes(PathTreeNode* node);
 
 class Paths
 {

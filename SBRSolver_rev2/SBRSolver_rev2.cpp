@@ -22,6 +22,7 @@ int main()
 
 	std::string txPatternFileName = "./data/TxPatternTest.dat";
 	std::string rxLocationFileName = "./data/RxLocations.dat";
+	std::string rxLocationOutputFileName = "./data/output/RxLocations.vtk";
 	std::string stlFileName = "./data/stl_files/ground.stl";
 	std::string bvhFileName = "./data/output/BVH.vtk";
 	std::string rayPathFileName = "./data/output/RayPath.vtk";
@@ -52,6 +53,7 @@ int main()
 
 	timer.start();
 	Preprocessor::ReadPatternFile(txPatternFileName, txPattern);
+	// Preprocessor::GenerateRxPlane(-10, -10, 10, 10, 3, 1, rxLocation);
 	Preprocessor::ReadLocationFile(rxLocationFileName, rxLocation);
 	Preprocessor::StlToGeometry(stlFileName, triangle_mesh);
 	bvh.ConstructBVH(triangle_mesh);
@@ -100,7 +102,6 @@ int main()
 	materials[3].relPermittivityRe = 6;
 	materials[3].relPermittivityIm = 0.05;
 
-
 	int tessllation = 0;
 	RTSolver* rayTracer = new RTSolver();
 	rayTracer->Init(materials, 4, bvh);
@@ -109,6 +110,7 @@ int main()
 	//rayTracer->DebugFunc();
 	rayTracer->SavePathsAsVtk(rayPathFileName);
 	rayTracer->SaveIcosahedronAsVtk(icosahedronFileName,rayOrig, tessllation);
+	Preprocessor::SaveLocationAsVtk(rxLocationOutputFileName, rxLocation);
 
 	delete rayTracer;
 }

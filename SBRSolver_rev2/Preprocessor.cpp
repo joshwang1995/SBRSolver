@@ -106,15 +106,27 @@ bool Preprocessor::ReadMaterialsFile(std::string fileName, Materials& output)
     return false;
 }
 
-void Preprocessor::GenerateRxPlane(double xMin, double yMin, double xMax, double yMax, double height, double resolution)
+void Preprocessor::GenerateRxPlane(double xMin, double yMin, double xMax, double yMax, double height, double resolution, VecVec3& output)
 {
+    int nx = int((xMax - xMin) / resolution);
+    int ny = int((yMax - yMin) / resolution);
+    
+    for (int i = 0; i < nx; i++)
+    {
+        double x = xMin + i * resolution;
+        for (int j = 0; j < ny; j++)
+        {
+            double y = yMin + j * resolution;
+            output.emplace_back(Vec3(x, y, height));
+        }
+    }
 }
 
 void Preprocessor::GenerateAntennaPattern(std::string, double resolution)
 {
 }
 
-bool SaveLocationAsVtk(std::string fileName, const VecVec3& location)
+bool  Preprocessor::SaveLocationAsVtk(std::string fileName, const VecVec3& location)
 {
     using namespace std;
 

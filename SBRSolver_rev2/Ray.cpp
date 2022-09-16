@@ -25,6 +25,26 @@ PathTreeNode* newPathTreeNode
 	return result;
 }
 
+PathTreeNode* DeleteChildNodes(PathTreeNode* node)
+{
+	if (node != nullptr)
+	{
+		if (node->childDirect != nullptr)
+		{
+			node->childDirect = DeleteChildNodes(node->childDirect);
+		}
+
+		if (node->childReflect != nullptr)
+		{
+			node->childReflect = DeleteChildNodes(node->childReflect);
+		}
+		delete node;
+	}
+	
+	return nullptr;
+
+}
+
 TreeNode::TreeNode()
 {
 }
@@ -94,7 +114,8 @@ Paths::Paths(PathTreeNode* rootNode)
 		{
 			if (p.second->childDirect != nullptr)
 			{
-				bool terminate = p.first.second || p.second->childDirect->ray.reflectionMaterialId >= 0 || p.second->childDirect->ray.penetrationMaterialId >= 0;
+				//bool terminate = p.first.second || p.second->childDirect->ray.reflectionMaterialId >= 0 || p.second->childDirect->ray.penetrationMaterialId >= 0;
+				bool terminate = p.first.second || p.second->childDirect->ray.captured;
 				std::vector<Ray> newVect(p.first.first);
 				newVect.push_back(p.second->childDirect->ray);
 				q.push(std::make_pair(std::make_pair(newVect, terminate), p.second->childDirect));
@@ -102,7 +123,8 @@ Paths::Paths(PathTreeNode* rootNode)
 
 			if (p.second->childReflect != nullptr)
 			{
-				bool terminate = p.first.second || p.second->childReflect->ray.reflectionMaterialId >= 0 || p.second->childReflect->ray.penetrationMaterialId >= 0;
+				//bool terminate = p.first.second || p.second->childReflect->ray.reflectionMaterialId >= 0 || p.second->childReflect->ray.penetrationMaterialId >= 0;
+				bool terminate = p.first.second || p.second->childReflect->ray.captured;
 				std::vector<Ray> newVect(p.first.first);
 				newVect.push_back(p.second->childReflect->ray);
 				q.push(std::make_pair(std::make_pair(newVect, terminate), p.second->childReflect));
