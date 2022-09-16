@@ -32,9 +32,10 @@ public:
 protected:
 	bool _isSceneInitialized;
 	MaterialProperties* _materialProperties = nullptr;
-	VecVec3* _receivers = nullptr;
+	int _txTesslation;
 	int _maxTransmissionCount;
 	int _maxReflectionCount;
+	Paths* _capturedPaths;
 	Paths* _rayPaths;
 	int _pathsCount;
 	BVH<Triangle>* _bvh;
@@ -53,18 +54,36 @@ private:
 		bool isRoot, 
 		double lastAnglefromN
 	);
+
+	void RayLaunchAndCapture
+	(
+		PathTreeNode* rayTreeNode, 
+		Vec3& sourcePoint, 
+		Vec3& directionPoint, 
+		const Vec3& receiver, 
+		int transMaterialID, 
+		int refMaterialID, 
+		int reflectionCnt, 
+		int transmissionCnt, 
+		double totalPathLength, 
+		bool isRoot, 
+		double lastAnglefromN
+	);
+
 	void RayCapture
 	(
 		PathTreeNode* rayTreeNode,
-		VecVec3& receivers
+		const Vec3& receiver, 
+		double totalPathLength
 	);
 };
 
 bool HitReceptionSphere
 (
-	const Vec3& rayOrig,
-	const Vec3& rayDir,
+	const Vec3& sourcePoint,
+	const Vec3& targetPoint,
 	const Vec3& sphereCenter,
 	double pathLength,
+	int txTesslation,
 	Vec3& capturePoint
 );

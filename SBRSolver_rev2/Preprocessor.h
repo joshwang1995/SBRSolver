@@ -19,7 +19,7 @@ namespace Preprocessor
 	bool StlToGeometry(std::string fileName, std::vector<Triangle*>& output);
 
 	// Functions to generate data [to be implemented]
-	void GenerateRxPlane(double xMin, double yMin, double xMax, double yMax, double height, double resolution);
+	void GenerateRxPlane(double xMin, double yMin, double xMax, double yMax, double height, double resolution, VecVec3& output);
 	void GenerateAntennaPattern(std::string type, double resolution);
 	
 	// Functions to save data to VTK files
