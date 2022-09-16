@@ -35,7 +35,6 @@ protected:
 	int _txTesslation;
 	int _maxTransmissionCount;
 	int _maxReflectionCount;
-	Paths* _capturedPaths;
 	Paths* _rayPaths;
 	int _pathsCount;
 	BVH<Triangle>* _bvh;

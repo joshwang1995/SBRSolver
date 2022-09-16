@@ -97,7 +97,8 @@ Paths::Paths(PathTreeNode* rootNode)
 {
 	// This function traverses through the pathtreenode and pushes each node's 
 	// ray into newVect. 
-	if (rootNode == nullptr || (rootNode->childDirect == nullptr && rootNode->childReflect == nullptr))
+	// if (rootNode == nullptr || (rootNode->childDirect == nullptr && rootNode->childReflect == nullptr))
+	if (rootNode == nullptr)
 	{
 		return;
 	}
@@ -132,7 +133,7 @@ Paths::Paths(PathTreeNode* rootNode)
 		}
 		else
 		{
-			if (p.first.second)
+			if (p.first.second || p.second->ray.captured)
 			{
 				rayPaths.push_back(p.first.first);
 			}
