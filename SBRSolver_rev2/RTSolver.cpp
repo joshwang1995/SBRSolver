@@ -197,136 +197,16 @@ void RTSolver::RayLaunch
 			else if (transMaterialID >= 0)
 				rayTreeNode->childDirect = newNode;
 		}
-		else if (reflectionCnt == 0 && transmissionCnt == 0)
+
+		if (isRoot)
 		{
 			// Direct Ray
-			//rayTreeNode->ray.captured = true;
-		}
-	}
-}
-
-void RTSolver::RayLaunchAndCapture
-(
-	PathTreeNode* rayTreeNode,
-	Vec3& sourcePoint,
-	Vec3& directionPoint,
-	const Vec3& receiver,
-	int transMaterialID,
-	int refMaterialID,
-	int reflectionCnt,
-	int transmissionCnt,
-	double totalPathLength,
-	bool isRoot,
-	double lastAnglefromN
-)
-{
-	if (reflectionCnt >= _maxReflectionCount || transmissionCnt >= _maxTransmissionCount)
-	{
-		return;
-	}
-
-	HitInfo hitResult;
-	bool hasHit = _bvh->RayIntersects(0, sourcePoint, directionPoint, hitResult);
-
-	if (hasHit)
-	{
-		Vec3 capturePoint;
-		bool captured = HitReceptionSphere
-		(
-			sourcePoint,
-			hitResult.pointIntersect,
-			receiver,
-			totalPathLength,
-			0,
-			capturePoint
-		);
-		double anglefromN = AngleBetween(hitResult.normal, directionPoint);
-		PathTreeNode* newRayTreeNode = rayTreeNode;
-		if (!isRoot)
-		{
-			PathTreeNode* newNode = newPathTreeNode
-			(
-				sourcePoint,
-				hitResult.pointIntersect,
-				transMaterialID,
-				refMaterialID,
-				totalPathLength + hitResult.distance,
-				lastAnglefromN
-			);
-
-			if (refMaterialID >= 0)
-				rayTreeNode->childReflect = newNode;
-			else
-				rayTreeNode->childDirect = newNode;
-			newRayTreeNode = newNode;
-		}
-		else //it is the root
-		{
 			rayTreeNode->ray.sourcePoint = sourcePoint;
-			rayTreeNode->ray.targetPoint = hitResult.pointIntersect;
-			rayTreeNode->ray.penetrationMaterialId = transMaterialID;
-			rayTreeNode->ray.reflectionMaterialId = refMaterialID;
-			rayTreeNode->ray.pathLength = hitResult.distance;
-			rayTreeNode->ray.angleFromSurfaceNormal = lastAnglefromN;
+			rayTreeNode->ray.targetPoint = sourcePoint + (directionPoint * 1E2);
+			rayTreeNode->ray.reflectionMaterialId = -1;
+			rayTreeNode->ray.penetrationMaterialId = -1;
+			rayTreeNode->ray.pathLength = FLT_MAX;
 		}
-
-		if (reflectionCnt < _maxReflectionCount)
-		{
-			Vec3 newDirectionPoint = Reflect(directionPoint, hitResult.normal).normalized();
-			// Rebounce ray
-			RayLaunch
-			(
-				newRayTreeNode,
-				hitResult.pointIntersect,
-				newDirectionPoint,
-				-1,
-				hitResult.materialID,
-				reflectionCnt + 1,
-				transmissionCnt,
-				totalPathLength + hitResult.distance,
-				false,
-				anglefromN
-			);
-		}
-
-		if (transmissionCnt < _maxTransmissionCount)
-		{
-			// Forward ray
-			RayLaunch
-			(
-				newRayTreeNode,
-				hitResult.pointIntersect,
-				directionPoint,
-				hitResult.materialID,
-				-1,
-				reflectionCnt,
-				transmissionCnt + 1,
-				totalPathLength + hitResult.distance,
-				false,
-				anglefromN
-			);
-		}
-
-	}
-	else
-	{
-		if (reflectionCnt > 0)
-		{
-			PathTreeNode* newNode = newPathTreeNode
-			(
-				sourcePoint,
-				sourcePoint + (directionPoint * 1E2),
-				transMaterialID,
-				refMaterialID,
-				FLT_MAX,
-				lastAnglefromN
-			);
-			if (refMaterialID >= 0)
-				rayTreeNode->childReflect = newNode;
-			else if (transMaterialID >= 0)
-				rayTreeNode->childDirect = newNode;
-		}
-
 	}
 }
 
@@ -414,7 +294,6 @@ bool HitReceptionSphere
 		capturePoint = sourcePoint + t0 * rayDir;
 		return true;
 	}
-
 	return false;
 }
 
@@ -434,6 +313,10 @@ void RTSolver::CmdLineDebug()
 				Ray r = _rayPaths[i].rayPaths[j][k];
 				cout << "\t\t Ray " << r.id << ": ";
 				cout << r.sourcePoint.format(CommaInitFmt) << " -> " << r.targetPoint.format(CommaInitFmt) << endl;
+				cout << "\t\t\t Path Length: " << r.pathLength << std::endl;
+				cout << "\t\t\t Angle From Normal: " << r.angleFromSurfaceNormal << std::endl;
+				cout << "\t\t\t Ray Captured: " << (r.captured) ? std::string("Yes") : std::string("No");
+				cout << endl;
 			}
 		}
 		cout << endl;

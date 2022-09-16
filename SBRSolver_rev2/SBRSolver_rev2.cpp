@@ -107,7 +107,7 @@ int main()
 	rayTracer->Init(materials, 4, bvh);
 	int total_paths = rayTracer->ExecuteRayTracing(rayOrig, maxReflection, maxTransmission, rxLocation, tessllation);
 
-	//rayTracer->DebugFunc();
+	rayTracer->CmdLineDebug();
 	rayTracer->SavePathsAsVtk(rayPathFileName);
 	rayTracer->SaveIcosahedronAsVtk(icosahedronFileName,rayOrig, tessllation);
 	Preprocessor::SaveLocationAsVtk(rxLocationOutputFileName, rxLocation);
