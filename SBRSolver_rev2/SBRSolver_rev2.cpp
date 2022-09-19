@@ -31,8 +31,8 @@ int main()
 
 	double freq = 1.8e9; // frequency
 	double Pt = 1; // transmit power in Watt
-	int maxReflection = 5;
-	int maxTransmission = 2;
+	int maxReflection = 3;
+	int maxTransmission = 1;
 
 #if DEBUG
 	std::cout << "\tTX Pattern File Name  -> " << txPatternFileName << std::endl;
@@ -66,7 +66,7 @@ int main()
 
 	std::cout << "[Leaving] Preprocessor" << std::endl;
 
-	Vec3 rayOrig{ -0.5, -12.5, 1 }; // for bahen stl file
+	Vec3 rayOrig{ -20, 23,1 }; // for bahen stl file
 	// Vec3 rayOrig{ 0, 0, 5 };
 
 	MaterialProperties materials[4];

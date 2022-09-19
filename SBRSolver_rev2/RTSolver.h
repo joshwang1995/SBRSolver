@@ -53,22 +53,6 @@ private:
 		bool isRoot, 
 		double lastAnglefromN
 	);
-
-	void RayLaunchAndCapture
-	(
-		PathTreeNode* rayTreeNode, 
-		Vec3& sourcePoint, 
-		Vec3& directionPoint, 
-		const Vec3& receiver, 
-		int transMaterialID, 
-		int refMaterialID, 
-		int reflectionCnt, 
-		int transmissionCnt, 
-		double totalPathLength, 
-		bool isRoot, 
-		double lastAnglefromN
-	);
-
 	void RayCapture
 	(
 		PathTreeNode* rayTreeNode,
