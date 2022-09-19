@@ -2,6 +2,7 @@
 
 RTSolver::RTSolver()
 {
+	Cleanup();
 }
 
 RTSolver::~RTSolver()
@@ -51,12 +52,6 @@ int RTSolver::ExecuteRayTracing
 	int txTesslation
 )
 {
-	if (_rayPaths != nullptr)
-	{
-		delete[] _rayPaths;
-		_rayPaths = nullptr;
-	}
-
 	_maxReflectionCount = maxReflectionCount;
 	_maxTransmissionCount = maxTransmissionCount;
 	_txTesslation = txTesslation + 1;
@@ -222,7 +217,7 @@ void RTSolver::RayCapture(PathTreeNode* rayTreeNode, const Vec3& receiver, doubl
 		_txTesslation, 
 		capturePoint
 	);
-	
+
 	if (rayTreeNode->childDirect == nullptr && rayTreeNode->childReflect == nullptr && !captured)
 	{
 		// Delete current node
