@@ -64,8 +64,8 @@ int RTSolver::ExecuteRayTracing
 	_shootRayList = GenerateRaysOnIcosahedron(txTesslation, sourcePoint);
 	_rayPaths = new Paths[_shootRayList->size() * receivers.size()];
 
-	Timer timer;
-	timer.start();
+	// Timer timer;
+	// timer.start();
 	// #pragma omp parallel for
 	for (int i = 0; i < receivers.size(); i++)
 	{
@@ -81,7 +81,7 @@ int RTSolver::ExecuteRayTracing
 		}
 	}
 
-	std::cout << "\tTotal Time in for loop -> " << timer.getTime() << std::endl;
+	// std::cout << "\tTotal Time in for loop -> " << timer.getTime() << std::endl;
 	_pathsCount = static_cast<int>(_shootRayList->size()*receivers.size());
 	return _pathsCount;
 }
@@ -283,9 +283,23 @@ bool HitReceptionSphere
 	// Reference: 191115_Ray_Launching.pdf
 	// Note: the unfolded path length is the path length from previous ray segments plus the distance
 	//  the point of intersection and the receiver
-	double beta = 1.0 / (3.0 * txTesslation) * acos(-1.0 / sqrt(5.0));
+	
+	// Takahiro's method
+	//double beta = 1.0 / (3.0 * txTesslation) * acos(-1.0 / sqrt(5.0));
+	//double unfoldedLength = pathLength + (sourcePoint + t0 * rayDir).norm();
+	//double sphereRadius = unfoldedLength * tan(beta);
+	
+	// Rappaport's approximation
+	// double unfoldedLength = pathLength + (sourcePoint + t0 * rayDir).norm();
+	// double alpha = (69.0 * PI / 180.0) / txTesslation;
+	// double sphereRadius = alpha * unfoldedLength / sqrt(3.0);
+
 	double unfoldedLength = pathLength + (sourcePoint + t0 * rayDir).norm();
-	double sphereRadius = unfoldedLength * tan(beta);
+	double phi = (sqrt(5) + 1) / 2;
+	double alpha = acos(phi / (phi * phi + 1)) / (pow(2, txTesslation-1)) / sqrt(3);
+	double sphereRadius = alpha * unfoldedLength;
+
+
 	double distance = (sphereCenter - (sourcePoint + t0 * rayDir)).norm();
 	if (distance <= sphereRadius)
 	{
