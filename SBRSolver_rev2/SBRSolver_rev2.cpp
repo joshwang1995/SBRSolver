@@ -23,7 +23,7 @@ int main()
 	std::string txPatternFileName = "./data/TxPatternTest.dat";
 	std::string rxLocationFileName = "./data/RxLocations.dat";
 	std::string rxLocationOutputFileName = "./data/output/RxLocations.vtk";
-	std::string stlFileName = "./data/stl_files/bahen.stl";
+	std::string stlFileName = "./data/stl_files/ground.stl";
 	std::string bvhFileName = "./data/output/BVH.vtk";
 	std::string rayPathFileName = "./data/output/RayPath.vtk";
 	std::string icosahedronFileName = "./data/output/Icosahedron.vtk";
@@ -31,8 +31,8 @@ int main()
 
 	double freq = 1.8e9; // frequency
 	double Pt = 1; // transmit power in Watt
-	int maxReflection = 3;
-	int maxTransmission = 1;
+	int maxReflection = 2; // NOTE!! 1 means no reflection, 2 means 1 reflection
+	int maxTransmission = 1; // NOTE!! 1 means no transmission, 2 means 1 transmission
 
 #if DEBUG
 	std::cout << "\tTX Pattern File Name  -> " << txPatternFileName << std::endl;
@@ -53,8 +53,8 @@ int main()
 
 	timer.start();
 	Preprocessor::ReadPatternFile(txPatternFileName, txPattern);
-	Preprocessor::GenerateRxPlane(-18, -40, -17, 30, 1, 1, rxLocation);
-	// Preprocessor::ReadLocationFile(rxLocationFileName, rxLocation);
+	// Preprocessor::GenerateRxPlane(-18, -40, -17, 30, 1, 1, rxLocation);
+	Preprocessor::ReadLocationFile(rxLocationFileName, rxLocation);
 	Preprocessor::StlToGeometry(stlFileName, triangle_mesh);
 	bvh.ConstructBVH(triangle_mesh);
 	// Preprocessor End
@@ -66,8 +66,8 @@ int main()
 
 	std::cout << "[Leaving] Preprocessor" << std::endl;
 
-	Vec3 rayOrig{ -20, 23,1 }; // for bahen stl file
-	// Vec3 rayOrig{ 0, 0, 5 };
+	// Vec3 rayOrig{ -20, 23,1 }; // for bahen stl file
+	Vec3 rayOrig{ 0, 0, 5 };
 
 	MaterialProperties materials[4];
 	// Material 0 [Concrete] -> Default material
@@ -102,7 +102,7 @@ int main()
 	materials[3].relPermittivityRe = 6;
 	materials[3].relPermittivityIm = 0.05;
 
-	int tessllation = 2;
+	int tessllation = 0;
 	RTSolver* rayTracer = new RTSolver();
 	rayTracer->Init(materials, 4, bvh);
 	int total_paths = rayTracer->ExecuteRayTracing(rayOrig, maxReflection, maxTransmission, rxLocation, tessllation);

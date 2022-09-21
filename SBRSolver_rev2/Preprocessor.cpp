@@ -87,7 +87,7 @@ bool Preprocessor::StlToGeometry(std::string fileName, std::vector<Triangle*>& o
             Vec3 v3{ coords[v3_idx], coords[v3_idx + 1], coords[v3_idx + 2] };
             Vec3 norm{ normals[3 * itri], normals[3 * itri + 1], normals[3 * itri + 2] };
 
-            Triangle* t = new Triangle(v1, v2, v3, norm);
+            Triangle* t = new Triangle(v1, v2, v3, norm, int(itri));
             output.push_back(t);
             //std::cout << "Triangle " << itri << ": ";
             //std::cout << v1.format(CommaInitFmt) << "," << v2.format(CommaInitFmt) << "," << v3.format(CommaInitFmt) << std::endl;
@@ -149,6 +149,21 @@ bool  Preprocessor::SaveLocationAsVtk(std::string fileName, const VecVec3& locat
             << v.x() << " "
             << v.y() << " "
             << v.z() << endl;
+    }
+
+    ofs << "VERTICES 1 " << location.size() + 1 << endl;
+    ofs << " " << location.size() << endl;
+    for (int i = 0; i < location.size(); i++)
+    {
+        ofs << " " << i << endl;
+    }
+
+    ofs << "POINT_DATA " << location.size() << endl;
+    ofs << "FIELD FieldData 1" << endl;
+    ofs << "ReceiverID 1 " << location.size() << " int" << endl;
+    for (int i = 0; i < location.size(); i++)
+    {
+        ofs << " " << i << endl;
     }
 
     ofs.close();

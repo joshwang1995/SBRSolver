@@ -25,7 +25,7 @@ void RTSolver::Cleanup()
 {
 	if (_rayPaths != nullptr)
 	{
-		delete[] _rayPaths;
+		DeleteRayPaths();
 		_rayPaths = nullptr;
 	}
 
@@ -54,33 +54,35 @@ int RTSolver::ExecuteRayTracing
 {
 	_maxReflectionCount = maxReflectionCount;
 	_maxTransmissionCount = maxTransmissionCount;
-	_txTesslation = txTesslation + 1;
+	_txTesslation = txTesslation + 1; // Since user can enter 0 as txTesslation
 	RayGlobalId = 0;
 	_shootRayList = GenerateRaysOnIcosahedron(txTesslation, sourcePoint);
-	_rayPaths = new Paths[_shootRayList->size() * receivers.size()];
+	_receiverCount = int(receivers.size());
+	_pathsCount = int(_shootRayList->size());
+	InitRayPaths();
 
 	// Timer timer;
 	// timer.start();
 	// #pragma omp parallel for
-	for (int i = 0; i < receivers.size(); i++)
+	for (int i = 0; i < _pathsCount; i++)
 	{
-		for (int j = 0; j < _shootRayList->size(); j++)
+		PathTreeNode rootNode;
+		rootNode.ray.id = RayGlobalId++;
+		rootNode.childTransmit = nullptr;
+		rootNode.childReflect = nullptr;
+		RayLaunch(&rootNode, sourcePoint, _shootRayList->at(i), -1, -1, 0, 0, 0, true, FLT_MAX);
+		for (int j = 0; j < _receiverCount; j++)
 		{
-			PathTreeNode rootNode;
-			rootNode.ray.id = RayGlobalId++;
-			rootNode.childDirect = nullptr;
-			rootNode.childReflect = nullptr;
-			RayLaunch(&rootNode, sourcePoint, _shootRayList->at(j), -1, -1, 0, 0, 0, true, FLT_MAX);
-			RayCapture(&rootNode, receivers[i], 0);
-			_rayPaths[j + i* _shootRayList->size()] = Paths(&rootNode);
+			PathTreeNode* cloneRoot = CloneNode(&rootNode);
+			CloneTree(&rootNode, cloneRoot);
+			RayCapture(cloneRoot, receivers[j], 0.0);
+			_rayPaths[i][j] = Paths(cloneRoot);
+			delete cloneRoot;
 		}
 	}
-
 	// std::cout << "\tTotal Time in for loop -> " << timer.getTime() << std::endl;
-	_pathsCount = static_cast<int>(_shootRayList->size()*receivers.size());
-	return _pathsCount;
+	return _pathsCount * _receiverCount;
 }
-
 
 void RTSolver::RayLaunch
 (
@@ -116,6 +118,7 @@ void RTSolver::RayLaunch
 				hitResult.pointIntersect,
 				transMaterialID,
 				refMaterialID,
+				hitResult.triangelId,
 				totalPathLength + hitResult.distance,
 				lastAnglefromN
 			);
@@ -123,7 +126,7 @@ void RTSolver::RayLaunch
 			if (refMaterialID >= 0)
 				rayTreeNode->childReflect = newNode;
 			else
-				rayTreeNode->childDirect = newNode;
+				rayTreeNode->childTransmit = newNode;
 			newRayTreeNode = newNode;
 		}
 		else //it is the root
@@ -132,6 +135,7 @@ void RTSolver::RayLaunch
 			rayTreeNode->ray.targetPoint = hitResult.pointIntersect;
 			rayTreeNode->ray.penetrationMaterialId = transMaterialID;
 			rayTreeNode->ray.reflectionMaterialId = refMaterialID;
+			rayTreeNode->ray.hitSurfaceID = hitResult.triangelId;
 			rayTreeNode->ray.pathLength = hitResult.distance;
 			rayTreeNode->ray.angleFromSurfaceNormal = lastAnglefromN;
 		}
@@ -146,7 +150,7 @@ void RTSolver::RayLaunch
 				hitResult.pointIntersect, 
 				newDirectionPoint, 
 				-1, 
-				hitResult.materialID, 
+				hitResult.materialId, 
 				reflectionCnt + 1,
 				transmissionCnt,
 				totalPathLength + hitResult.distance,
@@ -163,7 +167,7 @@ void RTSolver::RayLaunch
 				newRayTreeNode,
 				hitResult.pointIntersect,
 				directionPoint,
-				hitResult.materialID,
+				hitResult.materialId,
 				-1,
 				reflectionCnt,
 				transmissionCnt + 1,
@@ -184,13 +188,14 @@ void RTSolver::RayLaunch
 				sourcePoint + (directionPoint * 1E2), 
 				transMaterialID,
 				refMaterialID,
+				-1,
 				FLT_MAX,
 				lastAnglefromN
 			);
 			if (refMaterialID >= 0)
 				rayTreeNode->childReflect = newNode;
 			else if (transMaterialID >= 0)
-				rayTreeNode->childDirect = newNode;
+				rayTreeNode->childTransmit = newNode;
 		}
 
 		if (isRoot)
@@ -200,6 +205,7 @@ void RTSolver::RayLaunch
 			rayTreeNode->ray.targetPoint = sourcePoint + (directionPoint * 1E2);
 			rayTreeNode->ray.reflectionMaterialId = -1;
 			rayTreeNode->ray.penetrationMaterialId = -1;
+			rayTreeNode->ray.hitSurfaceID = -1;
 			rayTreeNode->ray.pathLength = FLT_MAX;
 		}
 	}
@@ -218,7 +224,7 @@ void RTSolver::RayCapture(PathTreeNode* rayTreeNode, const Vec3& receiver, doubl
 		capturePoint
 	);
 
-	if (rayTreeNode->childDirect == nullptr && rayTreeNode->childReflect == nullptr && !captured)
+	if (rayTreeNode->childTransmit == nullptr && rayTreeNode->childReflect == nullptr && !captured)
 	{
 		// Delete current node
 		// rayTreeNode = DeleteChildNodes(rayTreeNode);
@@ -231,14 +237,14 @@ void RTSolver::RayCapture(PathTreeNode* rayTreeNode, const Vec3& receiver, doubl
 		rayTreeNode->ray.targetPoint = capturePoint;
 		rayTreeNode->ray.pathLength = (capturePoint - rayTreeNode->ray.sourcePoint).norm();
 		
-		rayTreeNode->childDirect = DeleteChildNodes(rayTreeNode->childDirect);
+		rayTreeNode->childTransmit = DeleteChildNodes(rayTreeNode->childTransmit);
 		rayTreeNode->childReflect = DeleteChildNodes(rayTreeNode->childReflect);
 	}
 	else
 	{
-		if (rayTreeNode->childDirect != nullptr)
+		if (rayTreeNode->childTransmit != nullptr)
 		{
-			RayCapture(rayTreeNode->childDirect, receiver, totalPathLength + rayTreeNode->ray.pathLength);
+			RayCapture(rayTreeNode->childTransmit, receiver, totalPathLength + rayTreeNode->ray.pathLength);
 		}
 
 		if (rayTreeNode->childReflect != nullptr)
@@ -306,6 +312,24 @@ bool HitReceptionSphere
 	return false;
 }
 
+void RTSolver::InitRayPaths()
+{
+	_rayPaths = new Paths* [_pathsCount];
+	for (int i = 0; i < _pathsCount; i++)
+	{
+		_rayPaths[i] = new Paths[_receiverCount];
+	}
+}
+
+void RTSolver::DeleteRayPaths()
+{
+	for (int i = 0; i < _pathsCount; i++)
+	{
+		delete[] _rayPaths[i];
+	}
+	delete[] _rayPaths;
+}
+
 void RTSolver::CmdLineDebug()
 {
 	using namespace std;
@@ -313,8 +337,19 @@ void RTSolver::CmdLineDebug()
 
 	for (int i = 0; i < _pathsCount; i++)
 	{
+		cout << "Launch ID: " << i << endl;
+		for (int j = 0; j < _receiverCount; j++)
+		{
+			cout << "\t Receiver ID: " << j << endl;
+		}
+	}
+
+
+
+	for (int i = 0; i < _pathsCount; i++)
+	{
 		cout << "Launch ID " << i << ":" << endl;
-		for (int j = 0; j < _rayPaths[i].rayPaths.size(); j++)
+		for (int j = 0; j < _rayPaths[i]->rayPaths.size(); j++)
 		{
 			cout << "\t Path " << j << ":" << endl;
 			for (int k = 0; k < _rayPaths[i].rayPaths[j].size(); k++)
@@ -350,9 +385,16 @@ bool RTSolver::SavePathsAsVtk(std::string fname)
 
 	vector<Vec3> points;
 	vector<Idx2> lineIdx;
+	vector<int> launchID;
+	vector<int> receiverID;
+	int id = 0;
 
 	for (int i = 0; i < _pathsCount; i++)
 	{
+		if (i % 5 == 0)
+		{
+			id += 1;
+		}
 		for (int j = 0; j < _rayPaths[i].rayPaths.size(); j++)
 		{
 			for (int k = 0; k < _rayPaths[i].rayPaths[j].size(); k++)
@@ -360,6 +402,8 @@ bool RTSolver::SavePathsAsVtk(std::string fname)
 				points.push_back(_rayPaths[i].rayPaths[j][k].sourcePoint);
 				points.push_back(_rayPaths[i].rayPaths[j][k].targetPoint);
 				lineIdx.emplace_back(Idx2(points.size() - 2, points.size() - 1));
+				launchID.push_back(i);
+				receiverID.push_back(id);
 			}
 		}
 	}
@@ -379,6 +423,20 @@ bool RTSolver::SavePathsAsVtk(std::string fname)
 		ofs << " 2 "
 			<< l.x() << " "
 			<< l.y() << endl;
+	}
+
+	ofs << "CELL_DATA " << launchID.size() << endl;
+	ofs << "FIELD FieldData 2" << endl;
+	ofs << "LaunchID 1 " << launchID.size() << " int" << endl;
+	for (int i = 0; i < launchID.size(); i++)
+	{
+		ofs << " " << launchID[i] << endl;
+	}
+
+	ofs << "ReceiverID 1 " << receiverID.size() << " int" << endl;
+	for (int i = 0; i < receiverID.size(); i++)
+	{
+		ofs << " " << receiverID[i] << endl;
 	}
 
 	ofs.close();
@@ -420,6 +478,14 @@ bool RTSolver::SaveIcosahedronAsVtk(std::string fname, Vec3 rayOrg, int tessella
 		ofs << " 2"
 			<< " 0 "
 			<< i << endl;
+	}
+
+	ofs << "CELL_DATA " << _shootRayList->size() << endl;
+	ofs << "FIELD FieldData 1" << endl;
+	ofs << "LaunchID 1 " << _shootRayList->size() << " int" << endl;
+	for (int i = 0; i < _shootRayList->size(); i++)
+	{
+		ofs << " " << i << endl;
 	}
 
 	ofs.close();

@@ -4,23 +4,25 @@ extern std::atomic<int> RayGlobalId = 0;
 
 PathTreeNode* newPathTreeNode
 (
-	Vec3 SourcePoint, 
-	Vec3 TargetPoint, 
-	int PenetrationMaterialId, 
-	int ReflectionMaterialId, 
-	double PathLength, 
-	double AngleFromSurfaceNormal
+	Vec3 sourcePoint, 
+	Vec3 targetPoint, 
+	int penetrationMaterialId, 
+	int reflectionMaterialId,
+	int surfaceId,
+	double pathLength, 
+	double angleFromSurfaceNormal
 )
 {
 	PathTreeNode* result = new PathTreeNode;
 	result->ray.id = RayGlobalId++;
-	result->ray.sourcePoint = SourcePoint;
-	result->ray.targetPoint = TargetPoint;
-	result->ray.penetrationMaterialId = PenetrationMaterialId;
-	result->ray.reflectionMaterialId = ReflectionMaterialId;
-	result->ray.angleFromSurfaceNormal = AngleFromSurfaceNormal;
-	result->ray.pathLength = PathLength;
-	result->childDirect = nullptr;
+	result->ray.sourcePoint = sourcePoint;
+	result->ray.targetPoint = targetPoint;
+	result->ray.penetrationMaterialId = penetrationMaterialId;
+	result->ray.reflectionMaterialId = reflectionMaterialId;
+	result->ray.hitSurfaceID = surfaceId;
+	result->ray.angleFromSurfaceNormal = angleFromSurfaceNormal;
+	result->ray.pathLength = pathLength;
+	result->childTransmit = nullptr;
 	result->childReflect = nullptr;
 	return result;
 }
@@ -29,9 +31,9 @@ PathTreeNode* DeleteChildNodes(PathTreeNode* node)
 {
 	if (node != nullptr)
 	{
-		if (node->childDirect != nullptr)
+		if (node->childTransmit != nullptr)
 		{
-			node->childDirect = DeleteChildNodes(node->childDirect);
+			node->childTransmit = DeleteChildNodes(node->childTransmit);
 		}
 
 		if (node->childReflect != nullptr)
@@ -40,9 +42,44 @@ PathTreeNode* DeleteChildNodes(PathTreeNode* node)
 		}
 		delete node;
 	}
-	
 	return nullptr;
+}
 
+void CloneTree(PathTreeNode* orgTree, PathTreeNode* cloneTree)
+{
+	if (orgTree != nullptr) 
+	{
+		//Direct ray
+		PathTreeNode* newTransmitNode = CloneNode(orgTree->childTransmit);
+		cloneTree->childTransmit = newTransmitNode;
+		CloneTree(orgTree->childTransmit, cloneTree->childTransmit);
+
+		//Reflect ray
+		PathTreeNode* newReflectNode = CloneNode(orgTree->childReflect);
+		cloneTree->childReflect = newReflectNode;
+		CloneTree(orgTree->childReflect, cloneTree->childReflect);
+	}
+}
+
+PathTreeNode* CloneNode(PathTreeNode* node)
+{
+	if (node != nullptr)
+	{
+		PathTreeNode* newNode = new PathTreeNode;
+		newNode->childTransmit = nullptr;
+		newNode->childReflect = nullptr;
+		newNode->ray.id = node->ray.id;
+		newNode->ray.sourcePoint = node->ray.sourcePoint;
+		newNode->ray.targetPoint = node->ray.targetPoint;
+		newNode->ray.reflectionMaterialId = node->ray.reflectionMaterialId;
+		newNode->ray.penetrationMaterialId = node->ray.penetrationMaterialId;
+		newNode->ray.pathLength = node->ray.pathLength;
+		newNode->ray.hitSurfaceID = node->ray.hitSurfaceID;
+		newNode->ray.captured = node->ray.captured;
+		newNode->ray.angleFromSurfaceNormal = node->ray.angleFromSurfaceNormal;
+		return newNode;
+	}
+	return nullptr;
 }
 
 TreeNode::TreeNode()
@@ -97,7 +134,7 @@ Paths::Paths(PathTreeNode* rootNode)
 {
 	// This function traverses through the pathtreenode and pushes each node's 
 	// ray into newVect. 
-	// if (rootNode == nullptr || (rootNode->childDirect == nullptr && rootNode->childReflect == nullptr))
+	// if (rootNode == nullptr || (rootNode->childTransmit == nullptr && rootNode->childReflect == nullptr))
 	if (rootNode == nullptr)
 	{
 		return;
@@ -111,15 +148,15 @@ Paths::Paths(PathTreeNode* rootNode)
 	{
 		auto p = q.front();
 		q.pop();
-		if (p.second->childDirect != nullptr || p.second->childReflect != nullptr)
+		if (p.second->childTransmit != nullptr || p.second->childReflect != nullptr)
 		{
-			if (p.second->childDirect != nullptr)
+			if (p.second->childTransmit != nullptr)
 			{
-				//bool terminate = p.first.second || p.second->childDirect->ray.reflectionMaterialId >= 0 || p.second->childDirect->ray.penetrationMaterialId >= 0;
-				bool terminate = p.first.second || p.second->childDirect->ray.captured;
+				//bool terminate = p.first.second || p.second->childTransmit->ray.reflectionMaterialId >= 0 || p.second->childTransmit->ray.penetrationMaterialId >= 0;
+				bool terminate = p.first.second || p.second->childTransmit->ray.captured;
 				std::vector<Ray> newVect(p.first.first);
-				newVect.push_back(p.second->childDirect->ray);
-				q.push(std::make_pair(std::make_pair(newVect, terminate), p.second->childDirect));
+				newVect.push_back(p.second->childTransmit->ray);
+				q.push(std::make_pair(std::make_pair(newVect, terminate), p.second->childTransmit));
 			}
 
 			if (p.second->childReflect != nullptr)
