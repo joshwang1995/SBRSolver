@@ -35,8 +35,9 @@ protected:
 	int _txTesslation;
 	int _maxTransmissionCount;
 	int _maxReflectionCount;
-	Paths* _rayPaths;
+	Paths** _rayPaths;
 	int _pathsCount;
+	int _receiverCount;
 	BVH<Triangle>* _bvh;
 	std::vector<Vec3>* _shootRayList;
 private:
@@ -59,6 +60,8 @@ private:
 		const Vec3& receiver, 
 		double totalPathLength
 	);
+	void InitRayPaths();
+	void DeleteRayPaths();
 };
 
 bool HitReceptionSphere

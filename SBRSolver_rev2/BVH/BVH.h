@@ -309,9 +309,10 @@ bool BVH<T>::RayIntersects
 					{
 						result = true;
 						info.distance = currentInfo.distance;
-						info.normal = object->norm;
+						info.normal = currentInfo.normal;
 						info.pointIntersect = currentInfo.pointIntersect;
-						info.materialID = currentInfo.materialID;
+						info.materialId = currentInfo.materialId;
+						info.triangelId = currentInfo.triangelId;
 					}
 				}
 			}
