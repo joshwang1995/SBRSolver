@@ -44,7 +44,7 @@ PathTreeNode* newPathTreeNode
 (
 	Vec3 sourcePoint,
 	Vec3 targetPoint,
-	int tenetrationMaterialId,
+	int penetrationMaterialId,
 	int reflectionMaterialId,
 	int surfaceId,
 	double pathLength,
