@@ -54,7 +54,8 @@ int main()
 	timer.start();
 	Preprocessor::ReadPatternFile(txPatternFileName, txPattern);
 	// Preprocessor::GenerateRxPlane(-18, -40, -17, 30, 1, 1, rxLocation);
-	Preprocessor::ReadLocationFile(rxLocationFileName, rxLocation);
+	Preprocessor::GenerateRxPlane(-10, -10, 10, 10, 1, 1, rxLocation);
+	// Preprocessor::ReadLocationFile(rxLocationFileName, rxLocation);
 	Preprocessor::StlToGeometry(stlFileName, triangle_mesh);
 	bvh.ConstructBVH(triangle_mesh);
 	// Preprocessor End
@@ -102,7 +103,7 @@ int main()
 	materials[3].relPermittivityRe = 6;
 	materials[3].relPermittivityIm = 0.05;
 
-	int tessllation = 0;
+	int tessllation = 2;
 	RTSolver* rayTracer = new RTSolver();
 	rayTracer->Init(materials, 4, bvh);
 	int total_paths = rayTracer->ExecuteRayTracing(rayOrig, maxReflection, maxTransmission, rxLocation, tessllation);

@@ -64,6 +64,18 @@ private:
 	void DeleteRayPaths();
 };
 
+void PathsToVector
+(
+	const std::vector<std::vector<Ray>>& rayPaths,
+	std::vector<Vec3>& vertices,
+	std::vector<std::vector<int>>& lineIndex,
+	std::vector<int>& launchIds,
+	std::vector<int>& receiverIds,
+	int launchId,
+	int receiverId,
+	int& totalLines
+);
+
 bool HitReceptionSphere
 (
 	const Vec3& sourcePoint,

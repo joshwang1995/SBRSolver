@@ -77,6 +77,7 @@ int RTSolver::ExecuteRayTracing
 			CloneTree(&rootNode, cloneRoot);
 			RayCapture(cloneRoot, receivers[j], 0.0);
 			_rayPaths[i][j] = Paths(cloneRoot);
+			cloneRoot = DeleteChildNodes(cloneRoot);
 			delete cloneRoot;
 		}
 	}
@@ -322,7 +323,7 @@ void RTSolver::InitRayPaths()
 }
 
 void RTSolver::DeleteRayPaths()
-{
+{ 
 	for (int i = 0; i < _pathsCount; i++)
 	{
 		delete[] _rayPaths[i];
@@ -340,32 +341,64 @@ void RTSolver::CmdLineDebug()
 		cout << "Launch ID: " << i << endl;
 		for (int j = 0; j < _receiverCount; j++)
 		{
-			cout << "\t Receiver ID: " << j << endl;
-		}
-	}
-
-
-
-	for (int i = 0; i < _pathsCount; i++)
-	{
-		cout << "Launch ID " << i << ":" << endl;
-		for (int j = 0; j < _rayPaths[i]->rayPaths.size(); j++)
-		{
-			cout << "\t Path " << j << ":" << endl;
-			for (int k = 0; k < _rayPaths[i].rayPaths[j].size(); k++)
+			cout << "\tReceiver ID: " << j << endl;
+			for (int k = 0; k < _rayPaths[i][j].rayPaths.size(); k++)
 			{
-				Ray r = _rayPaths[i].rayPaths[j][k];
-				cout << "\t\t Ray " << r.id << ": ";
-				cout << r.sourcePoint.format(CommaInitFmt) << " -> " << r.targetPoint.format(CommaInitFmt) << endl;
-				cout << "\t\t\t Path Length: " << r.pathLength << std::endl;
-				cout << "\t\t\t Angle From Normal: " << r.angleFromSurfaceNormal << std::endl;
-				cout << "\t\t\t Ray Captured: " << (r.captured) ? std::string("Yes") : std::string("No");
-				cout << endl;
+				cout << "\t\tPath " << k + 1 << endl;
+				for (int l = 0; l < _rayPaths[i][j].rayPaths[k].size(); l++)
+				{
+					cout << "\t\t\t Ray ID: " << _rayPaths[i][j].rayPaths[k][l].id << endl;
+					cout << "\t\t\t Source Point: " << _rayPaths[i][j].rayPaths[k][l].sourcePoint.format(CommaInitFmt) << endl;
+					cout << "\t\t\t Target Point: " << _rayPaths[i][j].rayPaths[k][l].targetPoint.format(CommaInitFmt) << endl;
+					cout << "\t\t\t Reflection Material: " << _rayPaths[i][j].rayPaths[k][l].reflectionMaterialId << endl;
+					cout << "\t\t\t Penetration Material: " << _rayPaths[i][j].rayPaths[k][l].penetrationMaterialId << endl;
+					cout << "\t\t\t Path Length: " << _rayPaths[i][j].rayPaths[k][l].pathLength << endl;
+					cout << "\t\t\t Hit Triangle ID: " << _rayPaths[i][j].rayPaths[k][l].hitSurfaceID << endl;
+					cout << "\t\t\t Angle From Surface Normal: " << _rayPaths[i][j].rayPaths[k][l].angleFromSurfaceNormal << endl;
+					cout << "\t\t\t Captured: " << _rayPaths[i][j].rayPaths[k][l].captured << endl;
+				}
 			}
 		}
-		cout << endl;
 	}
 }
+
+void PathsToVector
+(
+	const std::vector<std::vector<Ray>>& rayPaths, 
+	std::vector<Vec3>& vertices,
+	std::vector<std::vector<int>>& lineIndex,
+	std::vector<int>& launchIds,
+	std::vector<int>& receiverIds,
+	int launchId,
+	int receiverId,
+	int& totalLines
+)
+{
+	for (int i = 0; i < rayPaths.size(); i++)
+	{
+		std::vector<int> lines;
+		for (int j = 0; j < rayPaths[i].size(); j++)
+		{
+			if (j == 0)
+			{
+				vertices.push_back(rayPaths[i][j].sourcePoint);
+				lines.push_back(vertices.size() - 1);
+				vertices.push_back(rayPaths[i][j].targetPoint);
+				lines.push_back(vertices.size() - 1);
+			}
+			else
+			{
+				vertices.push_back(rayPaths[i][j].targetPoint);
+				lines.push_back(vertices.size() - 1);
+			}
+		}
+		totalLines += lines.size() + 1;
+		lineIndex.push_back(lines);
+		launchIds.push_back(launchId);
+		receiverIds.push_back(receiverId);
+	}
+}
+
 
 bool RTSolver::SavePathsAsVtk(std::string fname)
 {
@@ -383,33 +416,22 @@ bool RTSolver::SavePathsAsVtk(std::string fname)
 	ofs << "DATASET POLYDATA" << endl;
 	ofs << endl;
 
-	vector<Vec3> points;
-	vector<Idx2> lineIdx;
-	vector<int> launchID;
-	vector<int> receiverID;
-	int id = 0;
+	vector<Vec3> vertex;
+	vector<vector<int>> lineIdx;
+	vector<int> launchIds;
+	vector<int> receiverIds;
+	int totalLines = 0;
 
 	for (int i = 0; i < _pathsCount; i++)
 	{
-		if (i % 5 == 0)
+		for (int j = 0; j < _receiverCount; j++)
 		{
-			id += 1;
-		}
-		for (int j = 0; j < _rayPaths[i].rayPaths.size(); j++)
-		{
-			for (int k = 0; k < _rayPaths[i].rayPaths[j].size(); k++)
-			{
-				points.push_back(_rayPaths[i].rayPaths[j][k].sourcePoint);
-				points.push_back(_rayPaths[i].rayPaths[j][k].targetPoint);
-				lineIdx.emplace_back(Idx2(points.size() - 2, points.size() - 1));
-				launchID.push_back(i);
-				receiverID.push_back(id);
-			}
+			PathsToVector(_rayPaths[i][j].rayPaths, vertex, lineIdx, launchIds, receiverIds, i, j, totalLines);
 		}
 	}
 
-	ofs << "POINTS " << points.size() << " float" << endl;
-	for (const Vec3& v : points)
+	ofs << "POINTS " << vertex.size() << " float" << endl;
+	for (const Vec3& v : vertex)
 	{
 		ofs << " "
 			<< v.x() << " "
@@ -417,26 +439,29 @@ bool RTSolver::SavePathsAsVtk(std::string fname)
 			<< v.z() << endl;
 	}
 
-	ofs << "LINES " << lineIdx.size() << " " << 3 * lineIdx.size() << endl;
-	for (const Idx2& l : lineIdx)
+	ofs << "LINES " << lineIdx.size() << " " << totalLines << endl;
+	for(int i = 0; i < lineIdx.size(); i++)
 	{
-		ofs << " 2 "
-			<< l.x() << " "
-			<< l.y() << endl;
+		ofs << " " << lineIdx[i].size() << " ";
+		for (int j = 0; j < lineIdx[i].size(); j++)
+		{
+			ofs << lineIdx[i][j] << " ";
+		}
+		ofs << endl;
 	}
 
-	ofs << "CELL_DATA " << launchID.size() << endl;
+	ofs << "CELL_DATA " << launchIds.size() << endl;
 	ofs << "FIELD FieldData 2" << endl;
-	ofs << "LaunchID 1 " << launchID.size() << " int" << endl;
-	for (int i = 0; i < launchID.size(); i++)
+	ofs << "LaunchID 1 " << launchIds.size() << " int" << endl;
+	for (int i = 0; i < launchIds.size(); i++)
 	{
-		ofs << " " << launchID[i] << endl;
+		ofs << " " << launchIds[i] << endl;
 	}
 
-	ofs << "ReceiverID 1 " << receiverID.size() << " int" << endl;
-	for (int i = 0; i < receiverID.size(); i++)
+	ofs << "ReceiverID 1 " << receiverIds.size() << " int" << endl;
+	for (int i = 0; i < receiverIds.size(); i++)
 	{
-		ofs << " " << receiverID[i] << endl;
+		ofs << " " << receiverIds[i] << endl;
 	}
 
 	ofs.close();
@@ -445,6 +470,7 @@ bool RTSolver::SavePathsAsVtk(std::string fname)
 
 	return true;
 }
+
 
 bool RTSolver::SaveIcosahedronAsVtk(std::string fname, Vec3 rayOrg, int tessellation)
 {
