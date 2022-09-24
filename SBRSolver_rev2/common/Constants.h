@@ -10,12 +10,10 @@ const double ETA = U0 * SPEED_OF_LIGHT; // Free space impedance
 
 // Threshold value used to compare a double or float number to zero
 const double SMALL_DOUBLE = 1e-5;
-const float SMALL_FLOAT = 1e-5f;
 const double EPSILON = std::numeric_limits<float>::epsilon();
 
 // Value used to initialize vectors
 const double INF = std::numeric_limits<double>::infinity();
-const float INF_F = std::numeric_limits<float>::infinity();
 
 // Easy way to reference 2PI
 const double TWOPI = 2* EIGEN_PI;
