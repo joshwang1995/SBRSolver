@@ -31,8 +31,8 @@ int main()
 
 	double freq = 1.8e9; // frequency
 	double Pt = 1; // transmit power in Watt
-	int maxReflection = 2; // NOTE!! 1 means no reflection, 2 means 1 reflection
-	int maxTransmission = 1; // NOTE!! 1 means no transmission, 2 means 1 transmission
+	int maxReflection = 1; // NOTE!! 1 means no reflection, 2 means 1 reflection
+	int maxTransmission = 2; // NOTE!! 1 means no transmission, 2 means 1 transmission
 
 #if DEBUG
 	std::cout << "\tTX Pattern File Name  -> " << txPatternFileName << std::endl;
@@ -53,9 +53,9 @@ int main()
 
 	timer.start();
 	Preprocessor::ReadPatternFile(txPatternFileName, txPattern);
-	// Preprocessor::GenerateRxPlane(-18, -40, -17, 30, 1, 1, rxLocation);
-	Preprocessor::GenerateRxPlane(-10, -10, 10, 10, 1, 1, rxLocation);
-	// Preprocessor::ReadLocationFile(rxLocationFileName, rxLocation);
+	// Preprocessor::GenerateRxPlane(-18, -40, -17, 0, 1, 1, rxLocation);
+	// Preprocessor::GenerateRxPlane(-5, -5, 5, 5, -5, 1, rxLocation);
+	Preprocessor::ReadLocationFile(rxLocationFileName, rxLocation);
 	Preprocessor::StlToGeometry(stlFileName, triangle_mesh);
 	bvh.ConstructBVH(triangle_mesh);
 	// Preprocessor End
@@ -67,7 +67,7 @@ int main()
 
 	std::cout << "[Leaving] Preprocessor" << std::endl;
 
-	// Vec3 rayOrig{ -20, 23,1 }; // for bahen stl file
+	// Vec3 rayOrig{ -10, 0,1 }; // for bahen stl file
 	Vec3 rayOrig{ 0, 0, 5 };
 
 	MaterialProperties materials[4];
@@ -103,12 +103,13 @@ int main()
 	materials[3].relPermittivityRe = 6;
 	materials[3].relPermittivityIm = 0.05;
 
+	
 	int tessllation = 2;
 	RTSolver* rayTracer = new RTSolver();
 	rayTracer->Init(materials, 4, bvh);
 	int total_paths = rayTracer->ExecuteRayTracing(rayOrig, maxReflection, maxTransmission, rxLocation, tessllation);
 
-	//rayTracer->CmdLineDebug();
+	// rayTracer->CmdLineDebug();
 	rayTracer->SavePathsAsVtk(rayPathFileName);
 	rayTracer->SaveIcosahedronAsVtk(icosahedronFileName,rayOrig, tessllation);
 	Preprocessor::SaveLocationAsVtk(rxLocationOutputFileName, rxLocation);
