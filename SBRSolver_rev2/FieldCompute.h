@@ -49,7 +49,6 @@ private:
 		double lamda, double width, bool inf_wall,
 		cdouble& ref_coeff, cdouble& tran_coeff
 	);
-
-	cdouble GetTransAngle(double thetaIncident, cdouble efieldIncident, cdouble efieldTransmit);
+	cdouble GetTransAngle(double thetaIncident, cdouble epsilonIncident, cdouble epsilonTransmit);
 };
 
