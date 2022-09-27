@@ -81,6 +81,11 @@ int RTSolver::ExecuteRayTracing
 			delete cloneRoot;
 		}
 	}
+
+	for (int k = 0; k < _receiverCount; k++)
+	{
+		RemoveDuplicatePath(receivers[k],k);
+	}
 	//std::cout << "\tTotal Time in for loop -> " << timer.getTime() << std::endl;
 	return _pathsCount * _receiverCount;
 }
@@ -252,6 +257,7 @@ void RTSolver::RayCapture(PathTreeNode* rayTreeNode, const Vec3& receiver, doubl
 			rayTreeNode->ray.captured = true;
 			rayTreeNode->ray.targetPoint = capturePoint;
 			rayTreeNode->ray.pathLength = (capturePoint - rayTreeNode->ray.sourcePoint).norm();
+			rayTreeNode->ray.hitSurfaceID = -1;
 			rayTreeNode->childTransmit = DeleteChildNodes(rayTreeNode->childTransmit);
 			rayTreeNode->childReflect = DeleteChildNodes(rayTreeNode->childReflect);
 		}
@@ -271,12 +277,46 @@ void RTSolver::RayCapture(PathTreeNode* rayTreeNode, const Vec3& receiver, doubl
 	
 }
 
-void RTSolver::RemoveDuplicatePath(int receiverId)
+void RTSolver::RemoveDuplicatePath(const Vec3& receiver, int receiverId)
 {
-	int level = 0;
+	std::map<std::vector<int>, std::pair<int, int>> surfaceIdMap;
+	std::vector<std::pair<int,int>> duplicateList;
+
 	for (int i = 0; i < _pathsCount; i++)
 	{
-		// _rayPaths[i][receiverId].rayPaths.at(level);
+		for (int j = 0; j < _rayPaths[i][receiverId].rayPaths.size(); j++)
+		{
+			std::vector<int> key = GetHitSurfaceIds(_rayPaths[i][receiverId].rayPaths[j]);
+			if (surfaceIdMap.count(key))
+			{
+				// Key exists, duplicate ray, add both launch and reciver ID to the list
+				//duplicateList.push_back(std::make_pair(surfaceIdMap[key], std::make_pair(i, j)));
+				//double rayLength1 = GetTotalRayLength(_rayPaths[i][receiverId].rayPaths[j]);
+				//double rayLength2 = GetTotalRayLength(_rayPaths[surfaceIdMap[key].first][receiverId].rayPaths[surfaceIdMap[key].second]);
+
+				// double distRx1 = (_rayPaths[i][receiverId].rayPaths[j][-1].targetPoint - receiver).norm();
+				// double distRx2 = (_rayPaths[surfaceIdMap[key].first][receiverId].rayPaths[surfaceIdMap[key].second][-1].targetPoint - receiver).norm();
+				
+				double distRx1 = DistanceToReceiver(_rayPaths[i][receiverId].rayPaths[j], receiver);
+				double distRx2 = DistanceToReceiver(_rayPaths[surfaceIdMap[key].first][receiverId].rayPaths[surfaceIdMap[key].second], receiver);
+
+				if (distRx1 < distRx2)
+				{
+					// Add index i,j of the duplicate ray to the removal list
+					duplicateList.push_back(surfaceIdMap[key]);
+					// Replace the entry in the map
+					surfaceIdMap[key] = std::make_pair(i, j);
+				}
+				else
+				{
+					duplicateList.push_back(std::make_pair(i, j));
+				}
+			}
+			else
+			{
+				surfaceIdMap.insert(std::make_pair(key, std::make_pair(i, j)));
+			}
+		}
 	}
 }
 
@@ -541,4 +581,39 @@ bool HitReceptionSphere
 		return true;
 	}
 	return false;
+}
+
+std::vector<int> GetHitSurfaceIds(const std::vector<Ray>& rayPaths)
+{
+	std::vector<int> result;
+	for (int i = 0; i < rayPaths.size(); i++)
+	{
+		result.push_back(rayPaths[i].hitSurfaceID);
+	}
+	return result;
+}
+
+double GetTotalRayLength(const std::vector<Ray>& rayPaths)
+{
+	if (rayPaths.empty())
+	{
+		return INF;
+	}
+
+	double totalRayLength = 0.0;
+	for (int i = 0; i < rayPaths.size(); i++)
+	{
+		totalRayLength += rayPaths[i].pathLength;
+	}
+	return totalRayLength;
+}
+
+double DistanceToReceiver(const std::vector<Ray>& rayPaths, const Vec3& receiver)
+{
+	if (rayPaths.empty())
+	{
+		return INF;
+	}
+
+	return (rayPaths.back().targetPoint - receiver).norm();
 }

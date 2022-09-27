@@ -21,9 +21,9 @@ int main()
 	std::cout << "Initializing Simulation Parameters" << std::endl;
 
 	std::string txPatternFileName = "./data/TxPatternTest.dat";
-	std::string rxLocationFileName = "./data/RX_Office.dat";
+	std::string rxLocationFileName = "./data/RX_Ground.dat";
 	std::string rxLocationOutputFileName = "./data/output/RxLocations.vtk";
-	std::string stlFileName = "./data/stl_files/office.stl";
+	std::string stlFileName = "./data/stl_files/ground.stl";
 	std::string bvhFileName = "./data/output/BVH.vtk";
 	std::string rayPathFileName = "./data/output/RayPath.vtk";
 	std::string icosahedronFileName = "./data/output/Icosahedron.vtk";
@@ -54,7 +54,7 @@ int main()
 	timer.start();
 	Preprocessor::ReadPatternFile(txPatternFileName, txPattern);
 	// Preprocessor::GenerateRxPlane(-18, -40, -17, 0, 1, 1, rxLocation);
-	// Preprocessor::GenerateRxPlane(-5, -5, 5, 5, -5, 1, rxLocation);
+	// Preprocessor::GenerateRxPlane(-10, -10, 10, 10, 2, 1, rxLocation);
 	Preprocessor::ReadLocationFile(rxLocationFileName, rxLocation);
 	Preprocessor::StlToGeometry(stlFileName, triangle_mesh);
 	bvh.ConstructBVH(triangle_mesh);
@@ -68,8 +68,8 @@ int main()
 	std::cout << "[Leaving] Preprocessor" << std::endl;
 
 	// Vec3 rayOrig{ -10, 0,1 }; // for bahen stl file
-	// Vec3 rayOrig{ 0, 0, 5 };
-	Vec3 rayOrig{ 0.835938, 4.53906, 2.5 };
+	Vec3 rayOrig{ 0, 0, 5 };
+	// Vec3 rayOrig{ 0.835938, 4.53906, 2.5 };
 
 	MaterialProperties materials[4];
 	// Material 0 [Concrete] -> Default material

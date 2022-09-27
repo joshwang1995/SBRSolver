@@ -60,7 +60,7 @@ private:
 		const Vec3& receiver, 
 		double totalPathLength
 	);
-	void RemoveDuplicatePath(int receiverId);
+	void RemoveDuplicatePath(const Vec3& receiver, int receiverId);
 	void InitRayPaths();
 	void DeleteRayPaths();
 };
@@ -86,3 +86,8 @@ bool HitReceptionSphere
 	int txTesslation,
 	Vec3& capturePoint
 );
+
+std::vector<int> GetHitSurfaceIds(const std::vector<Ray>& rayPaths);
+double GetTotalRayLength(const std::vector<Ray>& rayPaths);
+
+double DistanceToReceiver(const std::vector<Ray>& rayPaths, const Vec3& receiver);
