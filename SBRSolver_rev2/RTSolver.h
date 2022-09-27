@@ -60,6 +60,7 @@ private:
 		const Vec3& receiver, 
 		double totalPathLength
 	);
+	void RemoveDuplicatePath(int receiverId);
 	void InitRayPaths();
 	void DeleteRayPaths();
 };
