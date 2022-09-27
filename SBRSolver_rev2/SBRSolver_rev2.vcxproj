@@ -129,6 +129,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="FieldCompute.cpp" />
     <ClCompile Include="GlobalConfig.cpp" />
     <ClCompile Include="Icosahedron.cpp" />
     <ClCompile Include="Preprocessor.cpp" />
@@ -144,6 +145,7 @@
     <ClInclude Include="common\Constants.h" />
     <ClInclude Include="common\DataStructures.h" />
     <ClInclude Include="common\VecMatDef.h" />
+    <ClInclude Include="FieldCompute.h" />
     <ClInclude Include="GlobalConfig.h" />
     <ClInclude Include="Icosahedron.h" />
     <ClInclude Include="Preprocessor.h" />

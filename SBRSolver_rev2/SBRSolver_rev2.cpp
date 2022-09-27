@@ -21,9 +21,9 @@ int main()
 	std::cout << "Initializing Simulation Parameters" << std::endl;
 
 	std::string txPatternFileName = "./data/TxPatternTest.dat";
-	std::string rxLocationFileName = "./data/RxLocations.dat";
+	std::string rxLocationFileName = "./data/RX_Office.dat";
 	std::string rxLocationOutputFileName = "./data/output/RxLocations.vtk";
-	std::string stlFileName = "./data/stl_files/ground.stl";
+	std::string stlFileName = "./data/stl_files/office.stl";
 	std::string bvhFileName = "./data/output/BVH.vtk";
 	std::string rayPathFileName = "./data/output/RayPath.vtk";
 	std::string icosahedronFileName = "./data/output/Icosahedron.vtk";
@@ -31,7 +31,7 @@ int main()
 
 	double freq = 1.8e9; // frequency
 	double Pt = 1; // transmit power in Watt
-	int maxReflection = 1; // NOTE!! 1 means no reflection, 2 means 1 reflection
+	int maxReflection = 2; // NOTE!! 1 means no reflection, 2 means 1 reflection
 	int maxTransmission = 2; // NOTE!! 1 means no transmission, 2 means 1 transmission
 
 #if DEBUG
@@ -68,7 +68,8 @@ int main()
 	std::cout << "[Leaving] Preprocessor" << std::endl;
 
 	// Vec3 rayOrig{ -10, 0,1 }; // for bahen stl file
-	Vec3 rayOrig{ 0, 0, 5 };
+	// Vec3 rayOrig{ 0, 0, 5 };
+	Vec3 rayOrig{ 0.835938, 4.53906, 2.5 };
 
 	MaterialProperties materials[4];
 	// Material 0 [Concrete] -> Default material
@@ -109,7 +110,7 @@ int main()
 	rayTracer->Init(materials, 4, bvh);
 	int total_paths = rayTracer->ExecuteRayTracing(rayOrig, maxReflection, maxTransmission, rxLocation, tessllation);
 
-	// rayTracer->CmdLineDebug();
+	rayTracer->CmdLineDebug();
 	rayTracer->SavePathsAsVtk(rayPathFileName);
 	rayTracer->SaveIcosahedronAsVtk(icosahedronFileName,rayOrig, tessllation);
 	Preprocessor::SaveLocationAsVtk(rxLocationOutputFileName, rxLocation);

@@ -46,6 +46,7 @@ typedef std::vector<Mat2c, Eigen::aligned_allocator<Mat2c>> VecMat2c;
 
 typedef std::vector<std::complex<double>>    Vecc;
 typedef std::vector<double>    Vecd;
+typedef Eigen::dcomplex cdouble;
 
 inline Vec3 Reflect(const Vec3& i, const Vec3& n)
 {

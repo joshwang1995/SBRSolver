@@ -61,8 +61,8 @@ int RTSolver::ExecuteRayTracing
 	_pathsCount = int(_shootRayList->size());
 	InitRayPaths();
 
-	Timer timer;
-	timer.start();
+	//Timer timer;
+	//timer.start();
 	// #pragma omp parallel for
 	for (int i = 0; i < _pathsCount; i++)
 	{
@@ -81,7 +81,7 @@ int RTSolver::ExecuteRayTracing
 			delete cloneRoot;
 		}
 	}
-	std::cout << "\tTotal Time in for loop -> " << timer.getTime() << std::endl;
+	//std::cout << "\tTotal Time in for loop -> " << timer.getTime() << std::endl;
 	return _pathsCount * _receiverCount;
 }
 
@@ -271,6 +271,15 @@ void RTSolver::RayCapture(PathTreeNode* rayTreeNode, const Vec3& receiver, doubl
 	
 }
 
+void RTSolver::RemoveDuplicatePath(int receiverId)
+{
+	int level = 0;
+	for (int i = 0; i < _pathsCount; i++)
+	{
+		// _rayPaths[i][receiverId].rayPaths.at(level);
+	}
+}
+
 void RTSolver::InitRayPaths()
 {
 	_rayPaths = new Paths* [_pathsCount];
@@ -412,9 +421,9 @@ bool RTSolver::SaveIcosahedronAsVtk(std::string fname, Vec3 rayOrg, int tessella
 	for (const Vec3& v : *_shootRayList)
 	{
 		ofs << " "
-			<< rayOrg.x() + 2.0 * v.x() << " "
-			<< rayOrg.y() + 2.0 * v.y() << " "
-			<< rayOrg.z() + 2.0 * v.z() << endl;
+			<< rayOrg.x() + 1.0 * v.x() << " "
+			<< rayOrg.y() + 1.0 * v.y() << " "
+			<< rayOrg.z() + 1.0 * v.z() << endl;
 	}
 
 	ofs << "LINES " << _shootRayList->size() << " " << 3 * _shootRayList->size() << endl;
@@ -460,17 +469,17 @@ void PathsToVector
 			if (j == 0)
 			{
 				vertices.push_back(rayPaths[i][j].sourcePoint);
-				lines.push_back(vertices.size() - 1);
+				lines.push_back(int(vertices.size() - 1));
 				vertices.push_back(rayPaths[i][j].targetPoint);
-				lines.push_back(vertices.size() - 1);
+				lines.push_back(int(vertices.size() - 1));
 			}
 			else
 			{
 				vertices.push_back(rayPaths[i][j].targetPoint);
-				lines.push_back(vertices.size() - 1);
+				lines.push_back(int(vertices.size() - 1));
 			}
 		}
-		totalLines += lines.size() + 1;
+		totalLines += int(lines.size()) + 1;
 		lineIndex.push_back(lines);
 		launchIds.push_back(launchId);
 		receiverIds.push_back(receiverId);
