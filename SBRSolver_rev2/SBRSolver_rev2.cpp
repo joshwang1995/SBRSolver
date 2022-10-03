@@ -31,7 +31,7 @@ int main()
 
 	double freq = 1.8e9; // frequency
 	double Pt = 1; // transmit power in Watt
-	int maxReflection = 2; // NOTE!! 1 means no reflection, 2 means 1 reflection
+	int maxReflection = 1; // NOTE!! 1 means no reflection, 2 means 1 reflection
 	int maxTransmission = 2; // NOTE!! 1 means no transmission, 2 means 1 transmission
 
 #if DEBUG
@@ -54,8 +54,9 @@ int main()
 	timer.start();
 	Preprocessor::ReadPatternFile(txPatternFileName, txPattern);
 	// Preprocessor::GenerateRxPlane(-18, -40, -17, 0, 1, 1, rxLocation);
-	// Preprocessor::GenerateRxPlane(-10, -10, 10, 10, 2, 1, rxLocation);
-	Preprocessor::ReadLocationFile(rxLocationFileName, rxLocation);
+	Preprocessor::GenerateRxPlane(-10, -10, 10, 10, -3, 1, rxLocation); 
+	// Preprocessor::GenerateRxPlane(0, -10, 20, 10, 7, 1, rxLocation);
+	// Preprocessor::ReadLocationFile(rxLocationFileName, rxLocation);
 	Preprocessor::StlToGeometry(stlFileName, triangle_mesh);
 	bvh.ConstructBVH(triangle_mesh);
 	// Preprocessor End
@@ -68,8 +69,9 @@ int main()
 	std::cout << "[Leaving] Preprocessor" << std::endl;
 
 	// Vec3 rayOrig{ -10, 0,1 }; // for bahen stl file
-	Vec3 rayOrig{ 0, 0, 5 };
-	// Vec3 rayOrig{ 0.835938, 4.53906, 2.5 };
+	// Vec3 rayOrig{ 0.835938, 4.53906, 2.5 }; // for ibwave office
+	Vec3 rayOrig{ 0, 0, 5 }; // for ground
+	// Vec3 rayOrig{ 0,0,0 };
 
 	MaterialProperties materials[4];
 	// Material 0 [Concrete] -> Default material
@@ -110,7 +112,7 @@ int main()
 	rayTracer->Init(materials, 4, bvh);
 	int total_paths = rayTracer->ExecuteRayTracing(rayOrig, maxReflection, maxTransmission, rxLocation, tessllation);
 
-	rayTracer->CmdLineDebug();
+	// rayTracer->CmdLineDebug();
 	rayTracer->SavePathsAsVtk(rayPathFileName);
 	rayTracer->SaveIcosahedronAsVtk(icosahedronFileName,rayOrig, tessllation);
 	Preprocessor::SaveLocationAsVtk(rxLocationOutputFileName, rxLocation);

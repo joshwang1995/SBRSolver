@@ -89,5 +89,5 @@ bool HitReceptionSphere
 
 std::vector<int> GetHitSurfaceIds(const std::vector<Ray>& rayPaths);
 double GetTotalRayLength(const std::vector<Ray>& rayPaths);
-
 double DistanceToReceiver(const std::vector<Ray>& rayPaths, const Vec3& receiver);
+bool sortbysec(const std::pair<int, int>& a, const std::pair<int, int>& b);
