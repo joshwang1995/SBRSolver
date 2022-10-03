@@ -51,4 +51,3 @@ private:
 	);
 	cdouble GetTransAngle(double thetaIncident, cdouble epsilonIncident, cdouble epsilonTransmit);
 };
-

@@ -61,9 +61,9 @@ int RTSolver::ExecuteRayTracing
 	_pathsCount = int(_shootRayList->size());
 	InitRayPaths();
 
-	//Timer timer;
-	//timer.start();
-	// #pragma omp parallel for
+	// Timer timer;
+	// timer.start();
+//#pragma omp parallel for collapse(2)
 	for (int i = 0; i < _pathsCount; i++)
 	{
 		PathTreeNode rootNode;
@@ -82,11 +82,12 @@ int RTSolver::ExecuteRayTracing
 		}
 	}
 
+//#pragma omp parallel for
 	for (int k = 0; k < _receiverCount; k++)
 	{
 		RemoveDuplicatePath(receivers[k],k);
 	}
-	//std::cout << "\tTotal Time in for loop -> " << timer.getTime() << std::endl;
+	// std::cout << "\tTotal Time in for loop -> " << timer.getTime() << std::endl;
 	return _pathsCount * _receiverCount;
 }
 
@@ -104,7 +105,7 @@ void RTSolver::RayLaunch
 	double lastAnglefromN
 )
 {
-	if (reflectionCnt >= _maxReflectionCount || transmissionCnt >= _maxTransmissionCount)
+	if (reflectionCnt > _maxReflectionCount && transmissionCnt > _maxTransmissionCount)
 	{
 		return;
 	}
@@ -244,8 +245,11 @@ void RTSolver::RayCapture(PathTreeNode* rayTreeNode, const Vec3& receiver, doubl
 		//	The ray intersection test checks if a ray intersects with the scene. A ray can be infinitely long in one direction.
 		//	Obviously, an infintely long ray can intersect with the surrounding geometry. Therefore, we should instead check if the line segment
 		//	from the point of capture to the receiver is occulded. To do so, we need to implement an line segment intersection test.
+		
+		Vec3 newCapPoint = capturePoint - (0.001 * (receiver - capturePoint).normalized());
+		
 		HitInfo hitResult;
-		bool hasHit = _bvh->RayIntersects(0, capturePoint, (receiver - capturePoint).normalized(), hitResult);
+		bool hasHit = _bvh->RayIntersects(0, newCapPoint, (receiver - capturePoint).normalized(), hitResult);
 		if (hasHit)
 		{
 			double segmentLength = (receiver - capturePoint).norm();
@@ -280,7 +284,7 @@ void RTSolver::RayCapture(PathTreeNode* rayTreeNode, const Vec3& receiver, doubl
 void RTSolver::RemoveDuplicatePath(const Vec3& receiver, int receiverId)
 {
 	std::map<std::vector<int>, std::pair<int, int>> surfaceIdMap;
-	std::vector<std::pair<int,int>> duplicateList;
+	std::vector<std::pair<int,int>> duplicateList; // vector{<launchID,pathID>...}
 
 	for (int i = 0; i < _pathsCount; i++)
 	{
@@ -290,13 +294,6 @@ void RTSolver::RemoveDuplicatePath(const Vec3& receiver, int receiverId)
 			if (surfaceIdMap.count(key))
 			{
 				// Key exists, duplicate ray, add both launch and reciver ID to the list
-				//duplicateList.push_back(std::make_pair(surfaceIdMap[key], std::make_pair(i, j)));
-				//double rayLength1 = GetTotalRayLength(_rayPaths[i][receiverId].rayPaths[j]);
-				//double rayLength2 = GetTotalRayLength(_rayPaths[surfaceIdMap[key].first][receiverId].rayPaths[surfaceIdMap[key].second]);
-
-				// double distRx1 = (_rayPaths[i][receiverId].rayPaths[j][-1].targetPoint - receiver).norm();
-				// double distRx2 = (_rayPaths[surfaceIdMap[key].first][receiverId].rayPaths[surfaceIdMap[key].second][-1].targetPoint - receiver).norm();
-				
 				double distRx1 = DistanceToReceiver(_rayPaths[i][receiverId].rayPaths[j], receiver);
 				double distRx2 = DistanceToReceiver(_rayPaths[surfaceIdMap[key].first][receiverId].rayPaths[surfaceIdMap[key].second], receiver);
 
@@ -317,6 +314,12 @@ void RTSolver::RemoveDuplicatePath(const Vec3& receiver, int receiverId)
 				surfaceIdMap.insert(std::make_pair(key, std::make_pair(i, j)));
 			}
 		}
+	}
+
+	sort(duplicateList.begin(), duplicateList.end(), sortbysec);
+	for (std::pair<int, int> v : duplicateList)
+	{
+		_rayPaths[v.first][receiverId].rayPaths.erase(_rayPaths[v.first][receiverId].rayPaths.begin() + v.second);
 	}
 }
 
@@ -548,6 +551,9 @@ bool HitReceptionSphere
 	}
 	else if (t0 >= 1)
 	{
+		// We can choose to clamp t0 to 1 here. This means that the closest point is the target point
+		// However, I choose to ignore it because the reception sphere algorithm checks to see if the capture\
+		// point is in LOS of the receiver.
 		t0 = 1; // Clamp t0 to 1 because the closest point is the target point
 	}
 
@@ -616,4 +622,9 @@ double DistanceToReceiver(const std::vector<Ray>& rayPaths, const Vec3& receiver
 	}
 
 	return (rayPaths.back().targetPoint - receiver).norm();
+}
+
+bool sortbysec(const std::pair<int, int>& a, const std::pair<int, int>& b)
+{
+	return (a.second < b.second);
 }
