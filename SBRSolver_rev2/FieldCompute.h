@@ -4,13 +4,27 @@
 #include "common/Constants.h"
 #include "common/DataStructures.h"
 #include "common/VecMatDef.h"
+#include "RTSolver.h"
 
 class FieldCompute
 {
 public:
 	FieldCompute();
-	FieldCompute(Paths** rayPaths, std::vector<Triangle*>& triangleMesh);
+	FieldCompute(Paths** rayPaths, std::vector<Triangle*>& triangleMesh, VecVec3& receivers, int pathsCount)
+		:
+		_rayPaths(rayPaths), 
+		_triangleMesh(triangleMesh), 
+		_receivers(receivers),
+		_pathsCount(pathsCount)
+	{};
 	~FieldCompute();
+
+protected:
+	Paths** _rayPaths;
+	std::vector<Triangle*> _triangleMesh;
+	VecVec3 _receivers;
+	Vec3c FieldAtReceiver(int receiverId);
+
 private:
 	Vec3c ComputeRefcField
 	(

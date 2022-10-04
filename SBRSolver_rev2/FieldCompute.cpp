@@ -4,13 +4,17 @@ FieldCompute::FieldCompute()
 {
 }
 
-FieldCompute::FieldCompute(Paths** rayPaths, std::vector<Triangle*>& triangleMesh)
-{
-
-}
-
 FieldCompute::~FieldCompute()
 {
+}
+
+
+
+Vec3c FieldCompute::FieldAtReceiver(int receiverId)
+{
+	// Get all paths for the receiver
+	
+	return Vec3c();
 }
 
 Vec3c FieldCompute::ComputeRefcField(const Vec3c& efield_i_sph, double rel_perm, double sigma, double freq, double thetaIncident, double width, bool inf_wall)
