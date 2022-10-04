@@ -70,7 +70,7 @@ int RTSolver::ExecuteRayTracing
 		rootNode.ray.id = RayGlobalId++;
 		rootNode.childTransmit = nullptr;
 		rootNode.childReflect = nullptr;
-		RayLaunch(&rootNode, sourcePoint, _shootRayList->at(i), -1, -1, 0, 0, 0, true, FLT_MAX);
+		RayLaunch(&rootNode, sourcePoint, _shootRayList->at(i), -1, -1, 0, 0, 0, true, INF);
 		for (int j = 0; j < _receiverCount; j++)
 		{
 			PathTreeNode* cloneRoot = CloneNode(&rootNode);
@@ -196,7 +196,7 @@ void RTSolver::RayLaunch
 				transMaterialID,
 				refMaterialID,
 				-1,
-				FLT_MAX,
+				INF,
 				lastAnglefromN
 			);
 			if (refMaterialID >= 0)
@@ -213,7 +213,7 @@ void RTSolver::RayLaunch
 			rayTreeNode->ray.reflectionMaterialId = -1;
 			rayTreeNode->ray.penetrationMaterialId = -1;
 			rayTreeNode->ray.hitSurfaceID = -1;
-			rayTreeNode->ray.pathLength = FLT_MAX;
+			rayTreeNode->ray.pathLength = INF;
 		}
 	}
 }
@@ -572,7 +572,7 @@ bool HitReceptionSphere
 	// double alpha = (69.0 * PI / 180.0) / txTesslation;
 	// double sphereRadius = alpha * unfoldedLength / sqrt(3.0);
 
-	double unfoldedLength = pathLength + (sourcePoint + t0 * rayDir).norm();
+	double unfoldedLength = pathLength + (t0 * rayDir).norm();
 	double phi = (sqrt(5) + 1) / 2;
 	double alpha = acos(phi / (phi * phi + 1)) / (pow(2, txTesslation - 1)) / sqrt(3);
 	double sphereRadius = alpha * unfoldedLength;
