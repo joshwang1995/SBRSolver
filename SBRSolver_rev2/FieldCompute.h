@@ -10,20 +10,32 @@ class FieldCompute
 {
 public:
 	FieldCompute();
-	FieldCompute(Paths** rayPaths, std::vector<Triangle*>& triangleMesh, VecVec3& receivers, int pathsCount)
+	FieldCompute
+	(
+		Paths** rayPaths, 
+		std::vector<Triangle*>& triangleMesh, 
+		VecVec3& receivers, 
+		int pathsCount,
+		MaterialProperties* materials
+	)
 		:
 		_rayPaths(rayPaths), 
 		_triangleMesh(triangleMesh), 
 		_receivers(receivers),
-		_pathsCount(pathsCount)
+		_pathsCount(pathsCount),
+		_materials(materials)
 	{};
 	~FieldCompute();
 
 protected:
 	Paths** _rayPaths;
 	std::vector<Triangle*> _triangleMesh;
+	int _pathsCount;
 	VecVec3 _receivers;
+	MaterialProperties* _materials;
+
 	Vec3c FieldAtReceiver(int receiverId);
+	Vec3c FieldForPath(const std::vector<Ray>& path);
 
 private:
 	Vec3c ComputeRefcField
