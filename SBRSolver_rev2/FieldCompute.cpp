@@ -13,7 +13,22 @@ FieldCompute::~FieldCompute()
 Vec3c FieldCompute::FieldAtReceiver(int receiverId)
 {
 	// Get all paths for the receiver
-	
+	for (int i = 0; i < _pathsCount; i++)
+	{
+		//_rayPaths[i][receiverId].rayPaths
+	}
+	return Vec3c();
+}
+
+Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
+{
+	for (const Ray& r : path)
+	{
+		Vec3 rayDir = r.targetPoint - r.sourcePoint;
+		Vec3 rayOrig = r.sourcePoint;
+		Vec3 surfaceNormal = _triangleMesh[r.hitSurfaceID]->norm;
+		MaterialProperties m = _materials[_triangleMesh[r.hitSurfaceID]->materialId];
+	}
 	return Vec3c();
 }
 
