@@ -147,3 +147,40 @@ cdouble FieldCompute::GetTransAngle(double thetaIncident, cdouble epsilonInciden
 	t_t = asin(n_i * sin(t_i) / n_t);
 	return t_t;
 }
+
+Mat3 FieldCompute::GetSurfCoordSys(const Vec3& n, const Ray& rayIncident)
+{
+	// Need to fix: if the ray is normal incident, then the code return nans
+	
+	// Fail-safe procedure: ensure both ray direction and wall norm is unit vector
+	Vec3 normal = n.normalized();
+	Vec3 rayDir = (rayIncident.targetPoint - rayIncident.sourcePoint).normalized();
+
+	// This would fail if the normal and rayDir are not unit vectors
+	double theta_i = acos(rayDir.dot(normal));
+
+	//double theta_i = acos((zw*inc_ray.dir)/(mag(zw)*mag(inc_ray.dir)));
+	if (theta_i > PI / 2)
+	{
+		theta_i = PI - theta_i;
+
+		// From Neeraj's ray tracer code:
+		// If the angle between incident ray and the surface normal is > 90 degrees,
+		//	this indicates that the surface normal is inward pointing. 
+		// 	Reverse the surface normal and also reverse orientation of vertices
+
+		//wall.unit_norm_ = -1*wall.unit_norm_;
+		//wall.d = - wall.d;
+	}
+
+	Vec3 zw = normal;
+	Vec3 yw = rayDir.cross(normal) / sin(theta_i);
+	Vec3 xw = yw.cross(zw);
+
+	Mat3 surfaceCoord;
+	surfaceCoord(0, Eigen::all) = xw;
+	surfaceCoord(1, Eigen::all) = yw;
+	surfaceCoord(2, Eigen::all) = zw;
+
+	return surfaceCoord;
+}
