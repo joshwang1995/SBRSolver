@@ -106,7 +106,29 @@ int main()
 	materials[3].relPermittivityRe = 6;
 	materials[3].relPermittivityIm = 0.05;
 
+
 	
+	Vec3 n{ 1,1,1 };
+	Vec3 d{ -3, -3, -3 };
+	d.normalize();
+	n.normalize();
+	std::cout << n << std::endl << std::endl;
+	std::cout << d << std::endl << std::endl;
+
+	double theta_i = acos(d.dot(n));
+	theta_i = theta_i > PI / 2 ? PI - theta_i : theta_i;
+	Vec3 zw = n;
+	Vec3 yw = d.cross(n) / sin(theta_i);
+	Vec3 xw = yw.cross(zw);
+
+	Mat3 test;
+	test(0, Eigen::all) = xw;
+	test(1, Eigen::all) = yw;
+	test(2, Eigen::all) = zw;
+
+	std::cout << test << std::endl;
+
+	/*
 	int tessllation = 2;
 	RTSolver* rayTracer = new RTSolver();
 	rayTracer->Init(materials, 4, bvh);
@@ -118,4 +140,5 @@ int main()
 	Preprocessor::SaveLocationAsVtk(rxLocationOutputFileName, rxLocation);
 
 	delete rayTracer;
+	*/
 }
