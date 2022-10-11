@@ -20,16 +20,92 @@ Vec3c FieldCompute::FieldAtReceiver(int receiverId)
 	return Vec3c();
 }
 
-Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
+Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path, const Mat3& txCoordSys)
 {
+	/* This is for testing purposes only */
+	double lamda = SPEED_OF_LIGHT / 1e9;
+	double k = (2 * PI) / lamda;
+
+	Mat3 currentCoordSys = Mat3::Identity(); // Global coordinate system
+	Mat3 nextCoordSys = txCoordSys;
+
+
+	// Step 1: convert ray from global coordinate system to local coordinate system
+	// Step 2: once in local coordinates, convert to spherical coordinates
+	// Step 3: find field contribution in spherical coordinate system
+	// Step 4:  
+
+	Vec3c totalField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
+	cdouble propagation_term{ 0,0 };
+
+	for (int i = 0; i < int(path.size()); i++)
+	{
+		const Ray& ray = path[i];
+		Vec3 pGlobal = ray.targetPoint - ray.sourcePoint; // This is just a translation to global origin
+		Vec3 pLocal = PointInNewCoordSys(pGlobal, currentCoordSys, nextCoordSys);
+		Vec3 pSph = CartesianToSpherical(pLocal);
+
+		double r = pSph(0);
+		double theta = pSph(1);
+		double phi = pSph(2);
+
+		propagation_term.real(cos(-1 * k * r) / r);
+		propagation_term.imag(sin(-1 * k * r) / r);
+
+		if (i == 0)
+		{
+			// The first ray is always from TX to the next facet or receiver
+			// Get either the gain from the TX or an analytical pattern
+			// E(r,theta,phi) = E(0) * exp(-jkr)/r
+			totalField += propagation_term * GetAnalyticEfieldPattern(1, theta, phi, 1);
+		}
+
+
+		
+	}
+
+	/*
 	for (const Ray& r : path)
 	{
-		Vec3 rayDir = r.targetPoint - r.sourcePoint;
-		Vec3 rayOrig = r.sourcePoint;
+
+
+		
+		cdouble propagation_term;
+		propagation_term.real(cos(-1 * k * pSph(0) / pSph(0)));
+		propagation_term.imag(sin(-1 * k * pSph(0) / pSph(0)));
+
 		Vec3 surfaceNormal = _triangleMesh[r.hitSurfaceID]->norm;
 		MaterialProperties m = _materials[_triangleMesh[r.hitSurfaceID]->materialId];
+
+		
 	}
+	*/
 	return Vec3c();
+}
+
+Vec3c FieldCompute::GetAnalyticEfieldPattern(int antenna_type, double theta, double phi, double pt)
+{
+	Vec3c e_field_sph;
+
+	if (antenna_type == 1)
+	{
+		// Field of Hertzian Dipole in TX Spherical Coordinate System
+		e_field_sph(0) = 0;
+		e_field_sph(1) = sin(theta);
+		e_field_sph(2) = 0;
+	}
+	else if (antenna_type == 2)
+	{
+		// Field of half wave dipole in TX Spherical Coordinate System
+		e_field_sph(0) = 0;
+		e_field_sph(1) = sqrt(60 * pt) * (cos(PI * cos(theta) / 2.0) / sin(theta));
+		e_field_sph(2) = 0;
+	}
+	else if (antenna_type == 3)
+	{
+		// Field of antenna array in TX Spherical Coordinate System
+	}
+	return e_field_sph;
 }
 
 Vec3c FieldCompute::ComputeRefcField(const Vec3c& efield_i_sph, double rel_perm, double sigma, double freq, double thetaIncident, double width, bool inf_wall)
@@ -184,3 +260,4 @@ Mat3 FieldCompute::GetSurfCoordSys(const Vec3& n, const Ray& rayIncident)
 
 	return surfaceCoord;
 }
+

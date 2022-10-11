@@ -106,8 +106,21 @@ int main()
 	materials[3].relPermittivityRe = 6;
 	materials[3].relPermittivityIm = 0.05;
 
+	Mat3 globalCoords = Mat3::Identity();
+	Mat3 transCoords{ {0,-1,0},{1,0,0},{0,0,1} };
+	Mat3 rotationMatrix = transCoords * globalCoords.transpose();
 
+	Vec3 p{ 1,1,1 };
+	std::cout << rotationMatrix << std::endl << std::endl;
+	std::cout << rotationMatrix * p << std::endl << std::endl;
 	
+	Vec3c test1{ cdouble(0,1), cdouble(2,3), cdouble(4,5) };
+	Vec3c test2{ cdouble(1,2), cdouble(3,4), cdouble(5,6) };
+	cdouble propagation_term{ 6,7 };
+	std::cout << test1+test2 << std::endl << std::endl;
+	std::cout << propagation_term * test1 << std::endl << std::endl;
+
+	/*
 	Vec3 n{ 1,1,1 };
 	Vec3 d{ -3, -3, -3 };
 	d.normalize();
@@ -128,7 +141,7 @@ int main()
 
 	std::cout << test << std::endl;
 
-	/*
+	
 	int tessllation = 2;
 	RTSolver* rayTracer = new RTSolver();
 	rayTracer->Init(materials, 4, bvh);
