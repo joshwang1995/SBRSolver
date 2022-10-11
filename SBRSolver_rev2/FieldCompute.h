@@ -33,9 +33,10 @@ protected:
 	int _pathsCount;
 	VecVec3 _receivers;
 	MaterialProperties* _materials;
+	GainMap _txAntGain;
 
 	Vec3c FieldAtReceiver(int receiverId);
-	Vec3c FieldForPath(const std::vector<Ray>& path);
+	Vec3c FieldForPath(const std::vector<Ray>& path, const Mat3& txCoordSys);
 
 private:
 	Vec3c ComputeRefcField
@@ -77,4 +78,5 @@ private:
 	);
 	cdouble GetTransAngle(double thetaIncident, cdouble epsilonIncident, cdouble epsilonTransmit);
 	Mat3 GetSurfCoordSys(const Vec3& n, const Ray& rayIncident);
+	Vec3c GetAnalyticEfieldPattern(int antenna_type, double theta, double phi, double pt);
 };

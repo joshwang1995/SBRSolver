@@ -75,3 +75,32 @@ inline double AngleBetween(Vec3 v1, Vec3 v2, bool alreadyNormalized = false, boo
 
 	return resulInRadian ? theta : (static_cast<double>(theta * (180.0 / EIGEN_PI)));
 }
+
+inline Mat3 RotationMatrix(const Mat3& oldSys, const Mat3& newSys)
+{
+	Mat3 result = newSys * oldSys.transpose();
+	return result;
+}
+
+inline Vec3 PointInNewCoordSys(const Vec3& point, const Mat3& oldSys, const Mat3& newSys)
+{
+	return RotationMatrix(oldSys, newSys) * point;
+}
+
+inline Vec3 CartesianToSpherical(const Vec3& v)
+{
+	Vec3 result;
+	result(0) = v.norm();
+	result(1) = atan(sqrt(v.x() * v.x() + v.y() * v.y()) / v.z()); // Note: atan restricts the result to be between -pi/2 to pi/2
+	result(2) = atan(v.y() / v.x() );
+	return result;
+}
+
+inline Vec3 SphericalToCartesian(const Vec3& v)
+{
+	Vec3 result;
+	result(0) = v(0) * sin(v(1)) * cos(v(2));
+	result(1) = v(0) * sin(v(1)) * sin(v(2));
+	result(2) = v(0) * sin(v(1));
+	return result;
+}
