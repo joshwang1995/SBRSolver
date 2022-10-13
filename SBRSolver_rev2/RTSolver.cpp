@@ -49,6 +49,8 @@ int RTSolver::ExecuteRayTracing
 	int maxReflectionCount,
 	int maxTransmissionCount,
 	VecVec3 receivers,
+	const std::vector<Triangle*>& triangleMesh,
+	std::vector<Vec3c>& fieldAtReceiver,
 	int txTesslation
 )
 {
@@ -82,12 +84,17 @@ int RTSolver::ExecuteRayTracing
 		}
 	}
 
+	FieldCompute* fieldCore = new FieldCompute(_rayPaths, triangleMesh, receivers, _pathsCount, _materialProperties);
+	Vec3c field = { cdouble(0,0), cdouble(0,0), cdouble(0,0) };
 //#pragma omp parallel for
 	for (int k = 0; k < _receiverCount; k++)
 	{
 		RemoveDuplicatePath(receivers[k],k);
+		fieldAtReceiver.push_back(fieldCore->FieldAtReceiver(k));
 	}
 	// std::cout << "\tTotal Time in for loop -> " << timer.getTime() << std::endl;
+	
+	delete fieldCore;
 	return _pathsCount * _receiverCount;
 }
 
@@ -372,7 +379,7 @@ void RTSolver::CmdLineDebug()
 	}
 }
 
-bool RTSolver::SavePathsAsVtk(std::string fname)
+bool RTSolver::SavePathsAsVtk(std::string fname, const std::vector<Vec3c>& efield)
 {
 	using namespace std;
 
@@ -423,7 +430,7 @@ bool RTSolver::SavePathsAsVtk(std::string fname)
 	}
 
 	ofs << "CELL_DATA " << launchIds.size() << endl;
-	ofs << "FIELD FieldData 2" << endl;
+	ofs << "FIELD FieldData 5" << endl;
 	ofs << "LaunchID 1 " << launchIds.size() << " int" << endl;
 	for (int i = 0; i < launchIds.size(); i++)
 	{
@@ -434,6 +441,28 @@ bool RTSolver::SavePathsAsVtk(std::string fname)
 	for (int i = 0; i < receiverIds.size(); i++)
 	{
 		ofs << " " << receiverIds[i] << endl;
+	}
+
+	ofs << "Eabs 1 " << receiverIds.size() << " double" << endl;
+	for (int i = 0; i < receiverIds.size(); i++)
+	{
+		double eabs = std::isfinite(efield[receiverIds[i]].norm()) ? efield[receiverIds[i]].norm() : 0.0;
+		ofs << " " << eabs << endl;
+	}
+
+	ofs << "EdB 1 " << receiverIds.size() << " double" << endl;
+	for (int i = 0; i < receiverIds.size(); i++)
+	{
+		double eabs = std::isfinite(efield[receiverIds[i]].norm()) ? 10 * log10(efield[receiverIds[i]].norm() * 1e6) : -300.0;
+		ofs << " " << eabs << endl;
+	}
+
+	ofs << "Phase 1 " << receiverIds.size() << " double" << endl;
+	for (int i = 0; i < receiverIds.size(); i++)
+	{
+		double totalPhase = std::arg(efield[receiverIds[i]].x()) + std::arg(efield[receiverIds[i]].y()) + std::arg(efield[receiverIds[i]].z());
+		totalPhase = std::isfinite(totalPhase) ? totalPhase : 0.0;
+		ofs << " " << totalPhase << endl;
 	}
 
 	ofs.close();

@@ -82,9 +82,50 @@ inline Mat3 RotationMatrix(const Mat3& oldSys, const Mat3& newSys)
 	return result;
 }
 
-inline Vec3 PointInNewCoordSys(const Vec3& point, const Mat3& oldSys, const Mat3& newSys)
+inline Mat3 TransformationMatrix(double theta, double phi, bool sph2Cart)
 {
-	return RotationMatrix(oldSys, newSys) * point;
+	double st = sin(theta);
+	double sp = sin(phi);
+	double ct = cos(theta);
+	double cp = cos(phi);
+
+	Mat3 transformMatrix;
+	transformMatrix(0, Eigen::all) = Vec3(st * cp, ct * cp, -1 * sp);
+	transformMatrix(1, Eigen::all) = Vec3(st * sp, ct * sp, cp);
+	transformMatrix(2, Eigen::all) = Vec3(ct, -1 * st, 0.0);
+
+	return sph2Cart ? transformMatrix : transformMatrix.transpose();
+}
+
+inline Vec3 RotateToNewCoordSys(const Vec3& v, const Mat3& oldSys, const Mat3& newSys)
+{
+	return RotationMatrix(oldSys, newSys) * v;
+}
+
+inline Vec3c RotateToNewCoordSys(const Vec3c& v, const Mat3& oldSys, const Mat3& newSys)
+{
+	return RotationMatrix(oldSys, newSys) * v;
+}
+
+inline Vec3 SphericalToCartesianVector(const Vec3& v, double theta, double phi)
+{
+	return TransformationMatrix(theta, phi, true) * v;
+}
+
+
+inline Vec3c SphericalToCartesianVector(const Vec3c& v, double theta, double phi)
+{
+	return TransformationMatrix(theta, phi, true) * v;
+}
+
+inline Vec3 CartesianToSphericalVector(const Vec3& v, double theta, double phi)
+{
+	return TransformationMatrix(theta, phi, false) * v;
+}
+
+inline Vec3c CartesianToSphericalVector(const Vec3c& v, double theta, double phi)
+{
+	return TransformationMatrix(theta, phi, false) * v;
 }
 
 inline Vec3 CartesianToSpherical(const Vec3& v)

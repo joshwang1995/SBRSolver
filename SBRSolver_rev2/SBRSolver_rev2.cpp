@@ -23,7 +23,7 @@ int main()
 	std::string txPatternFileName = "./data/TxPatternTest.dat";
 	std::string rxLocationFileName = "./data/RX_Ground.dat";
 	std::string rxLocationOutputFileName = "./data/output/RxLocations.vtk";
-	std::string stlFileName = "./data/stl_files/bahen.stl";
+	std::string stlFileName = "./data/stl_files/ground.stl";
 	std::string bvhFileName = "./data/output/BVH.vtk";
 	std::string rayPathFileName = "./data/output/RayPath.vtk";
 	std::string icosahedronFileName = "./data/output/Icosahedron.vtk";
@@ -53,8 +53,8 @@ int main()
 
 	timer.start();
 	Preprocessor::ReadPatternFile(txPatternFileName, txPattern);
-	Preprocessor::GenerateRxPlane(-18, -40, -17, 0, 1, 1, rxLocation);
-	// Preprocessor::GenerateRxPlane(-10, -10, 10, 10, -3, 1, rxLocation); 
+	// Preprocessor::GenerateRxPlane(-18, -40, -17, 0, 1, 1, rxLocation);
+	Preprocessor::GenerateRxPlane(-10, -10, 10, 10, 3, 1, rxLocation); 
 	// Preprocessor::GenerateRxPlane(0, -10, 20, 10, 7, 1, rxLocation);
 	// Preprocessor::ReadLocationFile(rxLocationFileName, rxLocation);
 	Preprocessor::StlToGeometry(stlFileName, triangle_mesh);
@@ -68,9 +68,9 @@ int main()
 
 	std::cout << "[Leaving] Preprocessor" << std::endl;
 
-	Vec3 rayOrig{ -10, 0,1 }; // for bahen stl file
+	// Vec3 rayOrig{ -10, 0,1 }; // for bahen stl file
 	// Vec3 rayOrig{ 0.835938, 4.53906, 2.5 }; // for ibwave office
-	// Vec3 rayOrig{ 0, 0, 5 }; // for ground
+	Vec3 rayOrig{ 0, 0, 5 }; // for ground
 	// Vec3 rayOrig{ 0,0,0 };
 
 	MaterialProperties materials[4];
@@ -105,53 +105,16 @@ int main()
 	materials[3].relConductivity = 0.005;
 	materials[3].relPermittivityRe = 6;
 	materials[3].relPermittivityIm = 0.05;
-
-	Mat3 globalCoords = Mat3::Identity();
-	Mat3 transCoords{ {0,-1,0},{1,0,0},{0,0,1} };
-	Mat3 rotationMatrix = transCoords * globalCoords.transpose();
-
-	Vec3 p{ 1,1,1 };
-	std::cout << rotationMatrix << std::endl << std::endl;
-	std::cout << rotationMatrix * p << std::endl << std::endl;
 	
-	Vec3c test1{ cdouble(0,1), cdouble(2,3), cdouble(4,5) };
-	Vec3c test2{ cdouble(1,2), cdouble(3,4), cdouble(5,6) };
-	cdouble propagation_term{ 6,7 };
-	std::cout << test1+test2 << std::endl << std::endl;
-	std::cout << propagation_term * test1 << std::endl << std::endl;
-
-	/*
-	Vec3 n{ 1,1,1 };
-	Vec3 d{ -3, -3, -3 };
-	d.normalize();
-	n.normalize();
-	std::cout << n << std::endl << std::endl;
-	std::cout << d << std::endl << std::endl;
-
-	double theta_i = acos(d.dot(n));
-	theta_i = theta_i > PI / 2 ? PI - theta_i : theta_i;
-	Vec3 zw = n;
-	Vec3 yw = d.cross(n) / sin(theta_i);
-	Vec3 xw = yw.cross(zw);
-
-	Mat3 test;
-	test(0, Eigen::all) = xw;
-	test(1, Eigen::all) = yw;
-	test(2, Eigen::all) = zw;
-
-	std::cout << test << std::endl;
-
-	
-	int tessllation = 2;
+	int tessllation = 3;
+	std::vector<Vec3c> efield;
 	RTSolver* rayTracer = new RTSolver();
 	rayTracer->Init(materials, 4, bvh);
-	int total_paths = rayTracer->ExecuteRayTracing(rayOrig, maxReflection, maxTransmission, rxLocation, tessllation);
-
+	int total_paths = rayTracer->ExecuteRayTracing(rayOrig, maxReflection, maxTransmission, rxLocation, triangle_mesh, efield, tessllation);
 	// rayTracer->CmdLineDebug();
-	rayTracer->SavePathsAsVtk(rayPathFileName);
+	rayTracer->SavePathsAsVtk(rayPathFileName, efield);
 	rayTracer->SaveIcosahedronAsVtk(icosahedronFileName,rayOrig, tessllation);
 	Preprocessor::SaveLocationAsVtk(rxLocationOutputFileName, rxLocation);
 
 	delete rayTracer;
-	*/
 }
