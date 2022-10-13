@@ -8,6 +8,7 @@
 #include "Icosahedron.h"
 #include "Triangle.h"
 #include "Preprocessor.h"
+#include "FieldCompute.h"
 #include <mutex>
 
 
@@ -24,9 +25,11 @@ public:
 		int maxReflectionCount, 
 		int maxTransmissionCount, 
 		VecVec3 receivers,
+		const std::vector<Triangle*>& triangleMesh,
+		std::vector<Vec3c>& fieldAtReceiver,
 		int txTesslation = 0
 	);
-	bool SavePathsAsVtk(std::string fname);
+	bool SavePathsAsVtk(std::string fname, const std::vector<Vec3c>& efield);
 	bool SaveIcosahedronAsVtk(std::string fname, Vec3 rayOrg, int tessellation);
 	void CmdLineDebug();
 protected:

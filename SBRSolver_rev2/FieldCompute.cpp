@@ -8,47 +8,57 @@ FieldCompute::~FieldCompute()
 {
 }
 
-
-
 Vec3c FieldCompute::FieldAtReceiver(int receiverId)
 {
+	Vec3c totalField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
+
 	// Get all paths for the receiver
 	for (int i = 0; i < _pathsCount; i++)
 	{
-		//_rayPaths[i][receiverId].rayPaths
+		int numRayPaths = int(_rayPaths[i][receiverId].rayPaths.size());
+		for (int j = 0; j < numRayPaths; j++)
+		{
+			totalField += FieldForPath(_rayPaths[i][receiverId].rayPaths[j], Mat3::Identity(), 1e9);
+		}
 	}
-	return Vec3c();
+	return totalField;
 }
 
-Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path, const Mat3& txCoordSys)
+Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path, const Mat3& txCoordSys, double frequency)
 {
-	/* This is for testing purposes only */
-	double lamda = SPEED_OF_LIGHT / 1e9;
+
+	double lamda = SPEED_OF_LIGHT / frequency;
 	double k = (2 * PI) / lamda;
 
-	Mat3 currentCoordSys = Mat3::Identity(); // Global coordinate system
+	Mat3 globalCoordSys = Mat3::Identity();
+	Mat3 currentCoordSys = globalCoordSys; // Global coordinate system
 	Mat3 nextCoordSys = txCoordSys;
 
-
-	// Step 1: convert ray from global coordinate system to local coordinate system
-	// Step 2: once in local coordinates, convert to spherical coordinates
-	// Step 3: find field contribution in spherical coordinate system
-	// Step 4:  
-
+	Vec3c incidentField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
 	Vec3c totalField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
 	cdouble propagation_term{ 0,0 };
 
 	for (int i = 0; i < int(path.size()); i++)
 	{
 		const Ray& ray = path[i];
-		Vec3 pGlobal = ray.targetPoint - ray.sourcePoint; // This is just a translation to global origin
-		Vec3 pLocal = PointInNewCoordSys(pGlobal, currentCoordSys, nextCoordSys);
-		Vec3 pSph = CartesianToSpherical(pLocal);
+		Vec3 vecGlobal = ray.targetPoint - ray.sourcePoint;
+		Vec3 vecLocal = RotateToNewCoordSys(vecGlobal, globalCoordSys, nextCoordSys);
+		Vec3 vecSph = CartesianToSpherical(vecLocal);
 
-		double r = pSph(0);
-		double theta = pSph(1);
-		double phi = pSph(2);
+		currentCoordSys = nextCoordSys;
+		if (ray.hitSurfaceID == -1)
+		{
+			nextCoordSys = globalCoordSys;
+		}
+		else
+		{
+			nextCoordSys = GetSurfCoordSys(_triangleMesh[ray.hitSurfaceID]->norm, ray);
+		}
+		
 
+		double r = vecSph(0);
+		double theta = vecSph(1);
+		double phi = vecSph(2);
 		propagation_term.real(cos(-1 * k * r) / r);
 		propagation_term.imag(sin(-1 * k * r) / r);
 
@@ -57,55 +67,69 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path, const Mat3& txCoo
 			// The first ray is always from TX to the next facet or receiver
 			// Get either the gain from the TX or an analytical pattern
 			// E(r,theta,phi) = E(0) * exp(-jkr)/r
-			totalField += propagation_term * GetAnalyticEfieldPattern(1, theta, phi, 1);
+			// E(0) need to be calculated from the field coefficient sqrt(eta * Pr * Gain / 2Pi)
+			incidentField = propagation_term * GetAnalyticEfieldPattern(1, theta, phi, 1); // local spherical
+		}
+		else
+		{
+			incidentField = RotateToNewCoordSys(totalField, globalCoordSys, currentCoordSys);
+			incidentField = CartesianToSphericalVector(incidentField, theta, phi);
+			incidentField = propagation_term * incidentField;
 		}
 
+		// Flip the theta phi components accroding to Catedra
+		incidentField(1) = -incidentField(1);
+		incidentField(2) = -incidentField(2);
 
-		
+		if (ray.reflectionMaterialId >= 0)
+		{
+			double incidentAngle = AngleBetween(vecGlobal, currentCoordSys(2,Eigen::all), false, true);
+			double relPerm = _materials[ray.reflectionMaterialId].relPermittivityRe;
+			double sigma = _materials[ray.reflectionMaterialId].relConductivity;
+			totalField = ComputeRefcField(incidentField, relPerm, sigma, frequency, incidentAngle, 0, true); // local spherical
+		}
+		else if (ray.penetrationMaterialId >= 0)
+		{
+			double incidentAngle = AngleBetween(vecGlobal, currentCoordSys(2, Eigen::all), false, true);
+			double relPerm = _materials[ray.penetrationMaterialId].relPermittivityRe;
+			double sigma = _materials[ray.penetrationMaterialId].relConductivity;
+			totalField = ComputeTransField(incidentField, relPerm, sigma, frequency, incidentAngle, 0, true);
+		}
+		else
+		{
+			totalField = incidentField;
+		}
+		// Need to do: add a case where receiver gain can be applied here
+		totalField = SphericalToCartesianVector(totalField, theta, phi);
+		totalField = RotateToNewCoordSys(totalField, currentCoordSys, globalCoordSys);
 	}
 
-	/*
-	for (const Ray& r : path)
-	{
-
-
-		
-		cdouble propagation_term;
-		propagation_term.real(cos(-1 * k * pSph(0) / pSph(0)));
-		propagation_term.imag(sin(-1 * k * pSph(0) / pSph(0)));
-
-		Vec3 surfaceNormal = _triangleMesh[r.hitSurfaceID]->norm;
-		MaterialProperties m = _materials[_triangleMesh[r.hitSurfaceID]->materialId];
-
-		
-	}
-	*/
-	return Vec3c();
+	return totalField;
 }
 
-Vec3c FieldCompute::GetAnalyticEfieldPattern(int antenna_type, double theta, double phi, double pt)
+Vec3c FieldCompute::GetAnalyticEfieldPattern(int antennaType, double theta, double phi, double pt)
 {
-	Vec3c e_field_sph;
+	Vec3c eFieldSph;
 
-	if (antenna_type == 1)
+	if (antennaType == 1)
 	{
 		// Field of Hertzian Dipole in TX Spherical Coordinate System
-		e_field_sph(0) = 0;
-		e_field_sph(1) = sin(theta);
-		e_field_sph(2) = 0;
+		eFieldSph(0) = 0;
+		eFieldSph(1) = cdouble(0, sqrt(60*pt) * sin(theta));
+		eFieldSph(2) = 0;
 	}
-	else if (antenna_type == 2)
+	else if (antennaType == 2)
 	{
 		// Field of half wave dipole in TX Spherical Coordinate System
-		e_field_sph(0) = 0;
-		e_field_sph(1) = sqrt(60 * pt) * (cos(PI * cos(theta) / 2.0) / sin(theta));
-		e_field_sph(2) = 0;
+		eFieldSph(0) = 0;
+		eFieldSph(1) = cdouble(0, sqrt(60 * pt) * (cos(PI * cos(theta) / 2.0) / sin(theta)));
+		eFieldSph(2) = 0;
 	}
-	else if (antenna_type == 3)
+	else if (antennaType == 3)
 	{
 		// Field of antenna array in TX Spherical Coordinate System
 	}
-	return e_field_sph;
+	return eFieldSph;
 }
 
 Vec3c FieldCompute::ComputeRefcField(const Vec3c& efield_i_sph, double rel_perm, double sigma, double freq, double thetaIncident, double width, bool inf_wall)
