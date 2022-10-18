@@ -31,8 +31,8 @@ int main()
 
 	double freq = 1.8e9; // frequency
 	double Pt = 1; // transmit power in Watt
-	int maxReflection = 1; // NOTE!! 1 means no reflection, 2 means 1 reflection
-	int maxTransmission = 1; // NOTE!! 1 means no transmission, 2 means 1 transmission
+	int maxReflection = 0; // NOTE!! 1 means no reflection, 2 means 1 reflection
+	int maxTransmission = 0; // NOTE!! 1 means no transmission, 2 means 1 transmission
 
 #if DEBUG
 	std::cout << "\tTX Pattern File Name  -> " << txPatternFileName << std::endl;
@@ -74,13 +74,13 @@ int main()
 	// Vec3 rayOrig{ 0,0,0 };
 
 	MaterialProperties materials[4];
-	// Material 0 [Concrete] -> Default material
+	// Material 0 [Metal 5mm] -> Default material
 	materials[0].frequency = 1.8e9;
-	materials[0].reflectionLoss = -1;
-	materials[0].transmissionLoss = -1;
-	materials[0].relConductivity = 0.09;
-	materials[0].relPermittivityRe = 9;
-	materials[0].relPermittivityIm = 0.9;
+	materials[0].reflectionLoss = 0.05;
+	materials[0].transmissionLoss = 221.13;
+	materials[0].relConductivity = 5000;
+	materials[0].relPermittivityRe = 1;
+	materials[0].relPermittivityIm = 0;
 
 	// Material 2 [plaster board]
 	materials[1].frequency = 1.8e9;

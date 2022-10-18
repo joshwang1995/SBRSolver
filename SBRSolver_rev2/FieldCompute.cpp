@@ -68,7 +68,7 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path, const Mat3& txCoo
 			// Get either the gain from the TX or an analytical pattern
 			// E(r,theta,phi) = E(0) * exp(-jkr)/r
 			// E(0) need to be calculated from the field coefficient sqrt(eta * Pr * Gain / 2Pi)
-			incidentField = propagation_term * GetAnalyticEfieldPattern(1, theta, phi, 1); // local spherical
+			incidentField = propagation_term * GetAnalyticEfieldPattern(1, theta, phi, 2); // local spherical
 		}
 		else
 		{
@@ -110,12 +110,19 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path, const Mat3& txCoo
 Vec3c FieldCompute::GetAnalyticEfieldPattern(int antennaType, double theta, double phi, double pt)
 {
 	Vec3c eFieldSph;
+	if (antennaType == 0)
+	{
+		// Isotropic antenna
+		eFieldSph(0) = pt/4*PI;
+		eFieldSph(1) = 0;
+		eFieldSph(2) = 0;
+	}
 
 	if (antennaType == 1)
 	{
 		// Field of Hertzian Dipole in TX Spherical Coordinate System
 		eFieldSph(0) = 0;
-		eFieldSph(1) = cdouble(0, sqrt(60*pt) * sin(theta));
+		eFieldSph(1) = cdouble(0, sqrt(60*pt*1.5) * sin(theta));
 		eFieldSph(2) = 0;
 	}
 	else if (antennaType == 2)

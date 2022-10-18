@@ -453,7 +453,7 @@ bool RTSolver::SavePathsAsVtk(std::string fname, const std::vector<Vec3c>& efiel
 	ofs << "EdB 1 " << receiverIds.size() << " double" << endl;
 	for (int i = 0; i < receiverIds.size(); i++)
 	{
-		double eabs = std::isfinite(efield[receiverIds[i]].norm()) ? 10 * log10(efield[receiverIds[i]].norm() * 1e6) : -300.0;
+		double eabs = std::isfinite(efield[receiverIds[i]].norm()) ? 20 * log10(efield[receiverIds[i]].norm() * 1e6) : -1.0;
 		ofs << " " << eabs << endl;
 	}
 
@@ -462,6 +462,14 @@ bool RTSolver::SavePathsAsVtk(std::string fname, const std::vector<Vec3c>& efiel
 	{
 		double totalPhase = std::arg(efield[receiverIds[i]].x()) + std::arg(efield[receiverIds[i]].y()) + std::arg(efield[receiverIds[i]].z());
 		totalPhase = std::isfinite(totalPhase) ? totalPhase : 0.0;
+		if (std::isfinite(totalPhase))
+		{
+			totalPhase >= TWOPI ? (totalPhase - TWOPI) * (180.0 / PI) : totalPhase * (180.0 / PI);
+		}
+		else
+		{
+			totalPhase = 361.0;
+		}
 		ofs << " " << totalPhase << endl;
 	}
 
