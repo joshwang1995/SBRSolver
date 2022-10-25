@@ -126,7 +126,7 @@ void Preprocessor::GenerateAntennaPattern(std::string, double resolution)
 {
 }
 
-bool  Preprocessor::SaveLocationAsVtk(std::string fileName, const VecVec3& location)
+bool Preprocessor::SaveLocationAsVtk(std::string fileName, const VecVec3& location)
 {
     using namespace std;
 

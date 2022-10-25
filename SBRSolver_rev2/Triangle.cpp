@@ -8,6 +8,7 @@ Triangle::Triangle()
     v3 = Vec3();
     norm = Vec3();
     center = Vec3();
+    coordSys = Mat3();
 }
 
 Triangle::~Triangle()
@@ -21,6 +22,7 @@ Triangle::Triangle(Vec3 a, Vec3 b, Vec3 c, int d)
     norm = findNormal();
     bbox = findBbox();
     center = findCenter();
+    coordSys = findCoordSys();
 }
 
 Triangle::Triangle(Vec3 a, Vec3 b, Vec3 c, Vec3 d, int e)
@@ -29,6 +31,21 @@ Triangle::Triangle(Vec3 a, Vec3 b, Vec3 c, Vec3 d, int e)
     triangleId = e;
     bbox = findBbox();
     center = findCenter();
+    coordSys = findCoordSys();
+}
+
+Mat3 Triangle::findCoordSys() const
+{
+    Vec3 zw = norm;
+    Vec3 yw = (v2 - v1).normalized();
+    Vec3 xw = yw.cross(zw);
+
+    Mat3 surfaceCoord;
+    surfaceCoord(0, Eigen::all) = xw;
+    surfaceCoord(1, Eigen::all) = yw;
+    surfaceCoord(2, Eigen::all) = zw;
+
+    return surfaceCoord;
 }
 
 Mat23 Triangle::findBbox() const

@@ -40,27 +40,40 @@ void RTSolver::Cleanup()
 		delete _shootRayList;
 		_shootRayList = nullptr;
 	}
+
+	if (_efield != nullptr)
+	{
+		delete _efield;
+		_efield = nullptr;
+	}
 	_isSceneInitialized = false;
 }
 
 int RTSolver::ExecuteRayTracing
 (
 	Vec3 sourcePoint,
+	const Mat3& txCoordSys,
 	int maxReflectionCount,
 	int maxTransmissionCount,
-	VecVec3 receivers,
-	const std::vector<Triangle*>& triangleMesh,
-	std::vector<Vec3c>& fieldAtReceiver,
+	double frequency,
+	double pt,
+	bool useFresnelCoeff,
+	VecVec3& receivers,
+	std::vector<Triangle*>& triangleMesh,
 	int txTesslation
 )
 {
+	RayGlobalId = 0;
+
 	_maxReflectionCount = maxReflectionCount;
 	_maxTransmissionCount = maxTransmissionCount;
 	_txTesslation = txTesslation + 1; // Since user can enter 0 as txTesslation
-	RayGlobalId = 0;
 	_shootRayList = GenerateRaysOnIcosahedron(txTesslation, sourcePoint);
+	_receivers = &receivers;
 	_receiverCount = int(receivers.size());
 	_pathsCount = int(_shootRayList->size());
+	_efield = new std::vector<Vec3c>;
+
 	InitRayPaths();
 
 	// Timer timer;
@@ -84,13 +97,27 @@ int RTSolver::ExecuteRayTracing
 		}
 	}
 
-	FieldCompute* fieldCore = new FieldCompute(_rayPaths, triangleMesh, receivers, _pathsCount, _materialProperties);
+	FieldCompute* fieldCore = new FieldCompute
+	(
+		_rayPaths, 
+		triangleMesh, 
+		receivers, 
+		_pathsCount, 
+		_materialProperties, 
+		txCoordSys, 
+		frequency, 
+		pt,
+		useFresnelCoeff
+	);
+
 	Vec3c field = { cdouble(0,0), cdouble(0,0), cdouble(0,0) };
+
 //#pragma omp parallel for
 	for (int k = 0; k < _receiverCount; k++)
 	{
-		RemoveDuplicatePath(receivers[k],k);
-		fieldAtReceiver.push_back(fieldCore->FieldAtReceiver(k));
+		ImagePathCorrection(k, sourcePoint, triangleMesh);
+		// RemoveDuplicatePath(receivers[k],k);
+		_efield->push_back(fieldCore->FieldAtReceiver(k));
 	}
 	// std::cout << "\tTotal Time in for loop -> " << timer.getTime() << std::endl;
 	
@@ -288,6 +315,127 @@ void RTSolver::RayCapture(PathTreeNode* rayTreeNode, const Vec3& receiver, doubl
 	
 }
 
+void RTSolver::ImagePathCorrection(int receiverId, const Vec3& txPoint, const std::vector<Triangle*>& triangleMesh)
+{
+	for (int i = 0; i < _pathsCount; i++)
+	{
+		for (int j = 0; j < _rayPaths[i][receiverId].rayPaths.size(); j++)
+		{
+			std::vector<Ray>* path = &_rayPaths[i][receiverId].rayPaths[j]; // Path will always contain at least 1 ray
+			if (path->size() == 1)
+			{
+				DirectPathCorrection(*path, receiverId, txPoint);
+			}
+			else
+			{
+				MultiPathCorrection(*path, receiverId, txPoint, triangleMesh);
+			}
+		}
+	}
+	return;
+}
+
+void RTSolver::MultiPathCorrection(std::vector<Ray>& multiPath, int receiverId, const Vec3& txPoint, const std::vector<Triangle*>& triangleMesh)
+{
+	std::vector<std::pair<int, Vec3>> imgSources = GetImageSources(multiPath, txPoint, triangleMesh);
+	if(imgSources.size() != multiPath.size()) 
+	{ 
+		assert("The GetImageSources function returned a list that is smaller than the path size");
+	}
+
+	HitInfo result;
+	Vec3 targetPoint = _receivers->at(receiverId);
+
+	for (int i = (multiPath.size() - 1); i >= 0; i--)
+	{
+		int hitSurfId = imgSources.at(i).first;
+		Vec3 imgSrc = imgSources.at(i).second;
+		Vec3 imgRayDir = targetPoint - imgSrc;
+		
+		if (hitSurfId < 0)
+		{
+			multiPath.at(i).sourcePoint = imgSrc;
+			multiPath.at(i).targetPoint = targetPoint;
+			multiPath.at(i).pathLength = (targetPoint - result.pointIntersect).norm();
+			multiPath.at(i).angleFromSurfaceNormal = INF;
+		}
+		else
+		{
+			bool hasHit = triangleMesh[hitSurfId]->RayIntersects(imgSrc, imgRayDir, result);
+
+			if (hasHit)
+			{
+				multiPath.at(i).sourcePoint = result.pointIntersect;
+				multiPath.at(i).targetPoint = targetPoint;
+				multiPath.at(i).pathLength = (targetPoint - result.pointIntersect).norm();
+				multiPath.at(i).angleFromSurfaceNormal = AngleBetween(triangleMesh[hitSurfId]->norm, targetPoint - result.pointIntersect);
+				targetPoint = result.pointIntersect;
+			}
+			else
+			{
+				assert("Multipath correction results in the corrected ray missing the surface.");
+			}
+		}
+
+	}
+}
+
+void RTSolver::DirectPathCorrection(std::vector<Ray>& directPath, int receiverId, const Vec3& txPoint)
+{
+	if (directPath.size() != 1) { assert("The path is not direct path."); }
+
+	// Direct path correction
+	HitInfo result;
+	Vec3 directRayDirection = _receivers->at(receiverId) - txPoint;
+	if (_bvh->RayIntersects(0, txPoint, directRayDirection, result) == false)
+	{
+		directPath.at(0).sourcePoint = txPoint;
+		directPath.at(0).targetPoint = _receivers->at(receiverId);
+		directPath.at(0).pathLength = (directPath.at(0).targetPoint - directPath.at(0).sourcePoint).norm();
+	}
+	else
+	{
+		assert("Direct path correction results in obstructed ray.");
+	}
+}
+
+std::vector<std::pair<int, Vec3>> GetImageSources(const std::vector<Ray>& path, const Vec3& txPoint, const std::vector<Triangle*>& triangleMesh)
+{
+	Vec3 currentImgSrc = txPoint;
+	std::vector<std::pair<int, Vec3>> result {std::make_pair(-1, txPoint) };
+	
+	int surfId = -1;
+	for (int i = 0; i < path.size() - 1; i++)
+	{
+		surfId = path[i].hitSurfaceID;
+
+		if(surfId < 0)
+		{
+			// Shouldn't happen. This implies a non-direct ray in the path doesn't hit a surface
+			assert("The ray path is not valid");
+		}
+		if (path[i+1].reflectionMaterialId >= 0) // The interaction type is stored in the next ray
+		{
+			// if the interaction is reflection, then find image source
+			currentImgSrc = ImagePoint(*triangleMesh[surfId], currentImgSrc);
+			result.push_back(std::make_pair(surfId, currentImgSrc));
+		}
+		else if (path[i + 1].penetrationMaterialId >= 0)
+		{
+			// if the interaction is transmission, then keep the old image source
+			result.push_back(std::make_pair(surfId, currentImgSrc));
+		}
+		else
+		{
+			// Shouldn't happen
+			// When both reflectionMaterialId and penetrationMaterialId is < 1, this implies the current ray
+			// is fired directly from the TX. but we are indexing path[i+1], so the zero case is not included here
+			assert("The ray path is not valid");
+		}
+	}
+	return result;
+}
+
 void RTSolver::RemoveDuplicatePath(const Vec3& receiver, int receiverId)
 {
 	std::map<std::vector<int>, std::pair<int, int>> surfaceIdMap;
@@ -379,7 +527,7 @@ void RTSolver::CmdLineDebug()
 	}
 }
 
-bool RTSolver::SavePathsAsVtk(std::string fname, const std::vector<Vec3c>& efield)
+bool RTSolver::SavePathsAsVtk(std::string fname)
 {
 	using namespace std;
 
@@ -446,21 +594,21 @@ bool RTSolver::SavePathsAsVtk(std::string fname, const std::vector<Vec3c>& efiel
 	ofs << "Eabs 1 " << receiverIds.size() << " double" << endl;
 	for (int i = 0; i < receiverIds.size(); i++)
 	{
-		double eabs = std::isfinite(efield[receiverIds[i]].norm()) ? efield[receiverIds[i]].norm() : 0.0;
+		double eabs = std::isfinite(_efield->at(receiverIds[i]).norm()) ? _efield->at(receiverIds[i]).norm() : 0.0;
 		ofs << " " << eabs << endl;
 	}
 
 	ofs << "EdB 1 " << receiverIds.size() << " double" << endl;
 	for (int i = 0; i < receiverIds.size(); i++)
 	{
-		double eabs = std::isfinite(efield[receiverIds[i]].norm()) ? 20 * log10(efield[receiverIds[i]].norm() * 1e6) : -1.0;
+		double eabs = std::isfinite(_efield->at(receiverIds[i]).norm()) ? 20 * log10(_efield->at(receiverIds[i]).norm() * 1e6) : -1.0;
 		ofs << " " << eabs << endl;
 	}
 
 	ofs << "Phase 1 " << receiverIds.size() << " double" << endl;
 	for (int i = 0; i < receiverIds.size(); i++)
 	{
-		double totalPhase = std::arg(efield[receiverIds[i]].x()) + std::arg(efield[receiverIds[i]].y()) + std::arg(efield[receiverIds[i]].z());
+		double totalPhase = std::arg(_efield->at(receiverIds[i]).x()) + std::arg(_efield->at(receiverIds[i]).y()) + std::arg(_efield->at(receiverIds[i]).z());
 		totalPhase = std::isfinite(totalPhase) ? totalPhase : 0.0;
 		if (std::isfinite(totalPhase))
 		{
@@ -477,6 +625,113 @@ bool RTSolver::SavePathsAsVtk(std::string fname, const std::vector<Vec3c>& efiel
 	cout << "\tSaved " << lineIdx.size() << " ray paths into " << fname << endl;
 	cout << "[Leaving] RTSolver::SavePathsAsVtk" << endl;
 
+	return true;
+}
+
+bool RTSolver::SaveReceiversAsVtk(std::string fname)
+{
+	using namespace std;
+
+	cout << "[Entering] RTSolver::SaveReceiversAsVtk ..." << endl;
+
+	ofstream ofs;
+	ofs.open(fname);
+
+	// write header
+	ofs << "# vtk DataFile Version 2.0" << endl;
+	ofs << "Ray Path Visualization" << endl;
+	ofs << "ASCII" << endl;
+	ofs << "DATASET POLYDATA" << endl;
+	ofs << endl;
+
+	ofs << "POINTS " << _receiverCount << " float" << endl;
+	for(int i = 0; i < _receiverCount; i++)
+	{
+		ofs << " "
+			<< _receivers->at(i).x() << " "
+			<< _receivers->at(i).y() << " "
+			<< _receivers->at(i).z() << endl;
+	}
+
+	ofs << "VERTICES 1 " << _receiverCount + 1 << endl;
+	ofs << _receiverCount << endl;
+	for (int i = 0; i < _receiverCount; i++)
+	{
+		((i % 5) == 4) ? ofs << " " << i << endl : ofs << " " << i;
+	}
+	ofs << endl;
+
+	ofs << "POINT_DATA " << _receiverCount << endl;
+	ofs << "FIELD FieldData 4" << endl;
+	ofs << "ReceiverID 1 " << _receiverCount << " int" << endl;
+	for (int i = 0; i < _receiverCount; i++)
+	{
+		ofs << " " << i << endl;
+	}
+
+	ofs << "Eabs 1 " << _receiverCount << " double" << endl;
+	for (int i = 0; i < _receiverCount; i++)
+	{
+		double eabs = std::isfinite(_efield->at(i).norm()) ? _efield->at(i).norm() : 0.0;
+		ofs << " " << eabs << endl;
+	}
+
+	ofs << "EdB 1 " << _receiverCount << " double" << endl;
+	for (int i = 0; i < _receiverCount; i++)
+	{
+		double eabs = std::isfinite(_efield->at(i).norm()) ? _efield->at(i).norm() : 0.0;
+
+		double edb = eabs > 0.0 ? 20 * log10(_efield->at(i).norm() * 1e6) : -300.0;
+		ofs << " " << edb << endl;
+	}
+
+	ofs << "Phase 1 " << _receiverCount << " double" << endl;
+	for (int i = 0; i < _receiverCount; i++)
+	{
+		double totalPhase = std::arg(_efield->at(i).x()) + std::arg(_efield->at(i).y()) + std::arg(_efield->at(i).z());
+		totalPhase = std::isfinite(totalPhase) ? totalPhase : 0.0;
+		if (std::isfinite(totalPhase))
+		{
+			totalPhase >= TWOPI ? (totalPhase - TWOPI) * (180.0 / PI) : totalPhase * (180.0 / PI);
+		}
+		else
+		{
+			totalPhase = 361.0;
+		}
+		ofs << " " << totalPhase << endl;
+	}
+
+	ofs.close();
+	cout << "\tSaved " << _receiverCount << " receiver info into " << fname << endl;
+	cout << "[Leaving] RTSolver::SaveReceiversAsVtk" << endl;
+
+	return true;
+}
+
+bool RTSolver::SaveFieldAsCsv(std::string fname)
+{
+	using namespace std;
+	cout << "[Entering] RTSolver::SaveFieldAsCsv ..." << endl;
+
+	ofstream ofs;
+	ofs.open(fname);
+
+	// write header
+	ofs << "X,Y,Z,Ex,Ey,Ez" << endl;
+	for (int i = 0; i < _receiverCount; i++)
+	{
+		ofs << _receivers->at(i).x() << ","
+			<< _receivers->at(i).y() << ","
+			<< _receivers->at(i).z() << ",";
+
+		ofs << showpos
+			<< _efield->at(i).x().real() << _efield->at(i).x().imag() << "i" << ","
+			<< _efield->at(i).y().real() << _efield->at(i).y().imag() << "i" << ","
+			<< _efield->at(i).z().real() << _efield->at(i).z().imag() << "i" << endl;
+	}
+
+	cout << "\tSaved " << _receiverCount << " received field into " << fname << endl;
+	cout << "[Leaving] RTSolver::SaveFieldAsCsv ..." << endl;
 	return true;
 }
 
@@ -664,4 +919,20 @@ double DistanceToReceiver(const std::vector<Ray>& rayPaths, const Vec3& receiver
 bool sortbysec(const std::pair<int, int>& a, const std::pair<int, int>& b)
 {
 	return (a.second < b.second);
+}
+
+Vec3 ImagePoint(const Triangle& triangle, const Vec3& src)
+{
+	// We will treat triangle as an infinite plane Ax + By + Cz + d = 0
+	// where n = <A,B,C> and d is calcuated by based on a known point on the plane
+	// in this case the point is one of the triangle's vertices
+
+	// Algorithm: calculate perpendicular distance between src point and the plane
+	// the image point is [src - 2(normal * dist)] 
+
+	// Assumption is that the normal vector is normalized
+
+	double dist = triangle.norm.dot(src - triangle.v1);
+
+	return src - (2*dist*triangle.norm);
 }

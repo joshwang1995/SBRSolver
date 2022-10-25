@@ -12,31 +12,42 @@ public:
 	FieldCompute();
 	FieldCompute
 	(
-		Paths** rayPaths, 
-		const std::vector<Triangle*>& triangleMesh, 
-		VecVec3& receivers, 
+		Paths** rayPaths,
+		std::vector<Triangle*>& triangleMesh,
+		VecVec3& receivers,
 		int pathsCount,
-		MaterialProperties* materials
+		MaterialProperties* materials,
+		Mat3 txCoordSys,
+		double frequency,
+		double pt,
+		bool useFresnelCoeff
 	)
 		:
-		_rayPaths(rayPaths), 
-		_triangleMesh(triangleMesh), 
-		_receivers(receivers),
+		_rayPaths(rayPaths),
+		_triangleMesh(&triangleMesh),
+		_receivers(&receivers),
 		_pathsCount(pathsCount),
-		_materials(materials)
+		_materials(materials),
+		_txCoordSys(txCoordSys),
+		_frequency(frequency),
+		_txPower(pt),
+		_useFresnelCoeff(useFresnelCoeff)
 	{};
 	~FieldCompute();
 	Vec3c FieldAtReceiver(int receiverId);
 
 protected:
 	Paths** _rayPaths;
-	const std::vector<Triangle*> _triangleMesh;
+	std::vector<Triangle*>* _triangleMesh;
 	int _pathsCount;
-	VecVec3 _receivers;
+	VecVec3* _receivers;
 	MaterialProperties* _materials;
-	GainMap _txAntGain;
+	Mat3 _txCoordSys;
+	double _frequency;
+	double _txPower;
+	bool _useFresnelCoeff;
 
-	Vec3c FieldForPath(const std::vector<Ray>& path, const Mat3& txCoordSys, double frequency);
+	Vec3c FieldForPath(const std::vector<Ray>& path);
 
 private:
 	Vec3c ComputeRefcField
@@ -77,6 +88,5 @@ private:
 		cdouble& ref_coeff, cdouble& tran_coeff
 	);
 	cdouble GetTransAngle(double thetaIncident, cdouble epsilonIncident, cdouble epsilonTransmit);
-	Mat3 GetSurfCoordSys(const Vec3& n, const Ray& rayIncident);
 	Vec3c GetAnalyticEfieldPattern(int antennaType, double theta, double phi, double pt);
 };
