@@ -18,21 +18,20 @@ Vec3c FieldCompute::FieldAtReceiver(int receiverId)
 		int numRayPaths = int(_rayPaths[i][receiverId].rayPaths.size());
 		for (int j = 0; j < numRayPaths; j++)
 		{
-			totalField += FieldForPath(_rayPaths[i][receiverId].rayPaths[j], Mat3::Identity(), 1e9);
+			totalField += FieldForPath(_rayPaths[i][receiverId].rayPaths[j]);
 		}
 	}
 	return totalField;
 }
 
-Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path, const Mat3& txCoordSys, double frequency)
+Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 {
-
-	double lamda = SPEED_OF_LIGHT / frequency;
+	double lamda = SPEED_OF_LIGHT / _frequency;
 	double k = (2 * PI) / lamda;
 
 	Mat3 globalCoordSys = Mat3::Identity();
 	Mat3 currentCoordSys = globalCoordSys; // Global coordinate system
-	Mat3 nextCoordSys = txCoordSys;
+	Mat3 nextCoordSys = _txCoordSys;
 
 	Vec3c incidentField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
 	Vec3c totalField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
@@ -52,7 +51,7 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path, const Mat3& txCoo
 		}
 		else
 		{
-			nextCoordSys = GetSurfCoordSys(_triangleMesh[ray.hitSurfaceID]->norm, ray);
+			nextCoordSys = _triangleMesh->at(ray.hitSurfaceID)->coordSys;
 		}
 		
 
@@ -68,7 +67,7 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path, const Mat3& txCoo
 			// Get either the gain from the TX or an analytical pattern
 			// E(r,theta,phi) = E(0) * exp(-jkr)/r
 			// E(0) need to be calculated from the field coefficient sqrt(eta * Pr * Gain / 2Pi)
-			incidentField = propagation_term * GetAnalyticEfieldPattern(1, theta, phi, 2); // local spherical
+			incidentField = propagation_term * GetAnalyticEfieldPattern(0, theta, phi, _txPower); // local spherical
 		}
 		else
 		{
@@ -86,14 +85,14 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path, const Mat3& txCoo
 			double incidentAngle = AngleBetween(vecGlobal, currentCoordSys(2,Eigen::all), false, true);
 			double relPerm = _materials[ray.reflectionMaterialId].relPermittivityRe;
 			double sigma = _materials[ray.reflectionMaterialId].relConductivity;
-			totalField = ComputeRefcField(incidentField, relPerm, sigma, frequency, incidentAngle, 0, true); // local spherical
+			totalField = ComputeRefcField(incidentField, relPerm, sigma, _frequency, incidentAngle, 0, _useFresnelCoeff); // local spherical
 		}
 		else if (ray.penetrationMaterialId >= 0)
 		{
 			double incidentAngle = AngleBetween(vecGlobal, currentCoordSys(2, Eigen::all), false, true);
 			double relPerm = _materials[ray.penetrationMaterialId].relPermittivityRe;
 			double sigma = _materials[ray.penetrationMaterialId].relConductivity;
-			totalField = ComputeTransField(incidentField, relPerm, sigma, frequency, incidentAngle, 0, true);
+			totalField = ComputeTransField(incidentField, relPerm, sigma, _frequency, incidentAngle, 0, _useFresnelCoeff);
 		}
 		else
 		{
@@ -113,7 +112,7 @@ Vec3c FieldCompute::GetAnalyticEfieldPattern(int antennaType, double theta, doub
 	if (antennaType == 0)
 	{
 		// Isotropic antenna
-		eFieldSph(0) = pt/4*PI;
+		eFieldSph(0) = cdouble(sqrt(60 * pt), 0);
 		eFieldSph(1) = 0;
 		eFieldSph(2) = 0;
 	}
@@ -253,42 +252,5 @@ cdouble FieldCompute::GetTransAngle(double thetaIncident, cdouble epsilonInciden
 	cdouble n_t = sqrt(epsilonTransmit);
 	t_t = asin(n_i * sin(t_i) / n_t);
 	return t_t;
-}
-
-Mat3 FieldCompute::GetSurfCoordSys(const Vec3& n, const Ray& rayIncident)
-{
-	// Need to fix: if the ray is normal incident, then the code return nans
-	
-	// Fail-safe procedure: ensure both ray direction and wall norm is unit vector
-	Vec3 normal = n.normalized();
-	Vec3 rayDir = (rayIncident.targetPoint - rayIncident.sourcePoint).normalized();
-
-	// This would fail if the normal and rayDir are not unit vectors
-	double theta_i = acos(rayDir.dot(normal));
-
-	//double theta_i = acos((zw*inc_ray.dir)/(mag(zw)*mag(inc_ray.dir)));
-	if (theta_i > PI / 2)
-	{
-		theta_i = PI - theta_i;
-
-		// From Neeraj's ray tracer code:
-		// If the angle between incident ray and the surface normal is > 90 degrees,
-		//	this indicates that the surface normal is inward pointing. 
-		// 	Reverse the surface normal and also reverse orientation of vertices
-
-		//wall.unit_norm_ = -1*wall.unit_norm_;
-		//wall.d = - wall.d;
-	}
-
-	Vec3 zw = normal;
-	Vec3 yw = rayDir.cross(normal) / sin(theta_i);
-	Vec3 xw = yw.cross(zw);
-
-	Mat3 surfaceCoord;
-	surfaceCoord(0, Eigen::all) = xw;
-	surfaceCoord(1, Eigen::all) = yw;
-	surfaceCoord(2, Eigen::all) = zw;
-
-	return surfaceCoord;
 }
 

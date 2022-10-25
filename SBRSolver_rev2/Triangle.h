@@ -22,11 +22,13 @@ public:
     Vec3 v2; // Vertex 2
     Vec3 v3; // Vertex 3
     Vec3 norm; // Triangle Normal
+    Mat3 coordSys; // Surface coordinate system
     Mat23 bbox; // Bounding box
     Vec3 center; // Bounding box center
     int triangleId = -1;
     int materialId = 0; //Default materail ID is 0
 
+    Mat3 findCoordSys() const;
     Mat23 findBbox() const;
     Vec3 findCenter() const;
     Vec3 findNormal() const;

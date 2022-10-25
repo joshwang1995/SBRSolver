@@ -27,11 +27,12 @@ int main()
 	std::string bvhFileName = "./data/output/BVH.vtk";
 	std::string rayPathFileName = "./data/output/RayPath.vtk";
 	std::string icosahedronFileName = "./data/output/Icosahedron.vtk";
+	std::string csvFieldFileName = "./data/output/ElectricField.csv";
 	Timer timer;
 
 	double freq = 1.8e9; // frequency
 	double Pt = 1; // transmit power in Watt
-	int maxReflection = 0; // NOTE!! 1 means no reflection, 2 means 1 reflection
+	int maxReflection = 1; // NOTE!! 1 means no reflection, 2 means 1 reflection
 	int maxTransmission = 0; // NOTE!! 1 means no transmission, 2 means 1 transmission
 
 #if DEBUG
@@ -54,7 +55,7 @@ int main()
 	timer.start();
 	Preprocessor::ReadPatternFile(txPatternFileName, txPattern);
 	// Preprocessor::GenerateRxPlane(-18, -40, -17, 0, 1, 1, rxLocation);
-	Preprocessor::GenerateRxPlane(-10, -10, 10, 10, 3, 1, rxLocation); 
+	Preprocessor::GenerateRxPlane(0, -10, 1, 10, 3, 1, rxLocation); 
 	// Preprocessor::GenerateRxPlane(0, -10, 20, 10, 7, 1, rxLocation);
 	// Preprocessor::ReadLocationFile(rxLocationFileName, rxLocation);
 	Preprocessor::StlToGeometry(stlFileName, triangle_mesh);
@@ -107,14 +108,30 @@ int main()
 	materials[3].relPermittivityIm = 0.05;
 	
 	int tessllation = 3;
-	std::vector<Vec3c> efield;
+	Mat3 txCoordSys = Mat3::Identity();
+
 	RTSolver* rayTracer = new RTSolver();
-	rayTracer->Init(materials, 4, bvh);
-	int total_paths = rayTracer->ExecuteRayTracing(rayOrig, maxReflection, maxTransmission, rxLocation, triangle_mesh, efield, tessllation);
+	rayTracer->Init(materials, 1, bvh);
+
+	int total_paths = rayTracer->ExecuteRayTracing
+	(
+		rayOrig,
+		txCoordSys,
+		maxReflection, 
+		maxTransmission,
+		freq,
+		Pt,
+		true,
+		rxLocation, 
+		triangle_mesh, 
+		tessllation
+	);
+
 	// rayTracer->CmdLineDebug();
-	rayTracer->SavePathsAsVtk(rayPathFileName, efield);
+	rayTracer->SavePathsAsVtk(rayPathFileName);
 	rayTracer->SaveIcosahedronAsVtk(icosahedronFileName,rayOrig, tessllation);
-	Preprocessor::SaveLocationAsVtk(rxLocationOutputFileName, rxLocation);
+	rayTracer->SaveReceiversAsVtk(rxLocationOutputFileName);
+	rayTracer->SaveFieldAsCsv(csvFieldFileName);
 
 	delete rayTracer;
 }
