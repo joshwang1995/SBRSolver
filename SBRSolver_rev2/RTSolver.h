@@ -72,8 +72,8 @@ private:
 		double totalPathLength
 	);
 	void ImagePathCorrection(int receiverId, const Vec3& txPoint, const std::vector<Triangle*>& triangleMesh);
-	void MultiPathCorrection(std::vector<Ray>& multiPath, int receiverId, const Vec3& txPoint, const std::vector<Triangle*>& triangleMesh);
-	void DirectPathCorrection(std::vector<Ray>& directPath, int receiverId, const Vec3& txPoint);
+	bool MultiPathCorrection(std::vector<Ray>& multiPath, int receiverId, const Vec3& txPoint, const std::vector<Triangle*>& triangleMesh);
+	bool DirectPathCorrection(std::vector<Ray>& directPath, int receiverId, const Vec3& txPoint);
 	void RemoveDuplicatePath(const Vec3& receiver, int receiverId);
 	void InitRayPaths();
 	void DeleteRayPaths();

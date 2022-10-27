@@ -111,10 +111,10 @@ void Preprocessor::GenerateRxPlane(double xMin, double yMin, double xMax, double
     int nx = int((xMax - xMin) / resolution);
     int ny = int((yMax - yMin) / resolution);
     
-    for (int i = 0; i < nx; i++)
+    for (int i = 0; i <= nx; i++)
     {
         double x = xMin + i * resolution;
-        for (int j = 0; j < ny; j++)
+        for (int j = 0; j <= ny; j++)
         {
             double y = yMin + j * resolution;
             output.emplace_back(Vec3(x, y, height));

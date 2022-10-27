@@ -55,7 +55,7 @@ int main()
 	timer.start();
 	Preprocessor::ReadPatternFile(txPatternFileName, txPattern);
 	// Preprocessor::GenerateRxPlane(-18, -40, -17, 0, 1, 1, rxLocation);
-	Preprocessor::GenerateRxPlane(0, -10, 1, 10, 3, 1, rxLocation); 
+	Preprocessor::GenerateRxPlane(-10, -10, 10, 10, 3, 1, rxLocation); 
 	// Preprocessor::GenerateRxPlane(0, -10, 20, 10, 7, 1, rxLocation);
 	// Preprocessor::ReadLocationFile(rxLocationFileName, rxLocation);
 	Preprocessor::StlToGeometry(stlFileName, triangle_mesh);

@@ -20,8 +20,11 @@ Fieldx2 = griddata(X2,Y2,Ex2,xq,yq,'nearest');
 Fieldy2 = griddata(X2,Y2,Ey2,xq,yq,'nearest');
 Fieldz2 = griddata(X2,Y2,Ez2,xq,yq,'nearest');
 
-% xx = [max(max(abs(Fieldx)))  max(max(abs(Fieldy)))  max(max(abs(Fieldz)))]; 
-% maxfield = max(xx) ; 
+xx1 = [max(max(abs(Fieldx1)))  max(max(abs(Fieldy1)))  max(max(abs(Fieldz1)))]; 
+maxfield1 = max(xx1) ; 
+
+xx2 = [max(max(abs(Fieldx2)))  max(max(abs(Fieldy2)))  max(max(abs(Fieldz2)))]; 
+maxfield2 = max(xx2) ; 
 
 %maxfield = 1 % no normalization 
 
@@ -95,7 +98,7 @@ title('|Diff| (dB)')
 %}
 
 %%%% Magnited of Total Field 1
-Etotal1 = abs(Fieldz1);
+Etotal1 = abs(Fieldy1)/maxfield1;
 % Etotal_db1 = 20*log10(Etotal1 * 1e6);
 figure(7)
 pcolor(xq,yq, Etotal1);
@@ -104,7 +107,7 @@ colorbar
 title('|Efield| (dB) Takahiro')
 
 %%%% Magnited of Total Field 2
-Etotal2 = abs(Fieldz2);
+Etotal2 = abs(Fieldy2)/maxfield2;
 % Etotal_db2 = 20*log10(Etotal2 * 1e6);
 figure(8) 
 pcolor(xq,yq, Etotal2);
