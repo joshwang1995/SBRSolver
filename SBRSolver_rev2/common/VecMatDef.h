@@ -130,6 +130,7 @@ inline Vec3c CartesianToSphericalVector(const Vec3c& v, double theta, double phi
 
 inline Vec3 CartesianToSpherical(const Vec3& v)
 {
+	// Need to change, might create NaN results 
 	Vec3 result;
 	result(0) = v.norm();
 	result(1) = atan(sqrt(v.x() * v.x() + v.y() * v.y()) / v.z()); // Note: atan restricts the result to be between -pi/2 to pi/2

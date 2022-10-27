@@ -115,8 +115,8 @@ int RTSolver::ExecuteRayTracing
 //#pragma omp parallel for
 	for (int k = 0; k < _receiverCount; k++)
 	{
+		RemoveDuplicatePath(receivers[k], k);
 		ImagePathCorrection(k, sourcePoint, triangleMesh);
-		// RemoveDuplicatePath(receivers[k],k);
 		_efield->push_back(fieldCore->FieldAtReceiver(k));
 	}
 	// std::cout << "\tTotal Time in for loop -> " << timer.getTime() << std::endl;
@@ -319,23 +319,34 @@ void RTSolver::ImagePathCorrection(int receiverId, const Vec3& txPoint, const st
 {
 	for (int i = 0; i < _pathsCount; i++)
 	{
-		for (int j = 0; j < _rayPaths[i][receiverId].rayPaths.size(); j++)
+		auto it = _rayPaths[i][receiverId].rayPaths.begin();
+		bool pathCorrected = false;
+		while (it != _rayPaths[i][receiverId].rayPaths.end())
 		{
-			std::vector<Ray>* path = &_rayPaths[i][receiverId].rayPaths[j]; // Path will always contain at least 1 ray
-			if (path->size() == 1)
+			if (it->size() == 1)
 			{
-				DirectPathCorrection(*path, receiverId, txPoint);
+				pathCorrected = DirectPathCorrection(*it, receiverId, txPoint);
 			}
 			else
 			{
-				MultiPathCorrection(*path, receiverId, txPoint, triangleMesh);
+				pathCorrected = MultiPathCorrection(*it, receiverId, txPoint, triangleMesh);
+			}
+			
+			if (!pathCorrected)
+			{
+				// Delete iterator and retreat the next item
+				it = _rayPaths[i][receiverId].rayPaths.erase(it);
+			}
+			else
+			{
+				it++;
 			}
 		}
 	}
 	return;
 }
 
-void RTSolver::MultiPathCorrection(std::vector<Ray>& multiPath, int receiverId, const Vec3& txPoint, const std::vector<Triangle*>& triangleMesh)
+bool RTSolver::MultiPathCorrection(std::vector<Ray>& multiPath, int receiverId, const Vec3& txPoint, const std::vector<Triangle*>& triangleMesh)
 {
 	std::vector<std::pair<int, Vec3>> imgSources = GetImageSources(multiPath, txPoint, triangleMesh);
 	if(imgSources.size() != multiPath.size()) 
@@ -373,29 +384,31 @@ void RTSolver::MultiPathCorrection(std::vector<Ray>& multiPath, int receiverId, 
 			}
 			else
 			{
-				assert("Multipath correction results in the corrected ray missing the surface.");
+				return false;
 			}
 		}
-
 	}
+	return true;
 }
 
-void RTSolver::DirectPathCorrection(std::vector<Ray>& directPath, int receiverId, const Vec3& txPoint)
+bool RTSolver::DirectPathCorrection(std::vector<Ray>& directPath, int receiverId, const Vec3& txPoint)
 {
-	if (directPath.size() != 1) { assert("The path is not direct path."); }
+	if (directPath.size() != 1) { return false; }
 
 	// Direct path correction
 	HitInfo result;
 	Vec3 directRayDirection = _receivers->at(receiverId) - txPoint;
-	if (_bvh->RayIntersects(0, txPoint, directRayDirection, result) == false)
+	bool hasHit = _bvh->RayIntersects(0, txPoint, directRayDirection, result);
+	if (!hasHit || directRayDirection.norm() < result.distance)
 	{
 		directPath.at(0).sourcePoint = txPoint;
 		directPath.at(0).targetPoint = _receivers->at(receiverId);
 		directPath.at(0).pathLength = (directPath.at(0).targetPoint - directPath.at(0).sourcePoint).norm();
+		return true;
 	}
 	else
 	{
-		assert("Direct path correction results in obstructed ray.");
+		return false;
 	}
 }
 
@@ -448,11 +461,12 @@ void RTSolver::RemoveDuplicatePath(const Vec3& receiver, int receiverId)
 			std::vector<int> key = GetHitSurfaceIds(_rayPaths[i][receiverId].rayPaths[j]);
 			if (surfaceIdMap.count(key))
 			{
+				/*
 				// Key exists, duplicate ray, add both launch and reciver ID to the list
 				double distRx1 = DistanceToReceiver(_rayPaths[i][receiverId].rayPaths[j], receiver);
 				double distRx2 = DistanceToReceiver(_rayPaths[surfaceIdMap[key].first][receiverId].rayPaths[surfaceIdMap[key].second], receiver);
 
-				if (distRx1 < distRx2)
+				if (distRx1 <= distRx2)
 				{
 					// Add index i,j of the duplicate ray to the removal list
 					duplicateList.push_back(surfaceIdMap[key]);
@@ -463,6 +477,9 @@ void RTSolver::RemoveDuplicatePath(const Vec3& receiver, int receiverId)
 				{
 					duplicateList.push_back(std::make_pair(i, j));
 				}
+				*/
+				
+				duplicateList.push_back(std::make_pair(i, j));
 			}
 			else
 			{
@@ -855,19 +872,19 @@ bool HitReceptionSphere
 	//  the point of intersection and the receiver
 
 	// Takahiro's method
-	//double beta = 1.0 / (3.0 * txTesslation) * acos(-1.0 / sqrt(5.0));
-	//double unfoldedLength = pathLength + (sourcePoint + t0 * rayDir).norm();
-	//double sphereRadius = unfoldedLength * tan(beta);
+	double beta = 1.0 / (3.0 * txTesslation) * acos(-1.0 / sqrt(5.0));
+	double unfoldedLength = pathLength + (sourcePoint + t0 * rayDir).norm();
+	double sphereRadius = unfoldedLength * tan(beta);
 
 	// Rappaport's approximation
 	// double unfoldedLength = pathLength + (sourcePoint + t0 * rayDir).norm();
 	// double alpha = (69.0 * PI / 180.0) / txTesslation;
 	// double sphereRadius = alpha * unfoldedLength / sqrt(3.0);
 
-	double unfoldedLength = pathLength + (t0 * rayDir).norm();
-	double phi = (sqrt(5) + 1) / 2;
-	double alpha = acos(phi / (phi * phi + 1)) / (pow(2, txTesslation - 1)) / sqrt(3);
-	double sphereRadius = alpha * unfoldedLength;
+	// double unfoldedLength = pathLength + (t0 * rayDir).norm();
+	// double phi = (sqrt(5) + 1) / 2;
+	// double alpha = acos(phi / (phi * phi + 1)) / (pow(2, txTesslation - 1)) / sqrt(3);
+	// double sphereRadius = alpha * unfoldedLength;
 
 
 	double distance = (sphereCenter - (sourcePoint + t0 * rayDir)).norm();
