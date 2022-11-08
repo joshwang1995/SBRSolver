@@ -67,7 +67,7 @@ int RTSolver::ExecuteRayTracing
 
 	_maxReflectionCount = maxReflectionCount;
 	_maxTransmissionCount = maxTransmissionCount;
-	_txTesslation = txTesslation + 1; // Since user can enter 0 as txTesslation
+	_txTesslation = txTesslation + 1; // user can enter 0 as txTesslation
 	_shootRayList = GenerateRaysOnIcosahedron(txTesslation, sourcePoint);
 	_receivers = &receivers;
 	_receiverCount = int(receivers.size());
@@ -76,8 +76,8 @@ int RTSolver::ExecuteRayTracing
 
 	InitRayPaths();
 
-	// Timer timer;
-	// timer.start();
+	Timer timer;
+	timer.start();
 //#pragma omp parallel for collapse(2)
 	for (int i = 0; i < _pathsCount; i++)
 	{
@@ -115,11 +115,11 @@ int RTSolver::ExecuteRayTracing
 //#pragma omp parallel for
 	for (int k = 0; k < _receiverCount; k++)
 	{
-		RemoveDuplicatePath(receivers[k], k);
+		RemoveDuplicatePath(k);
 		ImagePathCorrection(k, sourcePoint, triangleMesh);
 		_efield->push_back(fieldCore->FieldAtReceiver(k));
 	}
-	// std::cout << "\tTotal Time in for loop -> " << timer.getTime() << std::endl;
+	std::cout << "\tTotal Time in for loop -> " << timer.getTime() << std::endl;
 	
 	delete fieldCore;
 	return _pathsCount * _receiverCount;
@@ -267,51 +267,27 @@ void RTSolver::RayCapture(PathTreeNode* rayTreeNode, const Vec3& receiver, doubl
 
 	if (rayTreeNode->childTransmit == nullptr && rayTreeNode->childReflect == nullptr && !captured)
 	{
-		// Delete current node
-		// rayTreeNode = DeleteChildNodes(rayTreeNode);
 		return;
 	}
 
 	if (captured)
 	{
-		// Check if vector from capture point to RX is occluded
-		// Problem here: 
-		//	The ray intersection test checks if a ray intersects with the scene. A ray can be infinitely long in one direction.
-		//	Obviously, an infintely long ray can intersect with the surrounding geometry. Therefore, we should instead check if the line segment
-		//	from the point of capture to the receiver is occulded. To do so, we need to implement an line segment intersection test.
-		
-		Vec3 newCapPoint = capturePoint - (0.001 * (receiver - capturePoint).normalized());
-		
-		HitInfo hitResult;
-		bool hasHit = _bvh->RayIntersects(0, newCapPoint, (receiver - capturePoint).normalized(), hitResult);
-		if (hasHit)
-		{
-			double segmentLength = (receiver - capturePoint).norm();
-			hasHit = hitResult.distance < segmentLength ? true : false;
-		}
-
-		if (!hasHit)
-		{
-			rayTreeNode->ray.captured = true;
-			rayTreeNode->ray.targetPoint = capturePoint;
-			rayTreeNode->ray.pathLength = (capturePoint - rayTreeNode->ray.sourcePoint).norm();
-			rayTreeNode->ray.hitSurfaceID = -1;
-			rayTreeNode->childTransmit = DeleteChildNodes(rayTreeNode->childTransmit);
-			rayTreeNode->childReflect = DeleteChildNodes(rayTreeNode->childReflect);
-		}
+		rayTreeNode->ray.captured = true;
+		rayTreeNode->ray.hitSurfaceID = -1;
+		rayTreeNode->childTransmit = DeleteChildNodes(rayTreeNode->childTransmit);
+		rayTreeNode->childReflect = DeleteChildNodes(rayTreeNode->childReflect);
 	}
-	else
+
+	if (rayTreeNode->childTransmit != nullptr)
 	{
-		if (rayTreeNode->childTransmit != nullptr)
-		{
-			RayCapture(rayTreeNode->childTransmit, receiver, totalPathLength + rayTreeNode->ray.pathLength);
-		}
-
-		if (rayTreeNode->childReflect != nullptr)
-		{
-			RayCapture(rayTreeNode->childReflect, receiver, totalPathLength + rayTreeNode->ray.pathLength);
-		}
+		RayCapture(rayTreeNode->childTransmit, receiver, totalPathLength + rayTreeNode->ray.pathLength);
 	}
+
+	if (rayTreeNode->childReflect != nullptr)
+	{
+		RayCapture(rayTreeNode->childReflect, receiver, totalPathLength + rayTreeNode->ray.pathLength);
+	}
+
 	
 }
 
@@ -425,6 +401,7 @@ std::vector<std::pair<int, Vec3>> GetImageSources(const std::vector<Ray>& path, 
 		if(surfId < 0)
 		{
 			// Shouldn't happen. This implies a non-direct ray in the path doesn't hit a surface
+			return result;
 			assert("The ray path is not valid");
 		}
 		if (path[i+1].reflectionMaterialId >= 0) // The interaction type is stored in the next ray
@@ -443,55 +420,35 @@ std::vector<std::pair<int, Vec3>> GetImageSources(const std::vector<Ray>& path, 
 			// Shouldn't happen
 			// When both reflectionMaterialId and penetrationMaterialId is < 1, this implies the current ray
 			// is fired directly from the TX. but we are indexing path[i+1], so the zero case is not included here
+			return result;
 			assert("The ray path is not valid");
 		}
 	}
 	return result;
 }
 
-void RTSolver::RemoveDuplicatePath(const Vec3& receiver, int receiverId)
+void RTSolver::RemoveDuplicatePath(int receiverId)
 {
-	std::map<std::vector<int>, std::pair<int, int>> surfaceIdMap;
-	std::vector<std::pair<int,int>> duplicateList; // vector{<launchID,pathID>...}
+	std::map<std::vector<int>, int> surfaceIdMap;
+
+	// std::unordered_set<std::vector<int>> hitIdSet;
 
 	for (int i = 0; i < _pathsCount; i++)
 	{
-		for (int j = 0; j < _rayPaths[i][receiverId].rayPaths.size(); j++)
+		auto it = _rayPaths[i][receiverId].rayPaths.begin();
+		while (it != _rayPaths[i][receiverId].rayPaths.end())
 		{
-			std::vector<int> key = GetHitSurfaceIds(_rayPaths[i][receiverId].rayPaths[j]);
+			std::vector<int> key = GetHitSurfaceIds(*it);
 			if (surfaceIdMap.count(key))
 			{
-				/*
-				// Key exists, duplicate ray, add both launch and reciver ID to the list
-				double distRx1 = DistanceToReceiver(_rayPaths[i][receiverId].rayPaths[j], receiver);
-				double distRx2 = DistanceToReceiver(_rayPaths[surfaceIdMap[key].first][receiverId].rayPaths[surfaceIdMap[key].second], receiver);
-
-				if (distRx1 <= distRx2)
-				{
-					// Add index i,j of the duplicate ray to the removal list
-					duplicateList.push_back(surfaceIdMap[key]);
-					// Replace the entry in the map
-					surfaceIdMap[key] = std::make_pair(i, j);
-				}
-				else
-				{
-					duplicateList.push_back(std::make_pair(i, j));
-				}
-				*/
-				
-				duplicateList.push_back(std::make_pair(i, j));
+				it = _rayPaths[i][receiverId].rayPaths.erase(it);
 			}
 			else
 			{
-				surfaceIdMap.insert(std::make_pair(key, std::make_pair(i, j)));
+				surfaceIdMap.insert(std::make_pair(key,0));
+				it++;
 			}
 		}
-	}
-
-	sort(duplicateList.begin(), duplicateList.end(), sortbysec);
-	for (std::pair<int, int> v : duplicateList)
-	{
-		_rayPaths[v.first][receiverId].rayPaths.erase(_rayPaths[v.first][receiverId].rayPaths.begin() + v.second);
 	}
 }
 
