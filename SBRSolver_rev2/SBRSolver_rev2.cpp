@@ -20,20 +20,24 @@ int main()
 	std::cout << "[Entering] main ..." << std::endl;
 	std::cout << "Initializing Simulation Parameters" << std::endl;
 
-	std::string txPatternFileName = "./data/TxPatternTest.dat";
+	// Input filenames
+	std::string stlFileName = "./data/stl_files/geometry_test.stl";
 	std::string rxLocationFileName = "./data/RX_Ground.dat";
+	std::string txPatternFileName = "./data/TxPatternTest.dat";
+
+	// Output filenames
 	std::string rxLocationOutputFileName = "./data/output/RxLocations.vtk";
-	std::string stlFileName = "./data/stl_files/ground.stl";
 	std::string bvhFileName = "./data/output/BVH.vtk";
 	std::string rayPathFileName = "./data/output/RayPath.vtk";
 	std::string icosahedronFileName = "./data/output/Icosahedron.vtk";
+	std::string edgesFileName = "./data/output/Edges.vtk";
 	std::string csvFieldFileName = "./data/output/ElectricField.csv";
-	Timer timer;
 
+	Timer timer;
 	double freq = 1.8e9; // frequency
 	double Pt = 1; // transmit power in Watt
-	int maxReflection = 1; // NOTE!! 1 means no reflection, 2 means 1 reflection
-	int maxTransmission = 0; // NOTE!! 1 means no transmission, 2 means 1 transmission
+	int maxReflection = 1; 
+	int maxTransmission = 0;
 
 #if DEBUG
 	std::cout << "\tTX Pattern File Name  -> " << txPatternFileName << std::endl;
@@ -57,8 +61,9 @@ int main()
 	// Preprocessor::GenerateRxPlane(-18, -40, -17, 0, 1, 1, rxLocation);
 	Preprocessor::GenerateRxPlane(-10, -10, 10, 10, 3, 1, rxLocation); 
 	// Preprocessor::GenerateRxPlane(0, -10, 20, 10, 7, 1, rxLocation);
+	// Preprocessor::GenerateRxPlane(-5, -5, 5, 5, 7, 1, rxLocation);
 	// Preprocessor::ReadLocationFile(rxLocationFileName, rxLocation);
-	Preprocessor::StlToGeometry(stlFileName, triangle_mesh);
+	Preprocessor::StlToGeometry(stlFileName, triangle_mesh, edgesFileName);
 	bvh.ConstructBVH(triangle_mesh);
 	// Preprocessor End
 
@@ -72,14 +77,14 @@ int main()
 	// Vec3 rayOrig{ -10, 0,1 }; // for bahen stl file
 	// Vec3 rayOrig{ 0.835938, 4.53906, 2.5 }; // for ibwave office
 	Vec3 rayOrig{ 0, 0, 5 }; // for ground
-	// Vec3 rayOrig{ 0,0,0 };
+	// Vec3 rayOrig{ 0,0,2.5 }; // for corner
 
 	MaterialProperties materials[4];
 	// Material 0 [Metal 5mm] -> Default material
 	materials[0].frequency = 1.8e9;
 	materials[0].reflectionLoss = 0.05;
 	materials[0].transmissionLoss = 221.13;
-	materials[0].relConductivity = 5000;
+	materials[0].relConductivity = 1e6;
 	materials[0].relPermittivityRe = 1;
 	materials[0].relPermittivityIm = 0;
 
@@ -107,7 +112,8 @@ int main()
 	materials[3].relPermittivityRe = 6;
 	materials[3].relPermittivityIm = 0.05;
 	
-	int tessllation = 3;
+	/*
+	int tessllation = 2;
 	Mat3 txCoordSys = Mat3::Identity();
 
 	RTSolver* rayTracer = new RTSolver();
@@ -134,4 +140,5 @@ int main()
 	rayTracer->SaveFieldAsCsv(csvFieldFileName);
 
 	delete rayTracer;
+	*/
 }

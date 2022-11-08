@@ -26,6 +26,7 @@ public:
     Mat23 bbox; // Bounding box
     Vec3 center; // Bounding box center
     int triangleId = -1;
+    int coplanarId = -1;
     int materialId = 0; //Default materail ID is 0
 
     Mat3 findCoordSys() const;
