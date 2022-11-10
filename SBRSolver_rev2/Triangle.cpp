@@ -117,6 +117,7 @@ bool Triangle::RayIntersects
         info.normal = *&norm;
         info.materialId = materialId;
         info.triangelId = triangleId;
+        info.coplanarId = coplanarId;
         return true;
     }
     else // This means that there is a line intersection but not a ray intersection.

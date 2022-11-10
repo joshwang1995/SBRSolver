@@ -66,7 +66,14 @@ bool Preprocessor::ReadLocationFile(std::string fileName, VecVec3& output)
     return false;
 }
 
-bool Preprocessor::StlToGeometry(std::string fileName, std::vector<Triangle*>& output, std::string outputFileName)
+bool Preprocessor::StlToGeometry
+(
+    std::string fileName, 
+    std::vector<Triangle*>& output, 
+    bool saveEdges, 
+    bool saveFaces, 
+    std::string dataDir
+)
 {
     std::vector<float> coords, normals;
     std::vector<unsigned int> tris, solids;
@@ -76,8 +83,7 @@ bool Preprocessor::StlToGeometry(std::string fileName, std::vector<Triangle*>& o
     {
         stl_reader::ReadStlFile(fileName.c_str(), coords, normals, tris, solids);
         const size_t numTris = tris.size() / 3;
-
-        Eigen::MatrixXi adjacencyMatrix = Eigen::MatrixXi::Zero(numTris, numTris);
+        std::vector<std::vector<int>> adjacencyList(numTris);
         for (size_t itri = 0; itri < numTris; ++itri)
         {
             size_t v1_idx = 3 * tris[3 * itri];
@@ -90,13 +96,13 @@ bool Preprocessor::StlToGeometry(std::string fileName, std::vector<Triangle*>& o
             Vec3 norm{ normals[3 * itri], normals[3 * itri + 1], normals[3 * itri + 2] };
 
             Triangle* t = new Triangle(v1, v2, v3, norm, int(itri));
-            InsertEdgeIntoMap(v1_idx, v2_idx, v3_idx, itri, edgeMap, adjacencyMatrix);
             output.push_back(t);
+            InsertEdgeIntoMap(v1_idx, v2_idx, v3_idx, itri, output, edgeMap, adjacencyList);
         }
+        BfsCoplanarSurface(adjacencyList, output);
 
-        
-
-        if (outputFileName != "") SaveEdgesAsVtk(outputFileName, edgeMap, coords);
+        if (saveEdges) SaveEdgesAsVtk(dataDir + "Edges.vtk", edgeMap, coords);
+        if (saveFaces) SaveFacesAsVtk(dataDir + "Faces.vtk", );
         return true;
     }
     catch (std::exception& e)
@@ -112,8 +118,9 @@ void Preprocessor::InsertEdgeIntoMap
     const size_t& v2, 
     const size_t& v3,
     const size_t& triId,
+    const std::vector<Triangle*>& triangles,
     std::map<std::pair<int, int>, std::vector<int>>& edgeMap,
-    Eigen::MatrixXi& adjMatrix
+    std::vector<std::vector<int>>& adjacencyList
 )
 {
     // Always insert the two vertex with the smaller value first. This would avoid situations where <v1,v2> and <v2,v1>
@@ -128,8 +135,11 @@ void Preprocessor::InsertEdgeIntoMap
     {
         for (const int& i : it->second)
         {
-            adjMatrix(i,triId) = 1;
-            adjMatrix(triId, i) = 1;
+            if ((triangles[i]->norm == triangles[triId]->norm) || (triangles[i]->norm == -triangles[triId]->norm))
+            {
+                adjacencyList[i].push_back(triId);
+                adjacencyList[triId].push_back(i);
+            }
         }
         it->second.push_back(int(triId));
     }
@@ -144,8 +154,11 @@ void Preprocessor::InsertEdgeIntoMap
     {
         for (const int& i : it->second)
         {
-            adjMatrix(i, triId) = 1;
-            adjMatrix(triId, i) = 1;
+            if ((triangles[i]->norm == triangles[triId]->norm) || (triangles[i]->norm == -triangles[triId]->norm))
+            {
+                adjacencyList[i].push_back(triId);
+                adjacencyList[triId].push_back(i);
+            }
         }
         it->second.push_back(int(triId));
     }
@@ -160,8 +173,11 @@ void Preprocessor::InsertEdgeIntoMap
     {
         for (const int& i : it->second)
         {
-            adjMatrix(i, triId) = 1;
-            adjMatrix(triId, i) = 1;
+            if ((triangles[i]->norm == triangles[triId]->norm) || (triangles[i]->norm == -triangles[triId]->norm))
+            {
+                adjacencyList[i].push_back(triId);
+                adjacencyList[triId].push_back(i);
+            }
         }
         it->second.push_back(int(triId));
     }
@@ -172,40 +188,60 @@ void Preprocessor::InsertEdgeIntoMap
     }
 }
 
-void Preprocessor::BfsCoplanarSurface(int rootTriangleId, const Eigen::MatrixXi& adjMatrix, const std::vector<float>& normals)
+void Preprocessor::BfsCoplanarSurface(const std::vector<std::vector<int>>& adj, const std::vector<Triangle*>& triangles)
 {
-    std::queue<int> q;
-    Eigen::ArrayX<bool> visited = Eigen::ArrayX<bool>::Constant(adjMatrix.rows(), false);
+    int V = adj.size();
+    std::vector<bool> visited(V, false);
+    int coplanarId = 0;
 
-    visited[rootTriangleId] = true;
-    q.push(rootTriangleId);
-
-    while (!q.empty()) 
+    for (int u = 0; u < V; u++)
     {
-        int currentTriangle = q.front();
-        q.pop();
-
-        //add connected non-visited vertices to the queue
-        int neighborTriangle;
-        while ((neighborTriangle = unvisitedNeighbor(currentTriangle, visited, adjMatrix)) != -1)
+        if (visited[u] == false)
         {
-            //Mark neighbors as visited
-            visited[neighborTriangle] = true;
-            q.push(neighborTriangle);
+            BFSUtil(u, adj, visited, triangles, coplanarId);
+            coplanarId++;
         }
     }
 }
 
-int unvisitedNeighbor(int index, const Eigen::ArrayX<bool>& visited, const Eigen::MatrixXi& adjMatrix)
+void Preprocessor::BFSUtil
+(
+    int u,
+    const std::vector<std::vector<int>>& adj,
+    std::vector<bool>& visited,
+    const std::vector<Triangle*>& triangles,
+    int coplanarId
+)
 {
-    for (int i = 0; i < adjMatrix.rows(); i++) 
+    // Create a queue for BFS
+    std::queue<int> q;
+
+    // Mark the current node as visited and enqueue it
+    visited[u] = true;
+    q.push(u);
+
+    // 'i' will be used to get all adjacent vertices 4
+    // of a vertex list<int>::iterator i;
+
+    while (!q.empty())
     {
-        if (adjMatrix(index, i) == 1 && (visited[i] == false)) 
+        // Dequeue a vertex from queue and print it
+        u = q.front();
+        triangles[u]->coplanarId = coplanarId;
+        q.pop();
+
+        // Get all adjacent vertices of the dequeued
+        // vertex s. If an adjacent has not been visited,
+        // then mark it visited and enqueue it
+        for (int i = 0; i != adj[u].size(); ++i)
         {
-            return i;
+            if (!visited[adj[u][i]])
+            {
+                visited[adj[u][i]] = true;
+                q.push(adj[u][i]);
+            }
         }
     }
-    return -1;
 }
 
 
@@ -299,9 +335,68 @@ bool Preprocessor::SaveEdgesAsVtk
     return true;
 }
 
-/*
 bool Preprocessor::SaveFacesAsVtk(std::string fileName, const std::vector<float>& )
 {
+    std::string fileName,
+        const std::map<std::pair<int, int>, std::vector<int>>& edgeMap,
+        const std::vector<float>& coords
+        )
+        {
+            using namespace std;
+
+            cout << "[Entering] Preprocessor::SaveEdgesAsVtk ..." << endl;
+
+            ofstream ofs;
+            ofs.open(fileName);
+
+            // write header
+            ofs << "# vtk DataFile Version 2.0" << endl;
+            ofs << "3D model of edge geometry" << endl;
+            ofs << "ASCII" << endl;
+            ofs << "DATASET POLYDATA" << endl;
+            ofs << endl;
+
+            ofs << "POINTS " << int(coords.size() / 3) << " float" << endl;
+            for (int i = 0; i < coords.size(); i++)
+            {
+                if (i > 0 && i % 3 == 0) ofs << endl;
+                ofs << " " << coords[i];
+            }
+
+            map<pair<int, int>, vector<int>>::const_iterator it = edgeMap.begin();
+            std::vector<pair<int, int>> edgePoints;
+            std::vector<int> numConnections;
+            while (it != edgeMap.end())
+            {
+                edgePoints.push_back(it->first);
+                numConnections.push_back(int(it->second.size()));
+                it++;
+            }
+
+            ofs << "LINES " << edgePoints.size() << " " << 3 * edgePoints.size() << endl;
+            for (int i = 0; i < edgePoints.size(); i++)
+            {
+                ofs << " 2 " << edgePoints[i].first / 3 << " " << edgePoints[i].second / 3 << endl;
+            }
+
+            ofs << "CELL_DATA " << edgePoints.size() << endl;
+            ofs << "FIELD FieldData 2" << endl;
+            ofs << "EdgeID 1 " << edgePoints.size() << " int" << endl;
+            for (int i = 0; i < edgePoints.size(); i++)
+            {
+                ofs << " " << i << endl;
+            }
+
+            ofs << "Connection 1 " << numConnections.size() << " int" << endl;
+            for (int i = 0; i < numConnections.size(); i++)
+            {
+                ofs << " " << numConnections[i] << endl;
+            }
+
+            ofs.close();
+            cout << "\tSaved " << edgePoints.size() << " edges into " << fileName << endl;
+            cout << "[Leaving] Preprocessor::SaveEdgesAsVtk" << endl;
+
+            return true;
     return false;
 }
-*/

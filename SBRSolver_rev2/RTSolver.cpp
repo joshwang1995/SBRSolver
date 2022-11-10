@@ -130,7 +130,7 @@ void RTSolver::RayLaunch
 	PathTreeNode* rayTreeNode, 
 	Vec3& sourcePoint, 
 	Vec3& directionPoint, 
-	int transMaterialID, 
+	int transMaterialID,
 	int refMaterialID, 
 	int reflectionCnt, 
 	int transmissionCnt, 
@@ -160,6 +160,7 @@ void RTSolver::RayLaunch
 				transMaterialID,
 				refMaterialID,
 				hitResult.triangelId,
+				hitResult.coplanarId,
 				totalPathLength + hitResult.distance,
 				lastAnglefromN
 			);
@@ -177,6 +178,7 @@ void RTSolver::RayLaunch
 			rayTreeNode->ray.penetrationMaterialId = transMaterialID;
 			rayTreeNode->ray.reflectionMaterialId = refMaterialID;
 			rayTreeNode->ray.hitSurfaceID = hitResult.triangelId;
+			rayTreeNode->ray.hitCoplanarId = hitResult.coplanarId;
 			rayTreeNode->ray.pathLength = hitResult.distance;
 			rayTreeNode->ray.angleFromSurfaceNormal = lastAnglefromN;
 		}
@@ -230,6 +232,7 @@ void RTSolver::RayLaunch
 				transMaterialID,
 				refMaterialID,
 				-1,
+				-1,
 				INF,
 				lastAnglefromN
 			);
@@ -247,6 +250,7 @@ void RTSolver::RayLaunch
 			rayTreeNode->ray.reflectionMaterialId = -1;
 			rayTreeNode->ray.penetrationMaterialId = -1;
 			rayTreeNode->ray.hitSurfaceID = -1;
+			rayTreeNode->ray.hitCoplanarId = -1;
 			rayTreeNode->ray.pathLength = INF;
 		}
 	}
@@ -438,7 +442,8 @@ void RTSolver::RemoveDuplicatePath(int receiverId)
 		auto it = _rayPaths[i][receiverId].rayPaths.begin();
 		while (it != _rayPaths[i][receiverId].rayPaths.end())
 		{
-			std::vector<int> key = GetHitSurfaceIds(*it);
+			// std::vector<int> key = GetHitSurfaceIds(*it);
+			std::vector<int> key = GetHitCoplanarIds(*it);
 			if (surfaceIdMap.count(key))
 			{
 				it = _rayPaths[i][receiverId].rayPaths.erase(it);
@@ -861,6 +866,16 @@ std::vector<int> GetHitSurfaceIds(const std::vector<Ray>& rayPaths)
 	for (int i = 0; i < rayPaths.size(); i++)
 	{
 		result.push_back(rayPaths[i].hitSurfaceID);
+	}
+	return result;
+}
+
+std::vector<int> GetHitCoplanarIds(const std::vector<Ray>& rayPaths)
+{
+	std::vector<int> result;
+	for (int i = 0; i < rayPaths.size(); i++)
+	{
+		result.push_back(rayPaths[i].hitCoplanarId);
 	}
 	return result;
 }
