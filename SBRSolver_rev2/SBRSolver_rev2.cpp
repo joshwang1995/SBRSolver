@@ -21,7 +21,7 @@ int main()
 	std::cout << "Initializing Simulation Parameters" << std::endl;
 
 	// Input filenames
-	std::string stlFileName = "./data/stl_files/geometry_test.stl";
+	std::string stlFileName = "./data/stl_files/ground.stl";
 	std::string rxLocationFileName = "./data/RX_Ground.dat";
 	std::string txPatternFileName = "./data/TxPatternTest.dat";
 
@@ -74,9 +74,10 @@ int main()
 
 	std::cout << "[Leaving] Preprocessor" << std::endl;
 
+	/*
 	// Vec3 rayOrig{ -10, 0,1 }; // for bahen stl file
 	// Vec3 rayOrig{ 0.835938, 4.53906, 2.5 }; // for ibwave office
-	Vec3 rayOrig{ 0, 0, 5 }; // for ground
+	Vec3 rayOrig{ 0, 0, 3 }; // for ground
 	// Vec3 rayOrig{ 0,0,2.5 }; // for corner
 
 	MaterialProperties materials[4];
@@ -112,7 +113,7 @@ int main()
 	materials[3].relPermittivityRe = 6;
 	materials[3].relPermittivityIm = 0.05;
 	
-	/*
+	
 	int tessllation = 2;
 	Mat3 txCoordSys = Mat3::Identity();
 
@@ -141,4 +142,5 @@ int main()
 
 	delete rayTracer;
 	*/
+	
 }

@@ -17,7 +17,14 @@ namespace Preprocessor
 	bool ReadPatternFile(std::string fileName, GainMap& output);
 	bool ReadLocationFile(std::string fileName, VecVec3& output);
 	bool ReadMaterialsFile(std::string fileName, Materials& output);
-	bool StlToGeometry(std::string fileName, std::vector<Triangle*>& output, std::string outputFileName = "");
+	bool StlToGeometry
+	(
+		std::string fileName,
+		std::vector<Triangle*>& output,
+		bool saveEdges, 
+		bool saveFaces,
+		std::string dataDir
+	);
 
 	// Functions for processing coplanar IDs and edge connectivity
 	void InsertEdgeIntoMap
@@ -25,13 +32,22 @@ namespace Preprocessor
 		const size_t& v1, 
 		const size_t& v2, 
 		const size_t& v3, 
-		const size_t& triId, 
+		const size_t& triId,
+		const std::vector<Triangle*>& triangles,
 		std::map<std::pair<int, int>, 
 		std::vector<int>>& edgeMap,
-		Eigen::MatrixXi& adjMatrix
+		std::vector<std::vector<int>>& adjacencyList
 	);
 
-	void BfsCoplanarSurface(int root, const Eigen::MatrixXi& adjMatrix, const std::vector<float>& normals);
+	void BfsCoplanarSurface(const std::vector<std::vector<int>>& adj, const std::vector<Triangle*>& triangles);
+	void BFSUtil
+	(
+		int u, 
+		const std::vector<std::vector<int>>& adj, 
+		std::vector<bool>& visited, 
+		const std::vector<Triangle*>& triangles,
+		int coplanarId
+	);
 
 	// Functions to generate data [to be implemented]
 	void GenerateRxPlane(double xMin, double yMin, double xMax, double yMax, double height, double resolution, VecVec3& output);
@@ -46,5 +62,3 @@ namespace Preprocessor
 	);
 	// bool SaveFacesAsVtk(std::string fileName, const VecVec3& location);
 }
-
-int unvisitedNeighbor(int index, const Eigen::ArrayX<bool>& visited, const Eigen::MatrixXi& adjMatrix);

@@ -313,6 +313,7 @@ bool BVH<T>::RayIntersects
 						info.pointIntersect = currentInfo.pointIntersect;
 						info.materialId = currentInfo.materialId;
 						info.triangelId = currentInfo.triangelId;
+						info.coplanarId = currentInfo.coplanarId;
 					}
 				}
 			}

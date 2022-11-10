@@ -19,6 +19,7 @@ struct Ray
 	int penetrationMaterialId = -1;
 	int reflectionMaterialId = -1;
 	int hitSurfaceID = -1;
+	int hitCoplanarId = -1;
 	double angleFromSurfaceNormal = INF;
 	double pathLength = INF;
 	bool captured = false;
@@ -47,6 +48,7 @@ PathTreeNode* newPathTreeNode
 	int penetrationMaterialId,
 	int reflectionMaterialId,
 	int surfaceId,
+	int coplanarId,
 	double pathLength,
 	double angleFromSurfaceNormal
 );

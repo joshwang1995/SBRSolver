@@ -12,6 +12,7 @@ struct HitInfo
 	Vec3 pointIntersect;
 	int materialId;
 	int triangelId;
+	int coplanarId;
 	double distance = INF;
 };
 
