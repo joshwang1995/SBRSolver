@@ -9,6 +9,7 @@
 #include "common/DataStructures.h"
 #include "Triangle.h"
 #include "StlReader.h"
+#include "timer/Timer.h"
 
 
 namespace Preprocessor
