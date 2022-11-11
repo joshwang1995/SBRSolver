@@ -99,10 +99,25 @@ bool Preprocessor::StlToGeometry
             output.push_back(t);
             InsertEdgeIntoMap(v1_idx, v2_idx, v3_idx, itri, output, edgeMap, adjacencyList);
         }
+
+        Timer timer;
+        timer.start();
         BfsCoplanarSurface(adjacencyList, output);
+        double endTime = timer.getTime();
+
+        std::cout << "Total Time for BFS algorithm: " << endTime << std::endl;
+        std::cout << "\tNumber of Triangles: " << numTris << std::endl;
+        
+        int numEdges = 0;
+        for (std::vector<int> i : adjacencyList)
+        {
+            numEdges += i.size();
+        }
+
+        std::cout << "\tNumber of Edges: " << numEdges << std::endl;
 
         if (saveEdges) SaveEdgesAsVtk(dataDir + "Edges.vtk", edgeMap, coords);
-        if (saveFaces) SaveFacesAsVtk(dataDir + "Faces.vtk", );
+        // if (saveFaces) SaveFacesAsVtk(dataDir + "Faces.vtk", );
         return true;
     }
     catch (std::exception& e)
@@ -335,68 +350,8 @@ bool Preprocessor::SaveEdgesAsVtk
     return true;
 }
 
+/*
 bool Preprocessor::SaveFacesAsVtk(std::string fileName, const std::vector<float>& )
 {
-    std::string fileName,
-        const std::map<std::pair<int, int>, std::vector<int>>& edgeMap,
-        const std::vector<float>& coords
-        )
-        {
-            using namespace std;
-
-            cout << "[Entering] Preprocessor::SaveEdgesAsVtk ..." << endl;
-
-            ofstream ofs;
-            ofs.open(fileName);
-
-            // write header
-            ofs << "# vtk DataFile Version 2.0" << endl;
-            ofs << "3D model of edge geometry" << endl;
-            ofs << "ASCII" << endl;
-            ofs << "DATASET POLYDATA" << endl;
-            ofs << endl;
-
-            ofs << "POINTS " << int(coords.size() / 3) << " float" << endl;
-            for (int i = 0; i < coords.size(); i++)
-            {
-                if (i > 0 && i % 3 == 0) ofs << endl;
-                ofs << " " << coords[i];
-            }
-
-            map<pair<int, int>, vector<int>>::const_iterator it = edgeMap.begin();
-            std::vector<pair<int, int>> edgePoints;
-            std::vector<int> numConnections;
-            while (it != edgeMap.end())
-            {
-                edgePoints.push_back(it->first);
-                numConnections.push_back(int(it->second.size()));
-                it++;
-            }
-
-            ofs << "LINES " << edgePoints.size() << " " << 3 * edgePoints.size() << endl;
-            for (int i = 0; i < edgePoints.size(); i++)
-            {
-                ofs << " 2 " << edgePoints[i].first / 3 << " " << edgePoints[i].second / 3 << endl;
-            }
-
-            ofs << "CELL_DATA " << edgePoints.size() << endl;
-            ofs << "FIELD FieldData 2" << endl;
-            ofs << "EdgeID 1 " << edgePoints.size() << " int" << endl;
-            for (int i = 0; i < edgePoints.size(); i++)
-            {
-                ofs << " " << i << endl;
-            }
-
-            ofs << "Connection 1 " << numConnections.size() << " int" << endl;
-            for (int i = 0; i < numConnections.size(); i++)
-            {
-                ofs << " " << numConnections[i] << endl;
-            }
-
-            ofs.close();
-            cout << "\tSaved " << edgePoints.size() << " edges into " << fileName << endl;
-            cout << "[Leaving] Preprocessor::SaveEdgesAsVtk" << endl;
-
-            return true;
-    return false;
 }
+*/
