@@ -21,7 +21,7 @@ int main()
 	std::cout << "Initializing Simulation Parameters" << std::endl;
 
 	// Input filenames
-	std::string stlFileName = "./data/stl_files/eiffel.stl";
+	std::string stlFileName = "./data/stl_files/ground.stl";
 	std::string rxLocationFileName = "./data/RX_Ground.dat";
 	std::string txPatternFileName = "./data/TxPatternTest.dat";
 
@@ -52,19 +52,19 @@ int main()
 	std::cout << "[Entering] Preprocessor" << std::endl;
 	// Preprocessor Begin
 	// GainMap txPattern;
-	// VecVec3 rxLocation;
+	VecVec3 rxLocation;
 	std::vector<Triangle*> triangle_mesh;
 	BVH<Triangle> bvh;
 
 	timer.start();
 	// Preprocessor::ReadPatternFile(txPatternFileName, txPattern);
 	// Preprocessor::GenerateRxPlane(-18, -40, -17, 0, 1, 1, rxLocation);
-	// Preprocessor::GenerateRxPlane(-10, -10, 10, 10, 3, 1, rxLocation); 
+	Preprocessor::GenerateRxPlane(-10, -10, 10, 10, 3, 1, rxLocation); 
 	// Preprocessor::GenerateRxPlane(0, -10, 20, 10, 7, 1, rxLocation);
 	// Preprocessor::GenerateRxPlane(-5, -5, 5, 5, 7, 1, rxLocation);
 	// Preprocessor::ReadLocationFile(rxLocationFileName, rxLocation);
-	Preprocessor::StlToGeometry(stlFileName, triangle_mesh, false, false, "./data/output/");
-	// bvh.ConstructBVH(triangle_mesh);
+	Preprocessor::StlToGeometry(stlFileName, triangle_mesh, true, true, "./data/output/");
+	bvh.ConstructBVH(triangle_mesh);
 	// Preprocessor End
 
 #if DEBUG
@@ -74,10 +74,10 @@ int main()
 
 	std::cout << "[Leaving] Preprocessor" << std::endl;
 
-	/*
+	
 	// Vec3 rayOrig{ -10, 0,1 }; // for bahen stl file
 	// Vec3 rayOrig{ 0.835938, 4.53906, 2.5 }; // for ibwave office
-	Vec3 rayOrig{ 0, 0, 3 }; // for ground
+	Vec3 rayOrig{ 0, 0, 5 }; // for ground
 	// Vec3 rayOrig{ 0,0,2.5 }; // for corner
 
 	MaterialProperties materials[4];
@@ -114,7 +114,7 @@ int main()
 	materials[3].relPermittivityIm = 0.05;
 	
 	
-	int tessllation = 2;
+	int tessllation = 3;
 	Mat3 txCoordSys = Mat3::Identity();
 
 	RTSolver* rayTracer = new RTSolver();
@@ -141,6 +141,4 @@ int main()
 	rayTracer->SaveFieldAsCsv(csvFieldFileName);
 
 	delete rayTracer;
-	*/
-	
 }

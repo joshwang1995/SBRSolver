@@ -39,4 +39,11 @@ public:
         const Vec3& rayDir,
         HitInfo& info
     );
+
+    bool RayInfPlaneIntersects
+    (
+        const Vec3& rayOrg,
+        const Vec3& rayDir,
+        HitInfo & info
+    );
 };
