@@ -122,4 +122,4 @@ bool Triangle::RayIntersects
     }
     else // This means that there is a line intersection but not a ray intersection.
         return false;
-};
+}

@@ -115,8 +115,8 @@ int RTSolver::ExecuteRayTracing
 //#pragma omp parallel for
 	for (int k = 0; k < _receiverCount; k++)
 	{
-		RemoveDuplicatePath(k);
 		ImagePathCorrection(k, sourcePoint, triangleMesh);
+		RemoveDuplicatePath(k);
 		_efield->push_back(fieldCore->FieldAtReceiver(k));
 	}
 	std::cout << "\tTotal Time in for loop -> " << timer.getTime() << std::endl;
@@ -278,6 +278,7 @@ void RTSolver::RayCapture(PathTreeNode* rayTreeNode, const Vec3& receiver, doubl
 	{
 		rayTreeNode->ray.captured = true;
 		rayTreeNode->ray.hitSurfaceID = -1;
+		rayTreeNode->ray.hitCoplanarId = -1;
 		rayTreeNode->childTransmit = DeleteChildNodes(rayTreeNode->childTransmit);
 		rayTreeNode->childReflect = DeleteChildNodes(rayTreeNode->childReflect);
 	}
@@ -903,11 +904,6 @@ double DistanceToReceiver(const std::vector<Ray>& rayPaths, const Vec3& receiver
 	}
 
 	return (rayPaths.back().targetPoint - receiver).norm();
-}
-
-bool sortbysec(const std::pair<int, int>& a, const std::pair<int, int>& b)
-{
-	return (a.second < b.second);
 }
 
 Vec3 ImagePoint(const Triangle& triangle, const Vec3& src)

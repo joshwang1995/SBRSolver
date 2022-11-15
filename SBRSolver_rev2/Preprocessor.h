@@ -61,5 +61,12 @@ namespace Preprocessor
 		const std::map<std::pair<int, int>,std::vector<int>>& edgeMap,
 		const std::vector<float>& coords
 	);
-	// bool SaveFacesAsVtk(std::string fileName, const VecVec3& location);
+	
+	bool SaveFacesAsVtk
+	(
+		std::string fileName,
+		const std::vector<Triangle*>& triangles,
+		const std::vector<float>& coords,
+		const std::vector<unsigned int> tris
+	);
 }
