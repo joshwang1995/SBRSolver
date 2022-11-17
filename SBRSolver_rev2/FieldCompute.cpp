@@ -142,7 +142,7 @@ Vec3c FieldCompute::ComputeRefcField(const Vec3c& efield_i_sph, double rel_perm,
 {
 	cdouble epsilonTransmit;
 	epsilonTransmit.real(rel_perm);
-	epsilonTransmit.imag(sigma / (E0 * 2 * PI * freq));
+	epsilonTransmit.imag(-1 * sigma / (E0 * 2 * PI * freq));
 
 	double lamda = SPEED_OF_LIGHT / freq;
 
@@ -168,7 +168,7 @@ Vec3c FieldCompute::ComputeTransField(const Vec3c& efield_i_sph, double rel_perm
 {
 	cdouble epsilonTransmit;
 	epsilonTransmit.real(rel_perm);
-	epsilonTransmit.imag(sigma / (E0 * 2 * PI * freq));
+	epsilonTransmit.imag(-1 * sigma / (E0 * 2 * PI * freq));
 
 	double lamda = SPEED_OF_LIGHT / freq;
 
@@ -199,8 +199,7 @@ void FieldCompute::GetTECoeff(cdouble theta_i, cdouble theta_t, cdouble rel_perm
 	cdouble cos_t = cos(theta_t);
 	cdouble sin_i = sin(theta_i);
 
-	cdouble gamma_te = ((n_i * cos_i) - (n_t * cos_t)) - ((n_i * cos_i) + (n_t * cos_t));
-
+	cdouble gamma_te = ((n_i * cos_i) - (n_t * cos_t)) / ((n_i * cos_i) + (n_t * cos_t));
 	if (inf_wall)
 	{
 		ref_coeff = gamma_te;
@@ -245,12 +244,13 @@ void FieldCompute::GetTMCoeff(cdouble theta_i, cdouble theta_t, cdouble rel_perm
 
 cdouble FieldCompute::GetTransAngle(double thetaIncident, cdouble epsilonIncident, cdouble epsilonTransmit)
 {
-	cdouble t_i(thetaIncident, 0);
-	cdouble t_t;
+	// Snell's Law
+	cdouble theta_i(thetaIncident, 0);
+	
 
 	cdouble n_i = sqrt(epsilonIncident);
 	cdouble n_t = sqrt(epsilonTransmit);
-	t_t = asin(n_i * sin(t_i) / n_t);
-	return t_t;
+	cdouble theta_t = asin(n_i * sin(theta_i) / n_t);
+	return theta_t;
 }
 
