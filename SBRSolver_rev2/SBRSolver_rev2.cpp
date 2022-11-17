@@ -59,10 +59,10 @@ int main()
 	timer.start();
 	// Preprocessor::ReadPatternFile(txPatternFileName, txPattern);
 	// Preprocessor::GenerateRxPlane(-18, -40, -17, 0, 1, 1, rxLocation);
-	Preprocessor::GenerateRxPlane(-10, -10, 10, 10, 3, 1, rxLocation); 
+	// Preprocessor::GenerateRxPlane(-10, -10, 10, 10, 3, 1, rxLocation); 
 	// Preprocessor::GenerateRxPlane(0, -10, 20, 10, 7, 1, rxLocation);
 	// Preprocessor::GenerateRxPlane(-5, -5, 5, 5, 7, 1, rxLocation);
-	// Preprocessor::ReadLocationFile(rxLocationFileName, rxLocation);
+	Preprocessor::ReadLocationFile(rxLocationFileName, rxLocation);
 	Preprocessor::StlToGeometry(stlFileName, triangle_mesh, true, true, "./data/output/");
 	bvh.ConstructBVH(triangle_mesh);
 	// Preprocessor End
@@ -112,7 +112,6 @@ int main()
 	materials[3].relConductivity = 0.005;
 	materials[3].relPermittivityRe = 6;
 	materials[3].relPermittivityIm = 0.05;
-	
 	
 	int tessllation = 3;
 	Mat3 txCoordSys = Mat3::Identity();

@@ -98,8 +98,8 @@ title('|Diff| (dB)')
 %}
 
 %%%% Magnited of Total Field 1
-Etotal1 = abs(Fieldy1)/maxfield1;
-% Etotal_db1 = 20*log10(Etotal1 * 1e6);
+Etotal1 = sqrt(abs(Fieldx1).^2 + abs(Fieldy1).^2 + abs(Fieldz1).^2);
+Etotal_db1 = 20*log10(Etotal1 * 1e6);
 figure(7)
 pcolor(xq,yq, Etotal1);
 shading interp
@@ -107,8 +107,8 @@ colorbar
 title('|Efield| (dB) Takahiro')
 
 %%%% Magnited of Total Field 2
-Etotal2 = abs(Fieldy2)/maxfield2;
-% Etotal_db2 = 20*log10(Etotal2 * 1e6);
+Etotal2 = sqrt(abs(Fieldx2).^2 + abs(Fieldy2).^2 + abs(Fieldz2).^2);
+Etotal_db2 = 20*log10(Etotal2 * 1e6);
 figure(8) 
 pcolor(xq,yq, Etotal2);
 shading interp
