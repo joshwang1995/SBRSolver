@@ -35,6 +35,8 @@ public:
 	{};
 	~FieldCompute();
 	Vec3c FieldAtReceiver(int receiverId);
+	void RefCoeffTest(int numPts, double freq, cdouble epsilon1, cdouble epsilon2, std::string fname);
+	void TransCoeffTest(int numPts, double freq, cdouble epsilon1, cdouble epsilon2, std::string fname);
 
 protected:
 	Paths** _rayPaths;

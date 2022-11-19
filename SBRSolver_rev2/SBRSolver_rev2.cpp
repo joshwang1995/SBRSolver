@@ -74,7 +74,6 @@ int main()
 
 	std::cout << "[Leaving] Preprocessor" << std::endl;
 
-	
 	// Vec3 rayOrig{ -10, 0,1 }; // for bahen stl file
 	// Vec3 rayOrig{ 0.835938, 4.53906, 2.5 }; // for ibwave office
 	Vec3 rayOrig{ 0, 0, 5 }; // for ground

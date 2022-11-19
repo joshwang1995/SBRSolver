@@ -13,8 +13,8 @@ FIELD FieldData 4
 ReceiverID 1 1 int
  0
 Eabs 1 1 double
- 3.43122
+ 3.70965
 EdB 1 1 double
- 130.709
+ 131.387
 Phase 1 1 double
- 2.36184
+ 0.87259
