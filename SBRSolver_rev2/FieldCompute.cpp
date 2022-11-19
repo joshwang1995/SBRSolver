@@ -24,6 +24,50 @@ Vec3c FieldCompute::FieldAtReceiver(int receiverId)
 	return totalField;
 }
 
+void FieldCompute::RefCoeffTest(int numPts, double freq, cdouble epsilon1, cdouble epsilon2, std::string fname)
+{
+	double lamda = SPEED_OF_LIGHT / freq;
+	Vec thetaArray = Vec::LinSpaced(numPts, 0.0, EIGEN_PI / 2);
+
+	std::ofstream ofs;
+	ofs.open(fname);
+
+	cdouble refTE, refTM, transTE, transTM, theta_t;
+	ofs << "theta_i,refTM_mag,refTM_phase,refTE_mag, refTE_phase" << std::endl;
+	for (auto theta_i : thetaArray)
+	{
+		theta_t = GetTransAngle(theta_i, epsilon1, epsilon2);
+		GetTMCoeff(theta_i, theta_t, epsilon1, epsilon2, lamda, 0.0, true, refTM, transTM);
+		GetTECoeff(theta_i, theta_t, epsilon1, epsilon2, lamda, 0.0, true, refTE, transTE);
+		ofs << theta_i * (180.0/EIGEN_PI) << "," << std::abs(refTM) << "," << std::arg(refTM) << ",";
+		ofs << std::abs(refTE) << "," << std::arg(refTE) << std::endl;
+	}
+
+	ofs.close();
+}
+
+void FieldCompute::TransCoeffTest(int numPts, double freq, cdouble epsilon1, cdouble epsilon2, std::string fname)
+{
+	double lamda = SPEED_OF_LIGHT / freq;
+	Vec thetaArray = Vec::LinSpaced(numPts, 0.0, EIGEN_PI / 2);
+
+	std::ofstream ofs;
+	ofs.open(fname);
+
+	cdouble refTE, refTM, transTE, transTM, theta_t;
+	ofs << "theta_i,tranTM_mag,tranTM_phase, tranTE_mag, tranTE_phase" << std::endl;
+	for (auto theta_i : thetaArray)
+	{
+		theta_t = GetTransAngle(theta_i, epsilon1, epsilon2);
+		GetTMCoeff(theta_i, theta_t, epsilon1, epsilon2, lamda, 0.0, true, refTM, transTM);
+		GetTECoeff(theta_i, theta_t, epsilon1, epsilon2, lamda, 0.0, true, refTE, transTE);
+		ofs << theta_i * (180.0 / EIGEN_PI) << "," << std::abs(transTM) << "," << std::arg(transTM) << ",";
+		ofs << std::abs(transTE) << "," << std::arg(transTE) << std::endl;
+	}
+
+	ofs.close();
+}
+
 Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 {
 	double lamda = SPEED_OF_LIGHT / _frequency;
@@ -112,7 +156,7 @@ Vec3c FieldCompute::GetAnalyticEfieldPattern(int antennaType, double theta, doub
 	if (antennaType == 0)
 	{
 		// Isotropic antenna
-		eFieldSph(0) = cdouble(sqrt(60 * pt), 0);
+		eFieldSph(0) = cdouble(0, sqrt(60 * pt));
 		eFieldSph(1) = 0;
 		eFieldSph(2) = 0;
 	}
@@ -208,7 +252,6 @@ void FieldCompute::GetTECoeff(cdouble theta_i, cdouble theta_t, cdouble rel_perm
 	else
 	{
 		cdouble q = (TWOPI * width / lamda) * sqrt(n_t - (sin_i * sin_i));
-		cdouble j(0.0, 1.0);
 		cdouble phi_factor = exp(-j * 2.0 * q);
 		cdouble denom = 1.0 - (gamma_te * gamma_te * phi_factor);
 		ref_coeff = (gamma_te * (1.0 - phi_factor)) / denom;
