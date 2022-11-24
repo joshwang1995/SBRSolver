@@ -11,6 +11,9 @@
 #include "FieldCompute.h"
 #include <mutex>
 
+// C4267 Warning is suppressed: size_t to int possible loss of data
+#pragma warning(push)
+#pragma warning(disable: 4267)
 
 class RTSolver
 {

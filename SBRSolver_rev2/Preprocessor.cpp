@@ -281,6 +281,22 @@ void Preprocessor::GenerateRxPlane(double xMin, double yMin, double xMax, double
     }
 }
 
+void Preprocessor::GeberateRXLine(Vec3 start, Vec3 end, double resolution, VecVec3& output)
+{
+    Vec3 direction = end - start;
+    int numPoints = std::floor(direction.norm() / resolution);
+    direction.normalize();
+    
+    // Guard in case where start and end is the same point
+    if (numPoints <= 0) assert("Number of RX points will be smaller or equal to 0, check start and end points!");
+    
+    for (int i = 0; i < numPoints; i++)
+    {
+        Vec3 point = start + i * resolution * direction;
+        output.push_back(point);
+    }
+}
+
 void Preprocessor::GenerateAntennaPattern(std::string, double resolution)
 {
 }
