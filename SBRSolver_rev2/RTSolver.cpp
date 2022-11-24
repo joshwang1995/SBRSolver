@@ -246,7 +246,7 @@ void RTSolver::RayLaunch
 		{
 			// Direct Ray
 			rayTreeNode->ray.sourcePoint = sourcePoint;
-			rayTreeNode->ray.targetPoint = sourcePoint + (directionPoint * 1E5);
+			rayTreeNode->ray.targetPoint = sourcePoint + (directionPoint * 1E10);
 			rayTreeNode->ray.reflectionMaterialId = -1;
 			rayTreeNode->ray.penetrationMaterialId = -1;
 			rayTreeNode->ray.hitSurfaceID = -1;

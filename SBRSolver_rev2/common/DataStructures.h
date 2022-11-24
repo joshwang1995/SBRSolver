@@ -10,9 +10,9 @@ struct HitInfo
 {
 	Vec3 normal;
 	Vec3 pointIntersect;
-	int materialId;
-	int triangelId;
-	int coplanarId;
+	int materialId = -1;
+	int triangelId = -1;
+	int coplanarId = -1;
 	double distance = INF;
 };
 

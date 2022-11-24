@@ -11,6 +11,9 @@
 #include "StlReader.h"
 #include "timer/Timer.h"
 
+// C4267 Warning is suppressed: size_t to int possible loss of data
+#pragma warning(push)
+#pragma warning(disable: 4267)
 
 namespace Preprocessor
 {
@@ -52,6 +55,7 @@ namespace Preprocessor
 
 	// Functions to generate data [to be implemented]
 	void GenerateRxPlane(double xMin, double yMin, double xMax, double yMax, double height, double resolution, VecVec3& output);
+	void GeberateRXLine(Vec3 start, Vec3 end, double resolution, VecVec3& output);
 	void GenerateAntennaPattern(std::string type, double resolution);
 	
 	// Functions to save data to VTK files

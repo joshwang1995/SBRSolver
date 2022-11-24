@@ -4,10 +4,10 @@ ASCII
 DATASET POLYDATA
 
 POINTS 4 float
- -10 -10 0
- -10 10 0
- 10 -10 0
- 10 10 0
+ -5 -1 0
+ -5 1000 0
+ 5 -1 0
+ 5 1000 0
 POLYGONS 2 8
  3 0 2 3
  3 0 3 1
