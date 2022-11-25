@@ -581,8 +581,9 @@ bool RTSolver::SavePathsAsVtk(std::string fname)
 	ofs << "EdB 1 " << receiverIds.size() << " double" << endl;
 	for (int i = 0; i < receiverIds.size(); i++)
 	{
-		double eabs = std::isfinite(_efield->at(receiverIds[i]).norm()) ? 20 * log10(_efield->at(receiverIds[i]).norm() * 1e6) : -1.0;
-		ofs << " " << eabs << endl;
+		double edb = std::isfinite(_efield->at(receiverIds[i]).norm()) ? 20 * log10(_efield->at(receiverIds[i]).norm() * 1e6) : -300.0;
+		edb = std::isfinite(edb) ? edb : -300.0;
+		ofs << " " << edb << endl;
 	}
 
 	ofs << "Phase 1 " << receiverIds.size() << " double" << endl;

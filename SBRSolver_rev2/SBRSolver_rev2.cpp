@@ -60,10 +60,10 @@ int main()
 	// Preprocessor::ReadPatternFile(txPatternFileName, txPattern);
 	// Preprocessor::GenerateRxPlane(-18, -40, -17, 0, 1, 1, rxLocation);
 	// Preprocessor::GenerateRxPlane(-1 , 0 , 1, 10, 3, 1, rxLocation); 
-	// Preprocessor::GenerateRxPlane(0, -10, 20, 10, 7, 1, rxLocation);
+	//Preprocessor::GenerateRxPlane(0, 0, 1, 10, 3, 1, rxLocation);
 	// Preprocessor::GenerateRxPlane(-5, -5, 5, 5, 7, 1, rxLocation);
 	// Preprocessor::ReadLocationFile(rxLocationFileName, rxLocation);
-	Preprocessor::GeberateRXLine(Vec3(0, 455, 3), Vec3(0, 600, 3), 1, rxLocation);
+	Preprocessor::GenerateRXLine(Vec3(0, 0, 3), Vec3(0, 200, 3), 1, rxLocation);
 	Preprocessor::StlToGeometry(stlFileName, triangle_mesh, true, true, "./data/output/");
 	bvh.ConstructBVH(triangle_mesh);
 	// Preprocessor End
@@ -75,6 +75,7 @@ int main()
 
 	std::cout << "[Leaving] Preprocessor" << std::endl;
 
+	
 	// Vec3 rayOrig{ -10, 0,1 }; // for bahen stl file
 	// Vec3 rayOrig{ 0.835938, 4.53906, 2.5 }; // for ibwave office
 	Vec3 rayOrig{ 0, 0, 5 }; // for ground
@@ -113,7 +114,7 @@ int main()
 	materials[3].relPermittivityRe = 6;
 	materials[3].relPermittivityIm = 0.05;
 	
-	int tessllation = 0;
+	int tessllation = 1;
 	Mat3 txCoordSys = Mat3::Identity();
 
 	RTSolver* rayTracer = new RTSolver();
@@ -141,8 +142,10 @@ int main()
 
 	delete rayTracer;
 
+	
 	FieldCompute coeffTest = FieldCompute();
 	cdouble epsilon1 (1, 0);
-	cdouble epsilon2(2.5, -0.3);
+	cdouble epsilon2(1, -10);
 	coeffTest.RefCoeffTest(1000, freq, epsilon1, epsilon2, "./data/output/coeff_test.csv");
+	
 }

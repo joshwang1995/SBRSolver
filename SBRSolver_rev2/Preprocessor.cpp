@@ -100,21 +100,7 @@ bool Preprocessor::StlToGeometry
             InsertEdgeIntoMap(v1_idx, v2_idx, v3_idx, itri, output, edgeMap, adjacencyList);
         }
 
-        Timer timer;
-        timer.start();
         BfsCoplanarSurface(adjacencyList, output);
-        double endTime = timer.getTime();
-
-        std::cout << "Total Time for BFS algorithm: " << endTime << std::endl;
-        std::cout << "\tNumber of Triangles: " << numTris << std::endl;
-        
-        int numEdges = 0;
-        for (std::vector<int> i : adjacencyList)
-        {
-            numEdges += i.size();
-        }
-
-        std::cout << "\tNumber of Edges: " << numEdges << std::endl;
 
         if (saveEdges) SaveEdgesAsVtk(dataDir + "Edges.vtk", edgeMap, coords);
         if (saveFaces) SaveFacesAsVtk(dataDir + "Faces.vtk", output, coords, tris);
@@ -281,7 +267,7 @@ void Preprocessor::GenerateRxPlane(double xMin, double yMin, double xMax, double
     }
 }
 
-void Preprocessor::GeberateRXLine(Vec3 start, Vec3 end, double resolution, VecVec3& output)
+void Preprocessor::GenerateRXLine(Vec3 start, Vec3 end, double resolution, VecVec3& output)
 {
     Vec3 direction = end - start;
     int numPoints = std::floor(direction.norm() / resolution);

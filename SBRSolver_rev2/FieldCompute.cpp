@@ -293,7 +293,7 @@ cdouble FieldCompute::GetTransAngle(double thetaIncident, cdouble epsilonInciden
 
 	cdouble n_i = sqrt(epsilonIncident);
 	cdouble n_t = sqrt(epsilonTransmit);
-	cdouble theta_t = asin(n_i * sin(theta_i) / n_t);
+	cdouble theta_t = asin((n_i/n_t) * sin(theta_i));
 	return theta_t;
 }
 
