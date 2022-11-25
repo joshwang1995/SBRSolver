@@ -55,7 +55,7 @@ namespace Preprocessor
 
 	// Functions to generate data [to be implemented]
 	void GenerateRxPlane(double xMin, double yMin, double xMax, double yMax, double height, double resolution, VecVec3& output);
-	void GeberateRXLine(Vec3 start, Vec3 end, double resolution, VecVec3& output);
+	void GenerateRXLine(Vec3 start, Vec3 end, double resolution, VecVec3& output);
 	void GenerateAntennaPattern(std::string type, double resolution);
 	
 	// Functions to save data to VTK files
