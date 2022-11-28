@@ -114,7 +114,7 @@ int main()
 	materials[3].relPermittivityRe = 6;
 	materials[3].relPermittivityIm = 0.05;
 	
-	int tessllation = 1;
+	int tessllation = 2;
 	Mat3 txCoordSys = Mat3::Identity();
 
 	RTSolver* rayTracer = new RTSolver();
