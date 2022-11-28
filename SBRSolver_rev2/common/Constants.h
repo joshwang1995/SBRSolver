@@ -6,7 +6,7 @@
 const double SPEED_OF_LIGHT = 2.99792458e8; // Speed of light in vaccum
 const double U0 = 4*EIGEN_PI*1e-7; // permeability of free space 
 const double E0 = 1.0/(U0*SPEED_OF_LIGHT*SPEED_OF_LIGHT); // Permittivity of free space
-const double ETA = U0 * SPEED_OF_LIGHT; // Free space impedance
+const double ETA0 = U0 * SPEED_OF_LIGHT; // Free space impedance
 
 // Threshold value used to compare a double or float number to zero
 const double SMALL_DOUBLE = 1e-5;
