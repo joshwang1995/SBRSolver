@@ -62,8 +62,8 @@ int main()
 	// Preprocessor::GenerateRxPlane(-1 , 0 , 1, 10, 3, 1, rxLocation); 
 	//Preprocessor::GenerateRxPlane(0, 0, 1, 10, 3, 1, rxLocation);
 	// Preprocessor::GenerateRxPlane(-5, -5, 5, 5, 7, 1, rxLocation);
-	// Preprocessor::ReadLocationFile(rxLocationFileName, rxLocation);
-	Preprocessor::GenerateRXLine(Vec3(0, 0, 3), Vec3(0, 200, 3), 1, rxLocation);
+	Preprocessor::ReadLocationFile(rxLocationFileName, rxLocation);
+	//Preprocessor::GenerateRXLine(Vec3(0, 40, 3), Vec3(0, 200, 3), 1, rxLocation);
 	Preprocessor::StlToGeometry(stlFileName, triangle_mesh, true, true, "./data/output/");
 	bvh.ConstructBVH(triangle_mesh);
 	// Preprocessor End
@@ -142,10 +142,10 @@ int main()
 
 	delete rayTracer;
 
-	
+	/*
 	FieldCompute coeffTest = FieldCompute();
 	cdouble epsilon1 (1, 0);
 	cdouble epsilon2(1, -10);
 	coeffTest.RefCoeffTest(1000, freq, epsilon1, epsilon2, "./data/output/coeff_test.csv");
-	
+	*/
 }
