@@ -142,24 +142,12 @@ inline Vec3 CartesianToSpherical(const Vec3& v)
 	else
 	{
 		// Note: atan restricts the result to be between -pi/2 to pi/2
-		result(1) = atan(sqrt(v.x() * v.x() + v.y() * v.y()) / v.z()); 
+		// result(1) = atan(sqrt(v.x() * v.x() + v.y() * v.y()) / v.z());
+		result(1) = atan2(sqrt(v.x() * v.x() + v.y() * v.y()), v.z());
 	}
-	if (result(1) < 0) result(1) = result(1) + EIGEN_PI;
 
 	// phi
-	if (v.x() > 0)
-		result(2) = atan(v.y() / v.x());
-	else if (v.x() < 0 && v.y() >= 0)
-		result(2) = atan(v.y() / v.x()) + EIGEN_PI;
-	else if (v.x() < 0 && v.y() < 0)
-		result(2) = atan(v.y() / v.x()) - EIGEN_PI;
-	else if (v.x() == 0 && v.y() > 0)
-		result(2) = EIGEN_PI / 2;
-	else if (v.x() == 0 && v.y() < 0)
-		result(2) = -EIGEN_PI / 2;
-	else if (v.x() == 0 && v.y() == 0)
-		result(2) = 0;
-
+	result(2) = atan2(v.y(), v.x());
 	if (result(2) < 0) result(2) += 2*EIGEN_PI;
 
 	return result;

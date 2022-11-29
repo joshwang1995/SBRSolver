@@ -74,7 +74,7 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 	double k = (2 * PI) / lamda;
 
 	Mat3 globalCoordSys = Mat3::Identity();
-	Mat3 currentCoordSys = globalCoordSys; // Global coordinate system
+	Mat3 currentCoordSys = globalCoordSys;
 	Mat3 nextCoordSys = _txCoordSys;
 
 	Vec3c incidentField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
@@ -83,21 +83,11 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 
 	for (int i = 0; i < int(path.size()); i++)
 	{
+		// Extract information from current ray
 		const Ray& ray = path[i];
 		Vec3 vecGlobal = ray.targetPoint - ray.sourcePoint;
 		Vec3 vecLocal = RotateToNewCoordSys(vecGlobal, globalCoordSys, nextCoordSys);
 		Vec3 vecSph = CartesianToSpherical(vecLocal);
-
-		currentCoordSys = nextCoordSys;
-		if (ray.hitSurfaceID == -1)
-		{
-			nextCoordSys = globalCoordSys;
-		}
-		else
-		{
-			nextCoordSys = _triangleMesh->at(ray.hitSurfaceID)->coordSys;
-		}
-		
 
 		double r = vecSph(0);
 		double theta = vecSph(1);
@@ -105,6 +95,20 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 		propagation_term.real(cos(-1 * k * r) / r);
 		propagation_term.imag(sin(-1 * k * r) / r);
 
+		/* Updating the coordinate systems*/
+		currentCoordSys = nextCoordSys;
+		if (ray.hitSurfaceID == -1)
+		{
+			// The next hit is the transmitter
+			nextCoordSys = globalCoordSys;
+		}
+		else
+		{
+			// Get the surface coordinate system of the next hit surface
+			nextCoordSys = _triangleMesh->at(ray.hitSurfaceID)->coordSys;
+		}
+
+		/* Updating the incident field*/
 		if (i == 0)
 		{
 			// The first ray is always from TX to the next facet or receiver
@@ -115,15 +119,17 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 		}
 		else
 		{
+			Vec3 test = path[i - 1].targetPoint - path[i - 1].sourcePoint;
+			Vec3 test2 = RotateToNewCoordSys(test, globalCoordSys, currentCoordSys);
+			Vec3 testsph = CartesianToSpherical(test2);
+			double prevTheta = testsph(1);
+			double prevPhi = testsph(2);
 			incidentField = RotateToNewCoordSys(totalField, globalCoordSys, currentCoordSys);
-			incidentField = CartesianToSphericalVector(incidentField, theta, phi);
+			incidentField = CartesianToSphericalVector(incidentField, prevTheta, prevPhi);
 			incidentField = propagation_term * incidentField;
 		}
 
-		// Flip the theta phi components accroding to Catedra
-		//incidentField(1) = -incidentField(1);
-		// incidentField(2) = -incidentField(2);
-
+		/* Updating the reflected or transmitted field*/
 		if (ray.reflectionMaterialId >= 0)
 		{
 			double incidentAngle = AngleBetween(vecGlobal, currentCoordSys(2,Eigen::all), false, true);
@@ -145,7 +151,8 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 		// Need to do: add a case where receiver gain can be applied here
 		totalField = SphericalToCartesianVector(totalField, theta, phi);
 		totalField = RotateToNewCoordSys(totalField, currentCoordSys, globalCoordSys);
-		std::cout << totalField << std::endl;
+		Vec3c after = totalField;
+		int test = 0;
 	}
 
 	return totalField;
