@@ -79,7 +79,7 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 
 	Vec3c incidentField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
 	Vec3c totalField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
-	cdouble propagation_term{ 0,0 };
+	double totalPathLength = 0.0;
 
 	for (int i = 0; i < int(path.size()); i++)
 	{
@@ -92,8 +92,7 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 		double r = vecSph(0);
 		double theta = vecSph(1);
 		double phi = vecSph(2);
-		propagation_term.real(cos(-1 * k * r) / r);
-		propagation_term.imag(sin(-1 * k * r) / r);
+		totalPathLength += r;
 
 		/* Updating the coordinate systems*/
 		currentCoordSys = nextCoordSys;
@@ -115,18 +114,12 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 			// Get either the gain from the TX or an analytical pattern
 			// E(r,theta,phi) = E(0) * exp(-jkr)/r
 			// E(0) need to be calculated from the field coefficient sqrt(eta * Pr * Gain / 2Pi)
-			incidentField = propagation_term * GetAnalyticEfieldPattern(1, theta, phi, _txPower); // local spherical
+			incidentField = GetAnalyticEfieldPattern(1, theta, phi, _txPower); // local spherical
 		}
 		else
 		{
-			Vec3 test = path[i - 1].targetPoint - path[i - 1].sourcePoint;
-			Vec3 test2 = RotateToNewCoordSys(test, globalCoordSys, currentCoordSys);
-			Vec3 testsph = CartesianToSpherical(test2);
-			double prevTheta = testsph(1);
-			double prevPhi = testsph(2);
-			incidentField = RotateToNewCoordSys(totalField, globalCoordSys, currentCoordSys);
-			incidentField = CartesianToSphericalVector(incidentField, prevTheta, prevPhi);
-			incidentField = propagation_term * incidentField;
+			incidentField = RotateToNewCoordSys(totalField, currentCoordSys, globalCoordSys);
+			incidentField = CartesianToSphericalVector(incidentField, theta, phi);
 		}
 
 		/* Updating the reflected or transmitted field*/
@@ -151,9 +144,8 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 		// Need to do: add a case where receiver gain can be applied here
 		totalField = SphericalToCartesianVector(totalField, theta, phi);
 		totalField = RotateToNewCoordSys(totalField, currentCoordSys, globalCoordSys);
-		Vec3c after = totalField;
-		int test = 0;
 	}
+	totalField = totalField * exp(-j * k * totalPathLength) / totalPathLength;
 
 	return totalField;
 }
