@@ -246,7 +246,7 @@ void FieldCompute::GetTECoeff(cdouble theta_i, cdouble theta_t, cdouble rel_perm
 	cdouble sin_i = sin(theta_i);
 
 	//  cdouble gamma_te = ((n_i * cos_i) - (n_t * cos_t)) / ((n_i * cos_i) + (n_t * cos_t));
-	cdouble gamma_te = ((eta_t / cos_t) - (eta_i / cos_i)) / ((eta_t / cos_t) + (eta_i / cos_i));
+	cdouble gamma_te = -((eta_t / cos_t) - (eta_i / cos_i)) / ((eta_t / cos_t) + (eta_i / cos_i));
 	if (inf_wall)
 	{
 		ref_coeff = gamma_te;
@@ -274,7 +274,7 @@ void FieldCompute::GetTMCoeff(cdouble theta_i, cdouble theta_t, cdouble rel_perm
 	cdouble sin_i = sin(theta_i);
 
 	// cdouble gamma_tm = (n_t * cos_i - n_i * cos_t) / (n_i * cos_t + n_t * cos_i);
-	cdouble gamma_tm = (eta_t * cos_t - eta_i * cos_i) / (eta_t * cos_t + eta_i * cos_i);
+	cdouble gamma_tm = (-eta_t * cos_t + eta_i * cos_i) / (eta_t * cos_t + eta_i * cos_i);
 
 	if (inf_wall)
 	{

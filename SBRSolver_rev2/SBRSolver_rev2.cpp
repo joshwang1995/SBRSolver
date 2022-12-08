@@ -63,7 +63,7 @@ int main()
 	//Preprocessor::GenerateRxPlane(0, 0, 1, 10, 3, 1, rxLocation);
 	// Preprocessor::GenerateRxPlane(-5, -5, 5, 5, 7, 1, rxLocation);
 	//Preprocessor::ReadLocationFile(rxLocationFileName, rxLocation);
-	Preprocessor::GenerateRXLine(Vec3(0, 0, 3), Vec3(0, 200, 3), 1, rxLocation);
+	Preprocessor::GenerateRXLine(Vec3(0, 0, 3), Vec3(0, 3000, 3), 1, rxLocation);
 	Preprocessor::StlToGeometry(stlFileName, triangle_mesh, true, true, "./data/output/");
 	bvh.ConstructBVH(triangle_mesh);
 	// Preprocessor End
@@ -115,7 +115,8 @@ int main()
 	materials[3].relPermittivityIm = 0.05;
 	
 	int tessllation = 2;
-	Mat3 txCoordSys = Mat3::Identity();
+	// Mat3 txCoordSys = Mat3::Identity();
+	Mat3 txCoordSys{ {0,1,0},{0,0,1},{1,0,0} };
 
 	RTSolver* rayTracer = new RTSolver();
 	rayTracer->Init(materials, 1, bvh);
@@ -141,11 +142,4 @@ int main()
 	rayTracer->SaveFieldAsCsv(csvFieldFileName);
 
 	delete rayTracer;
-
-	/*
-	FieldCompute coeffTest = FieldCompute();
-	cdouble epsilon1 (1, 0);
-	cdouble epsilon2(1, -10);
-	coeffTest.RefCoeffTest(1000, freq, epsilon1, epsilon2, "./data/output/coeff_test.csv");
-	*/
 }
