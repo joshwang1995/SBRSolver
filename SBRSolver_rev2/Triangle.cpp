@@ -8,25 +8,44 @@ Triangle::Triangle()
     v3 = Vec3();
     norm = Vec3();
     center = Vec3();
+    coordSys = Mat3();
 }
 
 Triangle::~Triangle()
 {
 }
 
-Triangle::Triangle(Vec3 a, Vec3 b, Vec3 c)
+Triangle::Triangle(Vec3 a, Vec3 b, Vec3 c, int d)
 {
     v1 = a; v2 = b; v3 = c;
+    triangleId = d;
     norm = findNormal();
     bbox = findBbox();
     center = findCenter();
+    coordSys = findCoordSys();
 }
 
-Triangle::Triangle(Vec3 a, Vec3 b, Vec3 c, Vec3 d)
+Triangle::Triangle(Vec3 a, Vec3 b, Vec3 c, Vec3 d, int e)
 {
     v1 = a; v2 = b; v3 = c; norm = d;
+    triangleId = e;
     bbox = findBbox();
     center = findCenter();
+    coordSys = findCoordSys();
+}
+
+Mat3 Triangle::findCoordSys() const
+{
+    Vec3 zw = norm;
+    Vec3 yw = (v2 - v1).normalized();
+    Vec3 xw = yw.cross(zw);
+
+    Mat3 surfaceCoord;
+    surfaceCoord(0, Eigen::all) = xw;
+    surfaceCoord(1, Eigen::all) = yw;
+    surfaceCoord(2, Eigen::all) = zw;
+
+    return surfaceCoord;
 }
 
 Mat23 Triangle::findBbox() const
@@ -56,15 +75,6 @@ Vec3 Triangle::findNormal() const
     Vec3 edge2 = v3 - v1;
     Vec3 normal = (edge1.cross(edge2)).normalized();
     return normal;
-}
-
-Vec3 findCenter(const Vec3& v1, const Vec3& v2, const Vec3& v3)
-{
-    Vec3 center;
-    center(0) = (std::min({ v1(0), v2(0), v3(0) }) + std::max({ v1(0), v2(0), v3(0) })) / 2.0;
-    center(1) = (std::min({ v1(1), v2(1), v3(1) }) + std::max({ v1(1), v2(1), v3(1) })) / 2.0;
-    center(2) = (std::min({ v1(2), v2(2), v3(2) }) + std::max({ v1(2), v2(2), v3(2) })) / 2.0;
-    return center;
 }
 
 bool Triangle::RayIntersects
@@ -105,9 +115,11 @@ bool Triangle::RayIntersects
         info.pointIntersect = rayOrg + rayDir * t;
         info.distance = (info.pointIntersect - rayOrg).norm();
         info.normal = *&norm;
-        info.materialID = materialID;
+        info.materialId = materialId;
+        info.triangelId = triangleId;
+        info.coplanarId = coplanarId;
         return true;
     }
     else // This means that there is a line intersection but not a ray intersection.
         return false;
-};
+}

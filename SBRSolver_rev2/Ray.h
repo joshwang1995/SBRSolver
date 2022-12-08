@@ -14,14 +14,16 @@ extern std::atomic<int> RayGlobalId;
 
 struct Ray
 {
-	Vec3 sourcePoint;
-	Vec3 targetPoint;
-	int penetrationMaterialId;
-	int reflectionMaterialId;
-	double angleFromSurfaceNormal;
-	double pathLength;
+	Vec3 sourcePoint = Vec3(INF,INF,INF);
+	Vec3 targetPoint = Vec3(INF,INF,INF);
+	int penetrationMaterialId = -1;
+	int reflectionMaterialId = -1;
+	int hitSurfaceID = -1;
+	int hitCoplanarId = -1;
+	double angleFromSurfaceNormal = INF;
+	double pathLength = INF;
 	bool captured = false;
-	int id;
+	int id = -1;
 };
 
 class TreeNode
@@ -36,27 +38,30 @@ public:
 struct PathTreeNode
 {
 	Ray ray;
-	PathTreeNode* childDirect;
-	PathTreeNode* childReflect;
+	PathTreeNode* childTransmit = nullptr;
+	PathTreeNode* childReflect = nullptr;
 };
 PathTreeNode* newPathTreeNode
 (
-	Vec3 SourcePoint,
-	Vec3 TargetPoint,
-	int PenetrationMaterialId,
-	int ReflectionMaterialId,
-	double PathLength,
-	double AngleFromSurfaceNormal
+	Vec3 sourcePoint,
+	Vec3 targetPoint,
+	int penetrationMaterialId,
+	int reflectionMaterialId,
+	int surfaceId,
+	int coplanarId,
+	double pathLength,
+	double angleFromSurfaceNormal
 );
+PathTreeNode* DeleteChildNodes(PathTreeNode* node);
+PathTreeNode* CloneNode(PathTreeNode* node);
+void CloneTree(PathTreeNode* orgTree, PathTreeNode* cloneTree);
 
 class Paths
 {
 public:
 	std::vector<std::vector<Ray>> rayPaths;
-	std::vector<std::vector<Ray>> capturedRays;
 	Paths();
 	Paths(TreeNode* rootNode);
 	Paths(PathTreeNode* rootNode);
-	Paths(PathTreeNode* rootNode, VecVec3 receivers, int txTesslation);
 	~Paths();
 };

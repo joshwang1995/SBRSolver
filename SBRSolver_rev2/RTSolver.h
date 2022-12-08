@@ -8,8 +8,12 @@
 #include "Icosahedron.h"
 #include "Triangle.h"
 #include "Preprocessor.h"
+#include "FieldCompute.h"
 #include <mutex>
 
+// C4267 Warning is suppressed: size_t to int possible loss of data
+#pragma warning(push)
+#pragma warning(disable: 4267)
 
 class RTSolver
 {
@@ -20,25 +24,36 @@ public:
 	void Cleanup();
 	int ExecuteRayTracing
 	(
-		Vec3 sourcePoint, 
-		int maxReflectionCount, 
-		int maxTransmissionCount, 
-		VecVec3 receivers,
-		int txTesslation = 0
+		Vec3 sourcePoint,
+		const Mat3& txCoordSys,
+		int maxReflectionCount,
+		int maxTransmissionCount,
+		double frequency,
+		double pt,
+		bool useFresnelCoeff,
+		VecVec3& receivers,
+		std::vector<Triangle*>& triangleMesh,
+		int txTesslation
 	);
 	bool SavePathsAsVtk(std::string fname);
+	bool SaveReceiversAsVtk(std::string fname);
+	bool SaveFieldAsCsv(std::string fname);
 	bool SaveIcosahedronAsVtk(std::string fname, Vec3 rayOrg, int tessellation);
 	void CmdLineDebug();
 protected:
-	bool _isSceneInitialized;
 	MaterialProperties* _materialProperties = nullptr;
-	VecVec3* _receivers = nullptr;
-	int _maxTransmissionCount;
-	int _maxReflectionCount;
-	Paths* _rayPaths;
-	int _pathsCount;
+	Paths** _rayPaths;
 	BVH<Triangle>* _bvh;
 	std::vector<Vec3>* _shootRayList;
+	VecVec3* _receivers;
+	std::vector<Vec3c>* _efield;
+
+	bool _isSceneInitialized;
+	int _txTesslation;
+	int _maxTransmissionCount;
+	int _maxReflectionCount;
+	int _pathsCount;
+	int _receiverCount;
 private:
 	void RayLaunch
 	(
@@ -53,13 +68,50 @@ private:
 		bool isRoot, 
 		double lastAnglefromN
 	);
+	void RayCapture
+	(
+		PathTreeNode* rayTreeNode,
+		const Vec3& receiver, 
+		double totalPathLength
+	);
+	void ImagePathCorrection(int receiverId, const Vec3& txPoint, const std::vector<Triangle*>& triangleMesh);
+	bool MultiPathCorrection(std::vector<Ray>& multiPath, int receiverId, const Vec3& txPoint, const std::vector<Triangle*>& triangleMesh);
+	bool DirectPathCorrection(std::vector<Ray>& directPath, int receiverId, const Vec3& txPoint);
+	void RemoveDuplicatePath(int receiverId);
+	void InitRayPaths();
+	void DeleteRayPaths();
 };
+
+void PathsToVector
+(
+	const std::vector<std::vector<Ray>>& rayPaths,
+	std::vector<Vec3>& vertices,
+	std::vector<std::vector<int>>& lineIndex,
+	std::vector<int>& launchIds,
+	std::vector<int>& receiverIds,
+	int launchId,
+	int receiverId,
+	int& totalLines
+);
 
 bool HitReceptionSphere
 (
-	const Vec3& rayOrig,
-	const Vec3& rayDir,
+	const Vec3& sourcePoint,
+	const Vec3& targetPoint,
 	const Vec3& sphereCenter,
 	double pathLength,
+	int txTesslation,
 	Vec3& capturePoint
+);
+
+std::vector<int> GetHitSurfaceIds(const std::vector<Ray>& rayPaths);
+std::vector<int> GetHitCoplanarIds(const std::vector<Ray>& rayPaths);
+double GetTotalRayLength(const std::vector<Ray>& rayPaths);
+double DistanceToReceiver(const std::vector<Ray>& rayPaths, const Vec3& receiver);
+Vec3 ImagePoint(const Triangle& triangle, const Vec3& src);
+std::vector<std::pair<int, Vec3>> GetImageSources
+(
+	const std::vector<Ray>& path, 
+	const Vec3& txPoint, 
+	const std::vector<Triangle*>& triangleMesh
 );

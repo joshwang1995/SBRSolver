@@ -11,21 +11,25 @@ public:
     Triangle();
     ~Triangle();
 
-    Triangle(Vec3 a, Vec3 b, Vec3 c, Vec3 d, Mat23 e, Vec3 f)
+    Triangle(Vec3 a, Vec3 b, Vec3 c, Vec3 d, Mat23 e, Vec3 f, int g)
         :
-        v1(a), v2(b), v3(c), norm(d), bbox(e), center(f) {}
+        v1(a), v2(b), v3(c), norm(d), bbox(e), center(f), triangleId(g) {}
 
-    Triangle(Vec3 a, Vec3 b, Vec3 c); //v1, v2, v3, materialID
-    Triangle(Vec3 a, Vec3 b, Vec3 c, Vec3 d); //v1, v2, v3, normal, materialID
+    Triangle(Vec3 a, Vec3 b, Vec3 c, int d); //v1, v2, v3, triangleId
+    Triangle(Vec3 a, Vec3 b, Vec3 c, Vec3 d, int e); //v1, v2, v3, normal, triangleId
 
     Vec3 v1; // Vertex 1
     Vec3 v2; // Vertex 2
     Vec3 v3; // Vertex 3
     Vec3 norm; // Triangle Normal
-    int materialID = 0; //Default materail ID is 0
+    Mat3 coordSys; // Surface coordinate system
     Mat23 bbox; // Bounding box
     Vec3 center; // Bounding box center
+    int triangleId = -1;
+    int coplanarId = -1;
+    int materialId = 0; //Default materail ID is 0
 
+    Mat3 findCoordSys() const;
     Mat23 findBbox() const;
     Vec3 findCenter() const;
     Vec3 findNormal() const;
@@ -34,5 +38,12 @@ public:
         const Vec3& rayOrg,
         const Vec3& rayDir,
         HitInfo& info
+    );
+
+    bool RayInfPlaneIntersects
+    (
+        const Vec3& rayOrg,
+        const Vec3& rayDir,
+        HitInfo & info
     );
 };
