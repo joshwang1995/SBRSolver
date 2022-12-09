@@ -126,9 +126,9 @@ void Preprocessor::InsertEdgeIntoMap
 {
     // Always insert the two vertex with the smaller value first. This would avoid situations where <v1,v2> and <v2,v1>
     // are treated as different edges.
-    std::pair<int, int> edge1 = v1 < v2 ? std::make_pair(v1, v2) : std::make_pair(v2,v1);
-    std::pair<int, int> edge2 = v2 < v3 ? std::make_pair(v2, v3) : std::make_pair(v3, v2);
-    std::pair<int, int> edge3 = v1 < v3 ? std::make_pair(v1, v3) : std::make_pair(v3, v1);
+    std::pair<int, int> edge1 = v1 < v2 ? std::make_pair(int(v1), int(v2)) : std::make_pair(int(v2), int(v1));
+    std::pair<int, int> edge2 = v2 < v3 ? std::make_pair(int(v2), int(v3)) : std::make_pair(int(v3), int(v2));
+    std::pair<int, int> edge3 = v1 < v3 ? std::make_pair(int(v1), int(v3)) : std::make_pair(int(v3), int(v1));
 
     // Find if edge1 is in map, append the triangle ID if it is in the map. Insert the edge and the triangle ID if it is not
     std::map<std::pair<int, int>, std::vector<int>>::iterator it = edgeMap.find(edge1);
@@ -270,7 +270,7 @@ void Preprocessor::GenerateRxPlane(double xMin, double yMin, double xMax, double
 void Preprocessor::GenerateRXLine(Vec3 start, Vec3 end, double resolution, VecVec3& output)
 {
     Vec3 direction = end - start;
-    int numPoints = std::floor(direction.norm() / resolution);
+    int numPoints = static_cast<int>(std::floor(direction.norm() / resolution));
     direction.normalize();
     
     // Guard in case where start and end is the same point

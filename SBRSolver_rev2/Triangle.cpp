@@ -41,9 +41,9 @@ Mat3 Triangle::findCoordSys() const
     Vec3 xw = yw.cross(zw);
 
     Mat3 surfaceCoord;
-    surfaceCoord(0, Eigen::all) = xw;
-    surfaceCoord(1, Eigen::all) = yw;
-    surfaceCoord(2, Eigen::all) = zw;
+    surfaceCoord(0, Eigen::indexing::all) = xw;
+    surfaceCoord(1, Eigen::indexing::all) = yw;
+    surfaceCoord(2, Eigen::indexing::all) = zw;
 
     return surfaceCoord;
 }

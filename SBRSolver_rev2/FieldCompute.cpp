@@ -125,14 +125,14 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 		/* Updating the reflected or transmitted field*/
 		if (ray.reflectionMaterialId >= 0)
 		{
-			double incidentAngle = AngleBetween(vecGlobal, currentCoordSys(2,Eigen::all), false, true);
+			double incidentAngle = AngleBetween(vecGlobal, currentCoordSys(2,Eigen::indexing::all), false, true);
 			double relPerm = _materials[ray.reflectionMaterialId].relPermittivityRe;
 			double sigma = _materials[ray.reflectionMaterialId].relConductivity;
 			totalField = ComputeRefcField(incidentField, relPerm, sigma, _frequency, incidentAngle, 0, _useFresnelCoeff); // local spherical
 		}
 		else if (ray.penetrationMaterialId >= 0)
 		{
-			double incidentAngle = AngleBetween(vecGlobal, currentCoordSys(2, Eigen::all), false, true);
+			double incidentAngle = AngleBetween(vecGlobal, currentCoordSys(2, Eigen::indexing::all), false, true);
 			double relPerm = _materials[ray.penetrationMaterialId].relPermittivityRe;
 			double sigma = _materials[ray.penetrationMaterialId].relConductivity;
 			totalField = ComputeTransField(incidentField, relPerm, sigma, _frequency, incidentAngle, 0, _useFresnelCoeff);
