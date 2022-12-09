@@ -90,9 +90,10 @@ inline Mat3 TransformationMatrix(double theta, double phi, bool sph2Cart)
 	double cp = cos(phi);
 
 	Mat3 transformMatrix;
-	transformMatrix(0, Eigen::all) = Vec3(st * cp, ct * cp, -1 * sp);
-	transformMatrix(1, Eigen::all) = Vec3(st * sp, ct * sp, cp);
-	transformMatrix(2, Eigen::all) = Vec3(ct, -1 * st, 0.0);
+	
+	transformMatrix(0, Eigen::indexing::all) = Vec3(st * cp, ct * cp, -1 * sp);
+	transformMatrix(1, Eigen::indexing::all) = Vec3(st * sp, ct * sp, cp);
+	transformMatrix(2, Eigen::indexing::all) = Vec3(ct, -1 * st, 0.0);
 
 	return sph2Cart ? transformMatrix : transformMatrix.transpose();
 }
