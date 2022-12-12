@@ -115,8 +115,8 @@ int main()
 	materials[3].relPermittivityIm = 0.05;
 	
 	int tessllation = 2;
-	// Mat3 txCoordSys = Mat3::Identity();
-	Mat3 txCoordSys{ {0,1,0},{0,0,1},{1,0,0} };
+	Mat3 txCoordSys = Mat3::Identity();
+	// Mat3 txCoordSys{ {0,1,0},{0,0,1},{1,0,0} };
 
 	RTSolver* rayTracer = new RTSolver();
 	rayTracer->Init(materials, 1, bvh);
@@ -137,7 +137,7 @@ int main()
 
 	// rayTracer->CmdLineDebug();
 	rayTracer->SavePathsAsVtk(rayPathFileName);
-	// rayTracer->SaveIcosahedronAsVtk(icosahedronFileName,rayOrig, tessllation);
+	rayTracer->SaveIcosahedronAsVtk(icosahedronFileName,rayOrig, tessllation);
 	rayTracer->SaveReceiversAsVtk(rxLocationOutputFileName);
 	rayTracer->SaveFieldAsCsv(csvFieldFileName);
 
