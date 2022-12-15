@@ -78,8 +78,8 @@ int main()
 	
 	// Vec3 rayOrig{ -10, 0,1 }; // for bahen stl file
 	// Vec3 rayOrig{ 0.835938, 4.53906, 2.5 }; // for ibwave office
-	Vec3 rayOrig{ 0, 0, 5 }; // for ground
-	// Vec3 rayOrig{ 0,0,2.5 }; // for corner
+	//Vec3 rayOrig{ 0, 0, 5 }; // for ground
+	 Vec3 rayOrig{ 0,0,2.5 }; // for corner
 
 	MaterialProperties materials[4];
 	// Material 0 [Metal 5mm] -> Default material
