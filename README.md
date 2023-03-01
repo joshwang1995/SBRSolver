@@ -61,8 +61,8 @@ Required Software
 3. Choose a branch name and click <kbd>Create</kbd>
 4. Now you should have your own branch where the codebase is the exact replica of the master branch. Any changes in the local repo will be recorded. 
 5. It is a good idea to frequently commit your code so you can go back if something goes wrong. Think of it as quick save in video games.
-  - To commit your code, click <kbd>Git | Commit or Stash...</kbd>
-  - In the side panel window, write a short and concise commit message (insert link here for good commit message practices), then click <kbd>Commit All</kbd>
+    - To commit your code, click <kbd>Git | Commit or Stash...</kbd>
+    - In the side panel window, write a short and concise commit message (insert link here for good commit message practices), then click <kbd>Commit All</kbd>
 6. You can push the commit to the remote branch by clicking the <kbd> Git | Push </kbd>. This uploades your code changes from your local repo to the GitHub repo
 7. Once you finish your code fixes/implementation on your remote branch, you can create a pull request to merge your code changes to the master branch. **Make sure you test out your code as much as you can before merging and get someone else to review it for you**
 
