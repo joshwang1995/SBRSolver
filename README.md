@@ -68,6 +68,13 @@ Required Software
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
+## Best Practices
+A good git branching model segregates production(verified) and development code. The following resource provides standards and practices for a good git branch model. (https://nvie.com/posts/a-successful-git-branching-model).  
+
+<p align="center">
+<img src="https://nvie.com/img/git-model@2x.png" width="60%" height="60%">
+</p>
+
 <!-- TROUBLESHOOTING -->
 ## Troubleshooting
 
@@ -76,5 +83,3 @@ Required Software
    git submodule init & git submodule update
    ```
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
