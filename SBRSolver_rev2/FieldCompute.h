@@ -90,5 +90,6 @@ private:
 		cdouble& ref_coeff, cdouble& tran_coeff
 	);
 	cdouble GetTransAngle(double thetaIncident, cdouble epsilonIncident, cdouble epsilonTransmit);
+	Mat3 GetSurfCoordSys(const Vec3& n, const Ray& rayIncident);
 	Vec3c GetAnalyticEfieldPattern(int antennaType, double theta, double phi, double pt);
 };
