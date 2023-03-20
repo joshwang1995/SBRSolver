@@ -104,7 +104,7 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 		else
 		{
 			// Get the surface coordinate system of the next hit surface
-			nextCoordSys = _triangleMesh->at(ray.hitSurfaceID)->coordSys;
+			nextCoordSys = GetSurfCoordSys(_triangleMesh->at(ray.hitSurfaceID)->norm, ray);
 		}
 
 		/* Updating the incident field*/
@@ -156,8 +156,8 @@ Vec3c FieldCompute::GetAnalyticEfieldPattern(int antennaType, double theta, doub
 	if (antennaType == 0)
 	{
 		// Isotropic antenna
-		eFieldSph(0) = cdouble(0, sqrt(60 * pt));
-		eFieldSph(1) = 0;
+		eFieldSph(0) = 0;
+		eFieldSph(1) = cdouble(0, sqrt(60 * pt));
 		eFieldSph(2) = 0;
 	}
 
@@ -301,3 +301,37 @@ inline cdouble FieldCompute::GetTransAngle(double thetaIncident, cdouble epsilon
 	return theta_t;
 }
 
+Mat3 FieldCompute::GetSurfCoordSys(const Vec3& n, const Ray& rayIncident)
+{
+	// Fail-safe procedure: ensure both ray direction and wall norm is unit vector
+	Vec3 normal = n.normalized();
+	Vec3 rayDir = (rayIncident.targetPoint - rayIncident.sourcePoint).normalized();
+
+	// This would fail if the normal and rayDir are not unit vectors
+	double theta_i = acos(rayDir.dot(normal));
+
+	//double theta_i = acos((zw*inc_ray.dir)/(mag(zw)*mag(inc_ray.dir)));
+	if (theta_i > PI / 2)
+	{
+		theta_i = PI - theta_i;
+
+		// From Neeraj's ray tracer code:
+		// If the angle between incident ray and the surface normal is > 90 degrees,
+		//	this indicates that the surface normal is inward pointing. 
+		// 	Reverse the surface normal and also reverse orientation of vertices
+
+		//wall.unit_norm_ = -1*wall.unit_norm_;
+		//wall.d = - wall.d;
+	}
+
+	Vec3 zw = normal;
+	Vec3 yw = rayDir.cross(normal) / sin(theta_i);
+	Vec3 xw = yw.cross(zw);
+
+	Mat3 surfaceCoord;
+	surfaceCoord(0, Eigen::indexing::all) = xw;
+	surfaceCoord(1, Eigen::indexing::all) = yw;
+	surfaceCoord(2, Eigen::indexing::all) = zw;
+
+	return surfaceCoord;
+}
