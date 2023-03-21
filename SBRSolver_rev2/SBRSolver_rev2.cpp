@@ -36,7 +36,7 @@ int main()
 	Timer timer;
 	double freq = 1.8e9; // frequency
 	double Pt = 1; // transmit power in Watt
-	int maxReflection = 1; 
+	int maxReflection = 0; 
 	int maxTransmission = 1;
 
 #if DEBUG
@@ -86,9 +86,10 @@ int main()
 	materials[0].frequency = 1.8e9;
 	materials[0].reflectionLoss = 0.05;
 	materials[0].transmissionLoss = 221.13;
-	materials[0].relConductivity = 1e6;
+	materials[0].relConductivity = 1;
 	materials[0].relPermittivityRe = 1;
 	materials[0].relPermittivityIm = 0;
+	materials[0].width = 0;
 
 	// Material 2 [plaster board]
 	materials[1].frequency = 1.8e9;

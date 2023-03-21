@@ -19,12 +19,13 @@ struct HitInfo
 // Material property for material at single frequency
 struct MaterialProperties
 {
-	double frequency;
-	double transmissionLoss;
-	double reflectionLoss;
-	double relPermittivityRe;
-	double relPermittivityIm;
-	double relConductivity;
+	double frequency = 0.0;
+	double transmissionLoss = 0.0;
+	double reflectionLoss = 0.0;
+	double relPermittivityRe = 0.0;
+	double relPermittivityIm = 0.0;
+	double relConductivity = 0.0;
+	double width = 0.0;
 };
 using Materials = std::vector<MaterialProperties>;
 
