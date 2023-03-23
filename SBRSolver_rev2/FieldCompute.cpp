@@ -37,8 +37,8 @@ void FieldCompute::RefCoeffTest(int numPts, double freq, cdouble epsilon1, cdoub
 	for (auto theta_i : thetaArray)
 	{
 		theta_t = GetTransAngle(theta_i, epsilon1, epsilon2);
-		GetTMCoeff(theta_i, theta_t, epsilon1, epsilon2, lamda, 0.0, true, refTM, transTM);
-		GetTECoeff(theta_i, theta_t, epsilon1, epsilon2, lamda, 0.0, true, refTE, transTE);
+		GetTMCoeff(theta_i, theta_t, epsilon1, epsilon2, 0.0, true, refTM, transTM);
+		GetTECoeff(theta_i, theta_t, epsilon1, epsilon2, 0.0, true, refTE, transTE);
 		ofs << theta_i * (180.0/EIGEN_PI) << "," << std::abs(refTM) << "," << std::arg(refTM) << ",";
 		ofs << std::abs(refTE) << "," << std::arg(refTE) << std::endl;
 	}
@@ -59,8 +59,8 @@ void FieldCompute::TransCoeffTest(int numPts, double freq, cdouble epsilon1, cdo
 	for (auto theta_i : thetaArray)
 	{
 		theta_t = GetTransAngle(theta_i, epsilon1, epsilon2);
-		GetTMCoeff(theta_i, theta_t, epsilon1, epsilon2, lamda, 0.0, true, refTM, transTM);
-		GetTECoeff(theta_i, theta_t, epsilon1, epsilon2, lamda, 0.0, true, refTE, transTE);
+		GetTMCoeff(theta_i, theta_t, epsilon1, epsilon2, 0.0, true, refTM, transTM);
+		GetTECoeff(theta_i, theta_t, epsilon1, epsilon2, 0.0, true, refTE, transTE);
 		ofs << theta_i * (180.0 / EIGEN_PI) << "," << std::abs(transTM) << "," << std::arg(transTM) << ",";
 		ofs << std::abs(transTE) << "," << std::arg(transTE) << std::endl;
 	}
@@ -70,12 +70,8 @@ void FieldCompute::TransCoeffTest(int numPts, double freq, cdouble epsilon1, cdo
 
 Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 {
-	double lamda = SPEED_OF_LIGHT / _frequency;
-	double k = (2 * PI) / lamda;
-
-	Mat3 globalCoordSys = Mat3::Identity();
 	Mat3 currentCoordSys = globalCoordSys;
-	Mat3 nextCoordSys = _txCoordSys;
+	Mat3 nextCoordSys = txCoordSys;
 
 	Vec3c incidentField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
 	Vec3c totalField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
@@ -104,7 +100,7 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 		else
 		{
 			// Get the surface coordinate system of the next hit surface
-			nextCoordSys = _triangleMesh->at(ray.hitSurfaceID)->coordSys;
+			nextCoordSys = GetSurfCoordSys(_triangleMesh->at(ray.hitSurfaceID)->norm, ray);
 		}
 
 		/* Updating the incident field*/
@@ -114,36 +110,38 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 			// Get either the gain from the TX or an analytical pattern
 			// E(r,theta,phi) = E(0) * exp(-jkr)/r
 			// E(0) need to be calculated from the field coefficient sqrt(eta * Pr * Gain / 2Pi)
-			incidentField = GetAnalyticEfieldPattern(1, theta, phi, _txPower); // local spherical
+			incidentField = GetAnalyticEfieldPattern(1, theta, phi, txPower); // local spherical
 		}
 		else
 		{
-			incidentField = RotateToNewCoordSys(totalField, currentCoordSys, globalCoordSys);
+			incidentField = RotateToNewCoordSys(totalField, globalCoordSys,currentCoordSys);
 			incidentField = CartesianToSphericalVector(incidentField, theta, phi);
 		}
 
 		/* Updating the reflected or transmitted field*/
 		if (ray.reflectionMaterialId >= 0)
 		{
-			double incidentAngle = AngleBetween(vecGlobal, currentCoordSys(2,Eigen::indexing::all), false, true);
-			double relPerm = _materials[ray.reflectionMaterialId].relPermittivityRe;
-			double sigma = _materials[ray.reflectionMaterialId].relConductivity;
-			totalField = ComputeRefcField(incidentField, relPerm, sigma, _frequency, incidentAngle, 0, _useFresnelCoeff); // local spherical
+			//double incidentAngle = AngleBetween(vecGlobal, currentCoordSys(2,Eigen::indexing::all), false, true);
+			//double relPerm = _materials[ray.reflectionMaterialId].relPermittivityRe;
+			//double sigma = _materials[ray.reflectionMaterialId].relConductivity;
+			totalField = ComputeRefcField(vecGlobal, incidentField, ray.reflectionMaterialId, currentCoordSys, nextCoordSys); // local spherical
+
+			//totalField = ComputeRefcField(incidentField, relPerm, sigma, _frequency, incidentAngle, 0, _useFresnelCoeff); // local spherical
 		}
 		else if (ray.penetrationMaterialId >= 0)
 		{
-			double incidentAngle = AngleBetween(vecGlobal, currentCoordSys(2, Eigen::indexing::all), false, true);
-			double relPerm = _materials[ray.penetrationMaterialId].relPermittivityRe;
-			double sigma = _materials[ray.penetrationMaterialId].relConductivity;
-			totalField = ComputeTransField(incidentField, relPerm, sigma, _frequency, incidentAngle, 0, _useFresnelCoeff);
+			// totalField = ComputeTransField(incidentField, relPerm, sigma, frequency, incidentAngle, 0, useFresnelCoeff);
+			totalField = ComputeTransField(vecGlobal, incidentField, ray.penetrationMaterialId, currentCoordSys, nextCoordSys); // local spherical
 		}
 		else
 		{
 			totalField = incidentField;
 		}
+		//std::cout << "Total Field Before Rotation: " << totalField << std::endl;
 		// Need to do: add a case where receiver gain can be applied here
 		totalField = SphericalToCartesianVector(totalField, theta, phi);
 		totalField = RotateToNewCoordSys(totalField, currentCoordSys, globalCoordSys);
+		//std::cout << "Total Field After Rotation: " << totalField << std::endl;
 	}
 	totalField = totalField * exp(-j * k * totalPathLength) / totalPathLength;
 
@@ -156,8 +154,8 @@ Vec3c FieldCompute::GetAnalyticEfieldPattern(int antennaType, double theta, doub
 	if (antennaType == 0)
 	{
 		// Isotropic antenna
-		eFieldSph(0) = cdouble(0, sqrt(60 * pt));
-		eFieldSph(1) = 0;
+		eFieldSph(0) = 0;
+		eFieldSph(1) = cdouble(0, sqrt(60 * pt));
 		eFieldSph(2) = 0;
 	}
 
@@ -182,22 +180,23 @@ Vec3c FieldCompute::GetAnalyticEfieldPattern(int antennaType, double theta, doub
 	return eFieldSph;
 }
 
-Vec3c FieldCompute::ComputeRefcField(const Vec3c& efield_i_sph, double rel_perm, double sigma, double freq, double thetaIncident, double width, bool inf_wall)
+Vec3c FieldCompute::ComputeRefcField(const Vec3& vecGlobal, const Vec3c& efield_i_sph, int materialId, const Mat3& currentCoordSys, const Mat3& nextCoordSys)
 {
-	cdouble epsilonTransmit;
-	epsilonTransmit.real(rel_perm);
-	epsilonTransmit.imag(-1 * sigma / (E0 * 2 * PI * freq));
-
-	double lamda = SPEED_OF_LIGHT / freq;
+	// Material property of the impinging medium
+	cdouble epsilon_t;
+	epsilon_t.real(_materials[materialId].relPermittivityRe);
+	epsilon_t.imag(-1 * _materials[materialId].relConductivity/ (E0 * 2 * PI * frequency));
 
 	// Permittivity of air
-	cdouble epsilonIncident(1, 0);
-
-	cdouble theta_t = GetTransAngle(thetaIncident, epsilonIncident, epsilonTransmit);
+	cdouble epsilon_i(1, 0);
+	
+	// Get theta_i and theta_t
+	double theta_i = AngleBetween(vecGlobal, currentCoordSys(2, Eigen::indexing::all), false, true);
+	cdouble theta_t = GetTransAngle(theta_i, epsilon_i, epsilon_t);
 
 	cdouble refTE, refTM, transTE, transTM;
-	GetTMCoeff(thetaIncident, theta_t, epsilonIncident, epsilonTransmit, lamda, width, inf_wall, refTM, transTM);
-	GetTECoeff(thetaIncident, theta_t, epsilonIncident, epsilonTransmit, lamda, width, inf_wall, refTE, transTE);
+	GetTECoeff(theta_i, theta_t, epsilon_i, epsilon_t, _materials[materialId].width, useFresnelCoeff, refTE, transTE);
+	GetTMCoeff(theta_i, theta_t, epsilon_i, epsilon_t, _materials[materialId].width, useFresnelCoeff, refTM, transTM);
 
 	// x is r, y is theta, z is phi
 	cdouble Er = efield_i_sph[0];
@@ -208,22 +207,23 @@ Vec3c FieldCompute::ComputeRefcField(const Vec3c& efield_i_sph, double rel_perm,
 	return refcField;
 }
 
-Vec3c FieldCompute::ComputeTransField(const Vec3c& efield_i_sph, double rel_perm, double sigma, double freq, double thetaIncident, double width, bool inf_wall)
+Vec3c FieldCompute::ComputeTransField(const Vec3& vecGlobal, const Vec3c& efield_i_sph, int materialId, const Mat3& currentCoordSys, const Mat3& nextCoordSys)
 {
-	cdouble epsilonTransmit;
-	epsilonTransmit.real(rel_perm);
-	epsilonTransmit.imag(-1 * sigma / (E0 * 2 * PI * freq));
-
-	double lamda = SPEED_OF_LIGHT / freq;
+	// Material property of the impinging medium
+	cdouble epsilon_t;
+	epsilon_t.real(_materials[materialId].relPermittivityRe);
+	epsilon_t.imag(-1 * _materials[materialId].relConductivity / (E0 * 2 * PI * frequency));
 
 	// Permittivity of air
-	cdouble epsilonIncident(1, 0);
+	cdouble epsilon_i(1, 0);
 
-	cdouble theta_t = GetTransAngle(thetaIncident, epsilonIncident, epsilonTransmit);
+	// Get theta_i and theta_t
+	double theta_i = AngleBetween(vecGlobal, currentCoordSys(2, Eigen::indexing::all), false, true);
+	cdouble theta_t = GetTransAngle(theta_i, epsilon_i, epsilon_t);
 
 	cdouble refTE, refTM, transTE, transTM;
-	GetTMCoeff(thetaIncident, theta_t, epsilonIncident, epsilonTransmit, lamda, width, inf_wall, refTM, transTM);
-	GetTECoeff(thetaIncident, theta_t, epsilonIncident, epsilonTransmit, lamda, width, inf_wall, refTE, transTE);
+	GetTECoeff(theta_i, theta_t, epsilon_i, epsilon_t, _materials[materialId].width, useFresnelCoeff, refTE, transTE);
+	GetTMCoeff(theta_i, theta_t, epsilon_i, epsilon_t, _materials[materialId].width, useFresnelCoeff, refTM, transTM);
 
 	// x is r, y is theta, z is phi
 	cdouble Er = efield_i_sph[0];
@@ -234,7 +234,7 @@ Vec3c FieldCompute::ComputeTransField(const Vec3c& efield_i_sph, double rel_perm
 	return transField;
 }
 
-void FieldCompute::GetTECoeff(cdouble theta_i, cdouble theta_t, cdouble rel_perm_i, cdouble rel_perm_t, double lamda, double width, bool inf_wall, cdouble& ref_coeff, cdouble& tran_coeff)
+void FieldCompute::GetTECoeff(cdouble theta_i, cdouble theta_t, cdouble rel_perm_i, cdouble rel_perm_t, double width, bool inf_wall, cdouble& ref_coeff, cdouble& tran_coeff)
 {
 	cdouble n_i, n_t, eta_i, eta_t;
 	n_i = sqrt(rel_perm_i);
@@ -247,10 +247,12 @@ void FieldCompute::GetTECoeff(cdouble theta_i, cdouble theta_t, cdouble rel_perm
 
 	//  cdouble gamma_te = ((n_i * cos_i) - (n_t * cos_t)) / ((n_i * cos_i) + (n_t * cos_t));
 	cdouble gamma_te = -((eta_t / cos_t) - (eta_i / cos_i)) / ((eta_t / cos_t) + (eta_i / cos_i));
+	cdouble tau_te = (2.0 * eta_t * cos_i) / (eta_t * cos_i + eta_i * cos_t);
 	if (inf_wall)
 	{
 		ref_coeff = gamma_te;
-		tran_coeff = 0;
+		tran_coeff = 1.0 - gamma_te;
+		// tran_coeff = tau_te;
 	}
 	else
 	{
@@ -262,7 +264,7 @@ void FieldCompute::GetTECoeff(cdouble theta_i, cdouble theta_t, cdouble rel_perm
 	}
 }
 
-void FieldCompute::GetTMCoeff(cdouble theta_i, cdouble theta_t, cdouble rel_perm_i, cdouble rel_perm_t, double lamda, double width, bool inf_wall, cdouble& ref_coeff, cdouble& tran_coeff)
+void FieldCompute::GetTMCoeff(cdouble theta_i, cdouble theta_t, cdouble rel_perm_i, cdouble rel_perm_t, double width, bool inf_wall, cdouble& ref_coeff, cdouble& tran_coeff)
 {
 	cdouble n_i, n_t, eta_i, eta_t;
 	n_i = sqrt(rel_perm_i);
@@ -275,11 +277,12 @@ void FieldCompute::GetTMCoeff(cdouble theta_i, cdouble theta_t, cdouble rel_perm
 
 	// cdouble gamma_tm = (n_t * cos_i - n_i * cos_t) / (n_i * cos_t + n_t * cos_i);
 	cdouble gamma_tm = (-eta_t * cos_t + eta_i * cos_i) / (eta_t * cos_t + eta_i * cos_i);
-
+	cdouble tau_tm = (2.0 * eta_t * cos_i) / (eta_t * cos_t + eta_i * cos_i);
 	if (inf_wall)
 	{
 		ref_coeff = gamma_tm;
-		tran_coeff = 0;
+		tran_coeff = 1.0 - ref_coeff;
+		// tran_coeff = tau_tm;
 	}
 	else
 	{
@@ -291,13 +294,39 @@ void FieldCompute::GetTMCoeff(cdouble theta_i, cdouble theta_t, cdouble rel_perm
 	}
 }
 
-inline cdouble FieldCompute::GetTransAngle(double thetaIncident, cdouble epsilonIncident, cdouble epsilonTransmit)
+inline cdouble FieldCompute::GetTransAngle(double thetaIncident, cdouble epsilon_i, cdouble epsilon_t)
 {
 	// Snell's Law
 	cdouble theta_i(thetaIncident, 0);
-	cdouble n_i = sqrt(epsilonIncident);
-	cdouble n_t = sqrt(epsilonTransmit);
+	cdouble n_i = sqrt(epsilon_i);
+	cdouble n_t = sqrt(epsilon_t);
 	cdouble theta_t = asin((n_i/n_t) * sin(theta_i));
 	return theta_t;
 }
 
+Mat3 FieldCompute::GetSurfCoordSys(const Vec3& n, const Ray& rayIncident)
+{
+	// Fail-safe procedure: ensure both ray direction and wall norm is unit vector
+	Vec3 normal = n.normalized();
+	Vec3 rayDir = (rayIncident.targetPoint - rayIncident.sourcePoint).normalized();
+
+	// This would fail if the normal and rayDir are not unit vectors
+	double theta_i = acos(rayDir.dot(normal));
+
+	//double theta_i = acos((zw*inc_ray.dir)/(mag(zw)*mag(inc_ray.dir)));
+	if (theta_i > PI / 2)
+	{
+		theta_i = PI - theta_i;
+	}
+
+	Vec3 zw = normal;
+	Vec3 yw = rayDir.cross(normal) / sin(theta_i);
+	Vec3 xw = yw.cross(zw);
+
+	Mat3 surfaceCoord;
+	surfaceCoord(0, Eigen::indexing::all) = xw;
+	surfaceCoord(1, Eigen::indexing::all) = yw;
+	surfaceCoord(2, Eigen::indexing::all) = zw;
+
+	return surfaceCoord;
+}

@@ -837,8 +837,8 @@ bool HitReceptionSphere
 
 	// Takahiro's method
 	double beta = 1.0 / (3.0 * txTesslation) * acos(-1.0 / sqrt(5.0));
-	double unfoldedLength = pathLength + (sourcePoint + t0 * rayDir).norm();
-	double sphereRadius = unfoldedLength * tan(beta);
+	double unfoldedLength = pathLength + (t0 * rayDir).norm();
+	double sphereRadius = 1.1*unfoldedLength * tan(beta);
 
 	// Rappaport's approximation
 	// double unfoldedLength = pathLength + (sourcePoint + t0 * rayDir).norm();

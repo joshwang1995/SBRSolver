@@ -21,7 +21,7 @@ int main()
 	std::cout << "Initializing Simulation Parameters" << std::endl;
 
 	// Input filenames
-	std::string stlFileName = "./data/stl_files/ground.stl";
+	std::string stlFileName = "./data/stl_files/ground_plane.stl";
 	std::string rxLocationFileName = "./data/RX_Ground.dat";
 	std::string txPatternFileName = "./data/TxPatternTest.dat";
 
@@ -36,8 +36,8 @@ int main()
 	Timer timer;
 	double freq = 1.8e9; // frequency
 	double Pt = 1; // transmit power in Watt
-	int maxReflection = 1; 
-	int maxTransmission = 0;
+	int maxReflection = 0; 
+	int maxTransmission = 1;
 
 #if DEBUG
 	std::cout << "\tTX Pattern File Name  -> " << txPatternFileName << std::endl;
@@ -60,10 +60,10 @@ int main()
 	// Preprocessor::ReadPatternFile(txPatternFileName, txPattern);
 	// Preprocessor::GenerateRxPlane(-18, -40, -17, 0, 1, 1, rxLocation);
 	// Preprocessor::GenerateRxPlane(-1 , 0 , 1, 10, 3, 1, rxLocation); 
-	//Preprocessor::GenerateRxPlane(0, 0, 1, 10, 3, 1, rxLocation);
+	Preprocessor::GenerateRxPlane(-20, -20, 20, 20, -3, 0.2, rxLocation);
 	// Preprocessor::GenerateRxPlane(-5, -5, 5, 5, 7, 1, rxLocation);
 	//Preprocessor::ReadLocationFile(rxLocationFileName, rxLocation);
-	Preprocessor::GenerateRXLine(Vec3(0, 0, 3), Vec3(0, 3000, 3), 1, rxLocation);
+	// Preprocessor::GenerateRXLine(Vec3(0, 0, 3), Vec3(0, 3000, 3), 1, rxLocation);
 	Preprocessor::StlToGeometry(stlFileName, triangle_mesh, true, true, "./data/output/");
 	bvh.ConstructBVH(triangle_mesh);
 	// Preprocessor End
@@ -86,9 +86,10 @@ int main()
 	materials[0].frequency = 1.8e9;
 	materials[0].reflectionLoss = 0.05;
 	materials[0].transmissionLoss = 221.13;
-	materials[0].relConductivity = 1e6;
+	materials[0].relConductivity = 1;
 	materials[0].relPermittivityRe = 1;
 	materials[0].relPermittivityIm = 0;
+	materials[0].width = 0;
 
 	// Material 2 [plaster board]
 	materials[1].frequency = 1.8e9;
