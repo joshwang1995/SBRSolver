@@ -78,7 +78,7 @@ int RTSolver::ExecuteRayTracing
 
 	Timer timer;
 	timer.start();
-//#pragma omp parallel for collapse(2)
+// #pragma omp parallel for collapse(2)
 	for (int i = 0; i < _pathsCount; i++)
 	{
 		PathTreeNode rootNode;

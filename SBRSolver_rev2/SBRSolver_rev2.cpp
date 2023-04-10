@@ -21,8 +21,8 @@ int main()
 	std::cout << "Initializing Simulation Parameters" << std::endl;
 
 	// Input filenames
-	std::string stlFileName = "./data/stl_files/ground_plane.stl";
-	std::string rxLocationFileName = "./data/RX_Ground.dat";
+	std::string stlFileName = "./data/stl_files/urban_canyon.stl";
+	std::string rxLocationFileName = "./data/Urban_Canyon.dat";
 	std::string txPatternFileName = "./data/TxPatternTest.dat";
 
 	// Output filenames
@@ -34,10 +34,10 @@ int main()
 	std::string csvFieldFileName = "./data/output/ElectricField.csv";
 
 	Timer timer;
-	double freq = 1.8e9; // frequency
+	double freq = 0.9e9; // frequency
 	double Pt = 1; // transmit power in Watt
-	int maxReflection = 0; 
-	int maxTransmission = 1;
+	int maxReflection = 2; 
+	int maxTransmission = 0;
 
 #if DEBUG
 	std::cout << "\tTX Pattern File Name  -> " << txPatternFileName << std::endl;
@@ -60,9 +60,9 @@ int main()
 	// Preprocessor::ReadPatternFile(txPatternFileName, txPattern);
 	// Preprocessor::GenerateRxPlane(-18, -40, -17, 0, 1, 1, rxLocation);
 	// Preprocessor::GenerateRxPlane(-1 , 0 , 1, 10, 3, 1, rxLocation); 
-	Preprocessor::GenerateRxPlane(-20, -20, 20, 20, -3, 0.2, rxLocation);
+	//Preprocessor::GenerateRxPlane(-20, -20, 20, 20, -3, 0.2, rxLocation);
 	// Preprocessor::GenerateRxPlane(-5, -5, 5, 5, 7, 1, rxLocation);
-	//Preprocessor::ReadLocationFile(rxLocationFileName, rxLocation);
+	Preprocessor::ReadLocationFile(rxLocationFileName, rxLocation);
 	// Preprocessor::GenerateRXLine(Vec3(0, 0, 3), Vec3(0, 3000, 3), 1, rxLocation);
 	Preprocessor::StlToGeometry(stlFileName, triangle_mesh, true, true, "./data/output/");
 	bvh.ConstructBVH(triangle_mesh);
@@ -79,15 +79,15 @@ int main()
 	// Vec3 rayOrig{ -10, 0,1 }; // for bahen stl file
 	// Vec3 rayOrig{ 0.835938, 4.53906, 2.5 }; // for ibwave office
 	//Vec3 rayOrig{ 0, 0, 5 }; // for ground
-	 Vec3 rayOrig{ 0,0,2.5 }; // for corner
+	 Vec3 rayOrig{ 10,-8,10 }; // for corner
 
 	MaterialProperties materials[4];
 	// Material 0 [Metal 5mm] -> Default material
-	materials[0].frequency = 1.8e9;
+	materials[0].frequency = 0.9e9;
 	materials[0].reflectionLoss = 0.05;
 	materials[0].transmissionLoss = 221.13;
-	materials[0].relConductivity = 1;
-	materials[0].relPermittivityRe = 1;
+	materials[0].relConductivity = 0;
+	materials[0].relPermittivityRe = 5;
 	materials[0].relPermittivityIm = 0;
 	materials[0].width = 0;
 
