@@ -100,7 +100,21 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 		else
 		{
 			// Get the surface coordinate system of the next hit surface
-			nextCoordSys = GetSurfCoordSys(_triangleMesh->at(ray.hitSurfaceID)->norm, ray);
+			// nextCoordSys = GetSurfCoordSys(_triangleMesh->at(ray.hitSurfaceID)->norm, ray);
+
+			int surf_id = ray.hitSurfaceID;
+			if (surf_id == 0 || surf_id == 1)
+			{
+				nextCoordSys = Mat3{ {0,0,1},{1,0,0},{0,1,0} };
+			}
+			else if (surf_id == 2 || surf_id == 3)
+			{
+				nextCoordSys = Mat3{ {1,0,0},{0,0,1},{0,-1,0} };
+			}
+			else
+			{
+				nextCoordSys = Mat3::Identity();
+			}
 		}
 
 		/* Updating the incident field*/
@@ -110,7 +124,7 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 			// Get either the gain from the TX or an analytical pattern
 			// E(r,theta,phi) = E(0) * exp(-jkr)/r
 			// E(0) need to be calculated from the field coefficient sqrt(eta * Pr * Gain / 2Pi)
-			incidentField = GetAnalyticEfieldPattern(1, theta, phi, txPower); // local spherical
+			incidentField = GetAnalyticEfieldPattern(0, theta, phi, txPower); // local spherical
 		}
 		else
 		{
@@ -251,8 +265,8 @@ void FieldCompute::GetTECoeff(cdouble theta_i, cdouble theta_t, cdouble rel_perm
 	if (inf_wall)
 	{
 		ref_coeff = gamma_te;
-		tran_coeff = 1.0 - gamma_te;
-		// tran_coeff = tau_te;
+		// tran_coeff = 1.0 - gamma_te;
+		tran_coeff = tau_te;
 	}
 	else
 	{
@@ -281,8 +295,8 @@ void FieldCompute::GetTMCoeff(cdouble theta_i, cdouble theta_t, cdouble rel_perm
 	if (inf_wall)
 	{
 		ref_coeff = gamma_tm;
-		tran_coeff = 1.0 - ref_coeff;
-		// tran_coeff = tau_tm;
+		// tran_coeff = 1.0 - ref_coeff;
+		tran_coeff = tau_tm;
 	}
 	else
 	{

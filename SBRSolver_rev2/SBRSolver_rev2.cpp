@@ -22,7 +22,7 @@ int main()
 
 	// Input filenames
 	std::string stlFileName = "./data/stl_files/urban_canyon.stl";
-	std::string rxLocationFileName = "./data/Urban_Canyon.dat";
+	std::string rxLocationFileName = "./data/RX_Urban_Canyon_Debug.dat";
 	std::string txPatternFileName = "./data/TxPatternTest.dat";
 
 	// Output filenames
