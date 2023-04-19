@@ -295,9 +295,9 @@ bool Preprocessor::SaveEdgesAsVtk
 )
 {
     using namespace std;
-
+#if DEBUG
     cout << "[Entering] Preprocessor::SaveEdgesAsVtk ..." << endl;
-
+#endif
     ofstream ofs;
     ofs.open(fileName);
 
@@ -346,9 +346,10 @@ bool Preprocessor::SaveEdgesAsVtk
     }
 
     ofs.close();
+#if DEBUG
     cout << "\tSaved " << edgePoints.size() << " edges into " << fileName << endl;
     cout << "[Leaving] Preprocessor::SaveEdgesAsVtk" << endl;
-
+#endif
     return true;
 }
 
@@ -362,9 +363,9 @@ bool Preprocessor::SaveFacesAsVtk
 )
 {
     using namespace std;
-
+#if DEBUG
     cout << "[Entering] Preprocessor::SaveFacesAsVtk ..." << endl;
-
+#endif
     ofstream ofs;
     ofs.open(fileName);
 
@@ -414,8 +415,9 @@ bool Preprocessor::SaveFacesAsVtk
     }
 
     ofs.close();
+#if DEBUG
     cout << "\tSaved " << numTris << " faces into " << fileName << endl;
     cout << "[Leaving] Preprocessor::SaveFacesAsVtk" << endl;
-
+#endif
     return true;
 }

@@ -119,8 +119,9 @@ int RTSolver::ExecuteRayTracing
 		RemoveDuplicatePath(k);
 		_efield->push_back(fieldCore->FieldAtReceiver(k));
 	}
+#if DEBUG
 	std::cout << "\tTotal Time in for loop -> " << timer.getTime() << std::endl;
-	
+#endif
 	delete fieldCore;
 	return _pathsCount * _receiverCount;
 }
@@ -603,18 +604,19 @@ bool RTSolver::SavePathsAsVtk(std::string fname)
 	}
 
 	ofs.close();
+#if DEBUG
 	cout << "\tSaved " << lineIdx.size() << " ray paths into " << fname << endl;
 	cout << "[Leaving] RTSolver::SavePathsAsVtk" << endl;
-
+#endif
 	return true;
 }
 
 bool RTSolver::SaveReceiversAsVtk(std::string fname)
 {
 	using namespace std;
-
+#if DEBUG
 	cout << "[Entering] RTSolver::SaveReceiversAsVtk ..." << endl;
-
+#endif
 	ofstream ofs;
 	ofs.open(fname);
 
@@ -683,17 +685,19 @@ bool RTSolver::SaveReceiversAsVtk(std::string fname)
 	}
 
 	ofs.close();
+#if DEBUG
 	cout << "\tSaved " << _receiverCount << " receiver info into " << fname << endl;
 	cout << "[Leaving] RTSolver::SaveReceiversAsVtk" << endl;
-
+#endif
 	return true;
 }
 
 bool RTSolver::SaveFieldAsCsv(std::string fname)
 {
 	using namespace std;
+#if DEBUG
 	cout << "[Entering] RTSolver::SaveFieldAsCsv ..." << endl;
-
+#endif 
 	ofstream ofs;
 	ofs.open(fname);
 
@@ -710,9 +714,10 @@ bool RTSolver::SaveFieldAsCsv(std::string fname)
 			<< _efield->at(i).y().real() << _efield->at(i).y().imag() << "i" << ","
 			<< _efield->at(i).z().real() << _efield->at(i).z().imag() << "i" << endl;
 	}
-
+#if DEBUG
 	cout << "\tSaved " << _receiverCount << " received field into " << fname << endl;
 	cout << "[Leaving] RTSolver::SaveFieldAsCsv ..." << endl;
+#endif DEBUG
 	return true;
 }
 

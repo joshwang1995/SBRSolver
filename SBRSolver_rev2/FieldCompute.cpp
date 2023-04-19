@@ -10,6 +10,8 @@ FieldCompute::~FieldCompute()
 
 Vec3c FieldCompute::FieldAtReceiver(int receiverId)
 {
+	std::cout << "\n[Entering] FieldAtReceiver..." << std::endl;
+
 	Vec3c totalField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
 
 	// Get all paths for the receiver
@@ -18,9 +20,12 @@ Vec3c FieldCompute::FieldAtReceiver(int receiverId)
 		int numRayPaths = int(_rayPaths[i][receiverId].rayPaths.size());
 		for (int j = 0; j < numRayPaths; j++)
 		{
+			std::cout << "\nStart Field Computation for path " << i << " at receiver " << receiverId << std::endl;
 			totalField += FieldForPath(_rayPaths[i][receiverId].rayPaths[j]);
 		}
 	}
+
+	std::cout << "[Leaving] FieldAtReceiver...\n" << std::endl;
 	return totalField;
 }
 
@@ -70,25 +75,36 @@ void FieldCompute::TransCoeffTest(int numPts, double freq, cdouble epsilon1, cdo
 
 Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 {
+	using namespace std;
+	Eigen::IOFormat CleanFmt(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", " ; ", "", "");
+	cout << "[Entering] FieldForPath..." << endl;
+
 	Mat3 currentCoordSys = globalCoordSys;
 	Mat3 nextCoordSys = txCoordSys;
 
 	Vec3c incidentField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
 	Vec3c totalField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
 	double totalPathLength = 0.0;
-
+	
 	for (int i = 0; i < int(path.size()); i++)
 	{
+		cout << "\tComputing field for Ray" << i << "..." << endl;
+
 		// Extract information from current ray
 		const Ray& ray = path[i];
 		Vec3 vecGlobal = ray.targetPoint - ray.sourcePoint;
 		Vec3 vecLocal = RotateToNewCoordSys(vecGlobal, globalCoordSys, nextCoordSys);
 		Vec3 vecSph = CartesianToSpherical(vecLocal);
-
+		
 		double r = vecSph(0);
 		double theta = vecSph(1);
 		double phi = vecSph(2);
 		totalPathLength += r;
+
+		cout << "\t\tRay vector global cartesian: " << vecGlobal.transpose().format(CleanFmt) << endl;
+		cout << "\t\tRotate ray from global to this coordinate system: " << nextCoordSys.format(CleanFmt) << endl;
+		cout << "\t\tRay vector rotated to local: " << vecLocal.transpose().format(CleanFmt) << endl;
+		cout << "\t\tRay vector in local spherical coodinates: " << r << ", " << theta * (180.0 / PI) << ", " << phi * (180.0 / PI) << endl;
 
 		/* Updating the coordinate systems*/
 		currentCoordSys = nextCoordSys;
@@ -101,7 +117,7 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 		{
 			// Get the surface coordinate system of the next hit surface
 			// nextCoordSys = GetSurfCoordSys(_triangleMesh->at(ray.hitSurfaceID)->norm, ray);
-
+			
 			int surf_id = ray.hitSurfaceID;
 			if (surf_id == 0 || surf_id == 1)
 			{
@@ -116,6 +132,8 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 				nextCoordSys = Mat3::Identity();
 			}
 		}
+		cout << "\t\tUpdated Current Coordinate System: " << currentCoordSys.format(CleanFmt) << endl;
+		cout << "\t\tUpdated Next Coordinate System: " << nextCoordSys.format(CleanFmt) << endl;
 
 		/* Updating the incident field*/
 		if (i == 0)
@@ -156,8 +174,15 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 		totalField = SphericalToCartesianVector(totalField, theta, phi);
 		totalField = RotateToNewCoordSys(totalField, currentCoordSys, globalCoordSys);
 		//std::cout << "Total Field After Rotation: " << totalField << std::endl;
+
 	}
 	totalField = totalField * exp(-j * k * totalPathLength) / totalPathLength;
+
+	cout << endl;
+	cout << "\tDelay [ns]: " << (totalPathLength/ SPEED_OF_LIGHT)*1e9 << endl;
+	cout << "\tField Components [Ex, Ey, Ez]: " << totalField.transpose().format(CleanFmt) << endl;
+	cout << "\tField Strength [dBuvm]: " << 20 * log10(totalField.norm() * 1e6) << endl;
+	cout << "[Leaving] FieldForPath..." << endl;
 
 	return totalField;
 }

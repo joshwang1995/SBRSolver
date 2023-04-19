@@ -13,13 +13,15 @@
 #include "Ray.h"
 #include "RTSolver.h"
 
-#define DEBUG 1
+#define DEBUG_LEVEL 0
+#define SAVE_BVH 0
 
 int main()
 {
+#if DEBUG_LEVEL > 0
 	std::cout << "[Entering] main ..." << std::endl;
 	std::cout << "Initializing Simulation Parameters" << std::endl;
-
+#endif
 	// Input filenames
 	std::string stlFileName = "./data/stl_files/urban_canyon.stl";
 	std::string rxLocationFileName = "./data/RX_Urban_Canyon_Debug.dat";
@@ -39,7 +41,7 @@ int main()
 	int maxReflection = 2; 
 	int maxTransmission = 0;
 
-#if DEBUG
+#if DEBUG_LEVEL > 0
 	std::cout << "\tTX Pattern File Name  -> " << txPatternFileName << std::endl;
 	std::cout << "\tRX Location File Name -> " << rxLocationFileName << std::endl;
 	std::cout << "\tSTL File Name         -> " << stlFileName << std::endl;
@@ -47,9 +49,10 @@ int main()
 	std::cout << "\tTransmit Power        -> " << Pt << std::endl;
 	std::cout << "\tMax Reflection        -> " << maxReflection << std::endl;
 	std::cout << "\tMax Transmission      -> " << maxTransmission << std::endl;
+	std::cout << "[Entering] Preprocessor" << std::endl;
 #endif
 
-	std::cout << "[Entering] Preprocessor" << std::endl;
+	
 	// Preprocessor Begin
 	// GainMap txPattern;
 	VecVec3 rxLocation;
@@ -68,13 +71,11 @@ int main()
 	bvh.ConstructBVH(triangle_mesh);
 	// Preprocessor End
 
-#if DEBUG
-	std::cout << "\tTotal Time in Preprocessor -> " << timer.getTime() << std::endl;
+#if DEBUG_LEVEL > 1
+	std::cout << "Total Time in Preprocessor -> " << timer.getTime() << std::endl;
 	// bvh.SaveAsVtk(bvhFileName);
-#endif
-
 	std::cout << "[Leaving] Preprocessor" << std::endl;
-
+#endif
 	
 	// Vec3 rayOrig{ -10, 0,1 }; // for bahen stl file
 	// Vec3 rayOrig{ 0.835938, 4.53906, 2.5 }; // for ibwave office
@@ -143,4 +144,5 @@ int main()
 	rayTracer->SaveFieldAsCsv(csvFieldFileName);
 
 	delete rayTracer;
+	std::cout << "[Leaving] main ..." << std::endl;
 }

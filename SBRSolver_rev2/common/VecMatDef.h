@@ -100,12 +100,15 @@ inline Mat3 TransformationMatrix(double theta, double phi, bool sph2Cart)
 
 inline Vec3 RotateToNewCoordSys(const Vec3& v, const Mat3& oldSys, const Mat3& newSys)
 {
-	return RotationMatrix(oldSys, newSys) * v;
+	Mat3 rotationMatrix = RotationMatrix(oldSys, newSys);
+	Vec3 result = rotationMatrix.transpose()* v;
+	return result;
+	//return RotationMatrix(oldSys, newSys) * v;
 }
 
 inline Vec3c RotateToNewCoordSys(const Vec3c& v, const Mat3& oldSys, const Mat3& newSys)
 {
-	return RotationMatrix(oldSys, newSys) * v;
+	return RotationMatrix(oldSys, newSys).transpose() * v;
 }
 
 inline Vec3 SphericalToCartesianVector(const Vec3& v, double theta, double phi)
