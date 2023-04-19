@@ -1,7 +1,7 @@
 #pragma once
 #include <complex>
 #include "Ray.h"
-#include "common/Constants.h"
+#include "common/Global.h"
 #include "common/DataStructures.h"
 #include "common/VecMatDef.h"
 #include "RTSolver.h"
@@ -93,6 +93,6 @@ public:
 		cdouble& ref_coeff, cdouble& tran_coeff
 	);
 	cdouble GetTransAngle(double thetaIncident, cdouble epsilonIncident, cdouble epsilonTransmit);
-	Mat3 GetSurfCoordSys(const Vec3& n, const Ray& rayIncident);
+	Mat3 GetSurfCoordSys(const int& hitSurfId, const Ray& rayIncident);
 	Vec3c GetAnalyticEfieldPattern(int antennaType, double theta, double phi, double pt);
 };

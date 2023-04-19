@@ -53,6 +53,11 @@ inline Vec3 Reflect(const Vec3& i, const Vec3& n)
 	return i - 2.0 * n * n.dot(i);
 }
 
+inline double ConstrainAngleTo90(double angle)
+{
+	return angle > EIGEN_PI / 2.0 ? angle - EIGEN_PI / 2.0 : angle;
+}
+
 inline double AngleBetween(Vec3 v1, Vec3 v2, bool alreadyNormalized = false, bool resulInRadian = false)
 {
 	if (!alreadyNormalized)

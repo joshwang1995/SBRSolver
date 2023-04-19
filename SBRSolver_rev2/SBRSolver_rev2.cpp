@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 #include "BVH/BVH.h"
+#include "common/Global.h"
 #include "common/VecMatDef.h"
 #include "Icosahedron.h"
 #include "StlReader.h"
@@ -12,9 +13,6 @@
 #include "timer/Timer.h"
 #include "Ray.h"
 #include "RTSolver.h"
-
-#define DEBUG_LEVEL 0
-#define SAVE_BVH 0
 
 int main()
 {
@@ -72,8 +70,10 @@ int main()
 	// Preprocessor End
 
 #if DEBUG_LEVEL > 1
-	std::cout << "Total Time in Preprocessor -> " << timer.getTime() << std::endl;
-	// bvh.SaveAsVtk(bvhFileName);
+	std::cout << "Preprocessor Finished... Total Time -> " << timer.getTime() << std::endl;
+#if SAVE_BVH
+	bvh.SaveAsVtk(bvhFileName);
+#endif
 	std::cout << "[Leaving] Preprocessor" << std::endl;
 #endif
 	
@@ -138,11 +138,24 @@ int main()
 	);
 
 	// rayTracer->CmdLineDebug();
+#if SAVE_PATHS_VTK
 	rayTracer->SavePathsAsVtk(rayPathFileName);
+#endif
+#if SAVE_TX_VTK
 	rayTracer->SaveIcosahedronAsVtk(icosahedronFileName,rayOrig, tessllation);
+#endif
+#if SAVE_RX_VTK
 	rayTracer->SaveReceiversAsVtk(rxLocationOutputFileName);
+#endif
+#if SAVE_FIELD_CSV
 	rayTracer->SaveFieldAsCsv(csvFieldFileName);
+#endif
 
 	delete rayTracer;
+
+#if DEBUG_LEVEL > 0
 	std::cout << "[Leaving] main ..." << std::endl;
+#endif
+
+	return 0;
 }

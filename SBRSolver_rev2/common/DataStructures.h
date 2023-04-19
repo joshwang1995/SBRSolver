@@ -1,7 +1,7 @@
 #pragma once
 
 #include "VecMatDef.h"
-#include "Constants.h"
+#include "Global.h"
 #include <map>
 #include <vector>
 

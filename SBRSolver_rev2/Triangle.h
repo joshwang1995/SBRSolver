@@ -3,7 +3,7 @@
 #include "common/VecMatDef.h"
 #include "BVH/BVHNode.h"
 #include "common/DataStructures.h"
-#include "common/Constants.h"
+#include "common/Global.h"
 
 class Triangle
 {

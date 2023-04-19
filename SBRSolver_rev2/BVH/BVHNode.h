@@ -3,7 +3,7 @@
 //
 #pragma once
 #include "../common/VecMatDef.h"
-#include "../common/Constants.h"
+#include "../common/Global.h"
 
 template <typename T>
 class BVHNode

@@ -30,9 +30,6 @@
     <ClCompile Include="timer\Timer.cpp">
       <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GlobalConfig.cpp">
-      <Filter>Resource Files\Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="RTSolver.cpp">
       <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
@@ -50,7 +47,7 @@
     <ClInclude Include="BVH\BVHNode.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="common\Constants.h">
+    <ClInclude Include="common\Global.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="common\VecMatDef.h">
@@ -72,9 +69,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="timer\Timer.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="GlobalConfig.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="RTSolver.h">

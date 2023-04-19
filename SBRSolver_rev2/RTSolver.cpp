@@ -119,7 +119,7 @@ int RTSolver::ExecuteRayTracing
 		RemoveDuplicatePath(k);
 		_efield->push_back(fieldCore->FieldAtReceiver(k));
 	}
-#if DEBUG
+#if DEBUG_LEVEL > 1
 	std::cout << "\tTotal Time in for loop -> " << timer.getTime() << std::endl;
 #endif
 	delete fieldCore;
@@ -511,9 +511,9 @@ void RTSolver::CmdLineDebug()
 bool RTSolver::SavePathsAsVtk(std::string fname)
 {
 	using namespace std;
-
+#if DEBUG_LEVEL > 0
 	cout << "[Entering] RTSolver::SavePathsAsVtk ..." << endl;
-
+#endif
 	ofstream ofs;
 	ofs.open(fname);
 
@@ -604,7 +604,7 @@ bool RTSolver::SavePathsAsVtk(std::string fname)
 	}
 
 	ofs.close();
-#if DEBUG
+#if DEBUG_LEVEL > 1
 	cout << "\tSaved " << lineIdx.size() << " ray paths into " << fname << endl;
 	cout << "[Leaving] RTSolver::SavePathsAsVtk" << endl;
 #endif
@@ -614,7 +614,7 @@ bool RTSolver::SavePathsAsVtk(std::string fname)
 bool RTSolver::SaveReceiversAsVtk(std::string fname)
 {
 	using namespace std;
-#if DEBUG
+#if DEBUG_LEVEL > 1
 	cout << "[Entering] RTSolver::SaveReceiversAsVtk ..." << endl;
 #endif
 	ofstream ofs;
@@ -685,7 +685,7 @@ bool RTSolver::SaveReceiversAsVtk(std::string fname)
 	}
 
 	ofs.close();
-#if DEBUG
+#if DEBUG_LEVEL > 1
 	cout << "\tSaved " << _receiverCount << " receiver info into " << fname << endl;
 	cout << "[Leaving] RTSolver::SaveReceiversAsVtk" << endl;
 #endif
@@ -695,7 +695,7 @@ bool RTSolver::SaveReceiversAsVtk(std::string fname)
 bool RTSolver::SaveFieldAsCsv(std::string fname)
 {
 	using namespace std;
-#if DEBUG
+#if DEBUG_LEVEL > 1
 	cout << "[Entering] RTSolver::SaveFieldAsCsv ..." << endl;
 #endif 
 	ofstream ofs;
@@ -714,19 +714,19 @@ bool RTSolver::SaveFieldAsCsv(std::string fname)
 			<< _efield->at(i).y().real() << _efield->at(i).y().imag() << "i" << ","
 			<< _efield->at(i).z().real() << _efield->at(i).z().imag() << "i" << endl;
 	}
-#if DEBUG
+#if DEBUG_LEVEL > 1
 	cout << "\tSaved " << _receiverCount << " received field into " << fname << endl;
 	cout << "[Leaving] RTSolver::SaveFieldAsCsv ..." << endl;
-#endif DEBUG
+#endif
 	return true;
 }
 
 bool RTSolver::SaveIcosahedronAsVtk(std::string fname, Vec3 rayOrg, int tessellation)
 {
 	using namespace std;
-
+#if DEBUG_LEVEL > 1
 	cout << "[Entering] RTSolver::SaveIcosahedronAsVtk ..." << endl;
-
+#endif
 	ofstream ofs;
 	ofs.open(fname);
 
@@ -764,9 +764,10 @@ bool RTSolver::SaveIcosahedronAsVtk(std::string fname, Vec3 rayOrg, int tessella
 	}
 
 	ofs.close();
+#if DEBUG_LEVEL > 1
 	cout << "\tSaved " << _shootRayList->size() << " ray paths into " << fname << endl;
 	cout << "[Leaving] RTSolver::SaveIcosahedronAsVtk" << endl;
-
+#endif
 	return true;
 }
 

@@ -3,7 +3,7 @@
 #include "Ray.h"
 #include "timer/Timer.h"
 #include "common/VecMatDef.h"
-#include "common/Constants.h"
+#include "common/Global.h"
 #include "common/DataStructures.h"
 #include "Icosahedron.h"
 #include "Triangle.h"

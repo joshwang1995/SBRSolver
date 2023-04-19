@@ -6,6 +6,7 @@
 #include <vector>
 #include <queue>
 #include "common/VecMatDef.h"
+#include "common/Global.h"
 #include "common/DataStructures.h"
 #include "Triangle.h"
 #include "StlReader.h"

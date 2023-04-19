@@ -108,30 +108,7 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 
 		/* Updating the coordinate systems*/
 		currentCoordSys = nextCoordSys;
-		if (ray.hitSurfaceID == -1)
-		{
-			// The next hit is the transmitter
-			nextCoordSys = globalCoordSys;
-		}
-		else
-		{
-			// Get the surface coordinate system of the next hit surface
-			// nextCoordSys = GetSurfCoordSys(_triangleMesh->at(ray.hitSurfaceID)->norm, ray);
-			
-			int surf_id = ray.hitSurfaceID;
-			if (surf_id == 0 || surf_id == 1)
-			{
-				nextCoordSys = Mat3{ {0,0,1},{1,0,0},{0,1,0} };
-			}
-			else if (surf_id == 2 || surf_id == 3)
-			{
-				nextCoordSys = Mat3{ {1,0,0},{0,0,1},{0,-1,0} };
-			}
-			else
-			{
-				nextCoordSys = Mat3::Identity();
-			}
-		}
+		nextCoordSys = GetSurfCoordSys(ray.hitSurfaceID, ray);
 		cout << "\t\tUpdated Current Coordinate System: " << currentCoordSys.format(CleanFmt) << endl;
 		cout << "\t\tUpdated Next Coordinate System: " << nextCoordSys.format(CleanFmt) << endl;
 
@@ -230,7 +207,7 @@ Vec3c FieldCompute::ComputeRefcField(const Vec3& vecGlobal, const Vec3c& efield_
 	cdouble epsilon_i(1, 0);
 	
 	// Get theta_i and theta_t
-	double theta_i = AngleBetween(vecGlobal, currentCoordSys(2, Eigen::indexing::all), false, true);
+	double theta_i = ConstrainAngleTo90(AngleBetween(vecGlobal, currentCoordSys(2, Eigen::indexing::all), false, true));
 	cdouble theta_t = GetTransAngle(theta_i, epsilon_i, epsilon_t);
 
 	cdouble refTE, refTM, transTE, transTM;
@@ -257,7 +234,7 @@ Vec3c FieldCompute::ComputeTransField(const Vec3& vecGlobal, const Vec3c& efield
 	cdouble epsilon_i(1, 0);
 
 	// Get theta_i and theta_t
-	double theta_i = AngleBetween(vecGlobal, currentCoordSys(2, Eigen::indexing::all), false, true);
+	double theta_i = ConstrainAngleTo90(AngleBetween(vecGlobal, currentCoordSys(2, Eigen::indexing::all), false, true));
 	cdouble theta_t = GetTransAngle(theta_i, epsilon_i, epsilon_t);
 
 	cdouble refTE, refTM, transTE, transTM;
@@ -343,10 +320,30 @@ inline cdouble FieldCompute::GetTransAngle(double thetaIncident, cdouble epsilon
 	return theta_t;
 }
 
-Mat3 FieldCompute::GetSurfCoordSys(const Vec3& n, const Ray& rayIncident)
+Mat3 FieldCompute::GetSurfCoordSys(const int& hitSurfId, const Ray& rayIncident)
 {
+	// Handle the case where the next hit Surfac is a receiver
+	if (hitSurfId == -1)
+	{
+		return globalCoordSys;
+	}
+
+	// DEBUGGING
+	if (hitSurfId == 0 || hitSurfId == 1)
+	{
+		return Mat3{ {0,0,1},{1,0,0},{0,1,0} };
+	}
+	else if (hitSurfId == 2 || hitSurfId == 3)
+	{
+		return Mat3{ {1,0,0},{0,0,1},{0,-1,0} };
+	}
+	else
+	{
+		return globalCoordSys;
+	}
+
 	// Fail-safe procedure: ensure both ray direction and wall norm is unit vector
-	Vec3 normal = n.normalized();
+	Vec3 normal = _triangleMesh->at(hitSurfId)->norm;
 	Vec3 rayDir = (rayIncident.targetPoint - rayIncident.sourcePoint).normalized();
 
 	// This would fail if the normal and rayDir are not unit vectors

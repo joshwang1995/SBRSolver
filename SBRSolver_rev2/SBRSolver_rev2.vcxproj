@@ -131,7 +131,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="FieldCompute.cpp" />
-    <ClCompile Include="GlobalConfig.cpp" />
     <ClCompile Include="Icosahedron.cpp" />
     <ClCompile Include="Preprocessor.cpp" />
     <ClCompile Include="Ray.cpp" />
@@ -143,11 +142,10 @@
   <ItemGroup>
     <ClInclude Include="BVH\BVH.h" />
     <ClInclude Include="BVH\BVHNode.h" />
-    <ClInclude Include="common\Constants.h" />
+    <ClInclude Include="common\Global.h" />
     <ClInclude Include="common\DataStructures.h" />
     <ClInclude Include="common\VecMatDef.h" />
     <ClInclude Include="FieldCompute.h" />
-    <ClInclude Include="GlobalConfig.h" />
     <ClInclude Include="Icosahedron.h" />
     <ClInclude Include="Preprocessor.h" />
     <ClInclude Include="Ray.h" />
