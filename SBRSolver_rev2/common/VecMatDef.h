@@ -5,6 +5,7 @@
 
 #include <Eigen/Dense>
 #include <Eigen/StdVector>
+#include "Global.h"
 
 // #define Dynamic Eigen::Dynamic
 
@@ -48,14 +49,27 @@ typedef std::vector<std::complex<double>>    Vecc;
 typedef std::vector<double>    Vecd;
 typedef Eigen::dcomplex cdouble;
 
+template<typename T>
+constexpr T ConstrainAngleTo90(T angle)
+{
+	return angle > PI / 2.0 ? static_cast<T>(angle - PI / 2.0) : angle;
+}
+
+template<typename T>
+constexpr T Deg2Rad(T angle_deg)
+{
+	return static_cast<T>(angle_deg * (PI / 180.0));
+}
+
+template<typename T>
+constexpr T Rad2Deg(T angle_rad)
+{
+	return static_cast<T>(angle_rad * (180.0 / PI));
+}
+
 inline Vec3 Reflect(const Vec3& i, const Vec3& n)
 {
 	return i - 2.0 * n * n.dot(i);
-}
-
-inline double ConstrainAngleTo90(double angle)
-{
-	return angle > EIGEN_PI / 2.0 ? angle - EIGEN_PI / 2.0 : angle;
 }
 
 inline double AngleBetween(Vec3 v1, Vec3 v2, bool alreadyNormalized = false, bool resulInRadian = false)
@@ -71,14 +85,14 @@ inline double AngleBetween(Vec3 v1, Vec3 v2, bool alreadyNormalized = false, boo
 
 	if (ratio < 0)
 	{
-		theta = static_cast<double>(EIGEN_PI - 2.0 * std::asin((-v1 - v2).norm() / 2.0));
+		theta = static_cast<double>(PI - 2.0 * std::asin((-v1 - v2).norm() / 2.0));
 	}
 	else
 	{
 		theta = static_cast<double>(2.0 * std::asin((v1 - v2).norm() / 2.0));
 	}
 
-	return resulInRadian ? theta : (static_cast<double>(theta * (180.0 / EIGEN_PI)));
+	return resulInRadian ? theta : Rad2Deg(theta);
 }
 
 inline Mat3 RotationMatrix(const Mat3& oldSys, const Mat3& newSys)
@@ -105,15 +119,12 @@ inline Mat3 TransformationMatrix(double theta, double phi, bool sph2Cart)
 
 inline Vec3 RotateToNewCoordSys(const Vec3& v, const Mat3& oldSys, const Mat3& newSys)
 {
-	Mat3 rotationMatrix = RotationMatrix(oldSys, newSys);
-	Vec3 result = rotationMatrix.transpose()* v;
-	return result;
-	//return RotationMatrix(oldSys, newSys) * v;
+	return RotationMatrix(oldSys, newSys) * v;
 }
 
 inline Vec3c RotateToNewCoordSys(const Vec3c& v, const Mat3& oldSys, const Mat3& newSys)
 {
-	return RotationMatrix(oldSys, newSys).transpose() * v;
+	return RotationMatrix(oldSys, newSys) * v;
 }
 
 inline Vec3 SphericalToCartesianVector(const Vec3& v, double theta, double phi)
@@ -146,7 +157,7 @@ inline Vec3 CartesianToSpherical(const Vec3& v)
 	// theta
 	if (v.x() == 0.0 && v.y() == 0.0 && v.z() == 0.0)
 	{
-		result(1) = EIGEN_PI / 2;
+		result(1) = PI / 2;
 	}
 	else
 	{
@@ -157,7 +168,7 @@ inline Vec3 CartesianToSpherical(const Vec3& v)
 
 	// phi
 	result(2) = atan2(v.y(), v.x());
-	if (result(2) < 0) result(2) += 2*EIGEN_PI;
+	if (result(2) < 0) result(2) += TWOPI;
 
 	return result;
 }

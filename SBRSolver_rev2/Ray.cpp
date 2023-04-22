@@ -10,8 +10,7 @@ PathTreeNode* newPathTreeNode
 	int reflectionMaterialId,
 	int surfaceId,
 	int coplanarId,
-	double pathLength, 
-	double angleFromSurfaceNormal
+	double pathLength
 )
 {
 	PathTreeNode* result = new PathTreeNode;
@@ -22,7 +21,6 @@ PathTreeNode* newPathTreeNode
 	result->ray.reflectionMaterialId = reflectionMaterialId;
 	result->ray.hitSurfaceID = surfaceId;
 	result->ray.hitCoplanarId = coplanarId;
-	result->ray.angleFromSurfaceNormal = angleFromSurfaceNormal;
 	result->ray.pathLength = pathLength;
 	result->childTransmit = nullptr;
 	result->childReflect = nullptr;
@@ -79,7 +77,6 @@ PathTreeNode* CloneNode(PathTreeNode* node)
 		newNode->ray.hitSurfaceID = node->ray.hitSurfaceID;
 		newNode->ray.hitCoplanarId = node->ray.hitCoplanarId;
 		newNode->ray.captured = node->ray.captured;
-		newNode->ray.angleFromSurfaceNormal = node->ray.angleFromSurfaceNormal;
 		return newNode;
 	}
 	return nullptr;

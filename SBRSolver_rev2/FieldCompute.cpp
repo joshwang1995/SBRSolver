@@ -11,7 +11,6 @@ FieldCompute::~FieldCompute()
 Vec3c FieldCompute::FieldAtReceiver(int receiverId)
 {
 	std::cout << "\n[Entering] FieldAtReceiver..." << std::endl;
-
 	Vec3c totalField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
 
 	// Get all paths for the receiver
@@ -32,7 +31,7 @@ Vec3c FieldCompute::FieldAtReceiver(int receiverId)
 void FieldCompute::RefCoeffTest(int numPts, double freq, cdouble epsilon1, cdouble epsilon2, std::string fname)
 {
 	double lamda = SPEED_OF_LIGHT / freq;
-	Vec thetaArray = Vec::LinSpaced(numPts, 0.0, EIGEN_PI / 2);
+	Vec thetaArray = Vec::LinSpaced(numPts, 0.0, PI / 2);
 
 	std::ofstream ofs;
 	ofs.open(fname);
@@ -44,7 +43,7 @@ void FieldCompute::RefCoeffTest(int numPts, double freq, cdouble epsilon1, cdoub
 		theta_t = GetTransAngle(theta_i, epsilon1, epsilon2);
 		GetTMCoeff(theta_i, theta_t, epsilon1, epsilon2, 0.0, true, refTM, transTM);
 		GetTECoeff(theta_i, theta_t, epsilon1, epsilon2, 0.0, true, refTE, transTE);
-		ofs << theta_i * (180.0/EIGEN_PI) << "," << std::abs(refTM) << "," << std::arg(refTM) << ",";
+		ofs << Rad2Deg(theta_i) << "," << std::abs(refTM) << "," << std::arg(refTM) << ",";
 		ofs << std::abs(refTE) << "," << std::arg(refTE) << std::endl;
 	}
 
@@ -54,7 +53,7 @@ void FieldCompute::RefCoeffTest(int numPts, double freq, cdouble epsilon1, cdoub
 void FieldCompute::TransCoeffTest(int numPts, double freq, cdouble epsilon1, cdouble epsilon2, std::string fname)
 {
 	double lamda = SPEED_OF_LIGHT / freq;
-	Vec thetaArray = Vec::LinSpaced(numPts, 0.0, EIGEN_PI / 2);
+	Vec thetaArray = Vec::LinSpaced(numPts, 0.0, PI / 2);
 
 	std::ofstream ofs;
 	ofs.open(fname);
@@ -66,7 +65,7 @@ void FieldCompute::TransCoeffTest(int numPts, double freq, cdouble epsilon1, cdo
 		theta_t = GetTransAngle(theta_i, epsilon1, epsilon2);
 		GetTMCoeff(theta_i, theta_t, epsilon1, epsilon2, 0.0, true, refTM, transTM);
 		GetTECoeff(theta_i, theta_t, epsilon1, epsilon2, 0.0, true, refTE, transTE);
-		ofs << theta_i * (180.0 / EIGEN_PI) << "," << std::abs(transTM) << "," << std::arg(transTM) << ",";
+		ofs << Rad2Deg(theta_i) << "," << std::abs(transTM) << "," << std::arg(transTM) << ",";
 		ofs << std::abs(transTE) << "," << std::arg(transTE) << std::endl;
 	}
 
@@ -85,6 +84,8 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 	Vec3c incidentField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
 	Vec3c totalField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
 	double totalPathLength = 0.0;
+	double theta_prev = 0.0;
+	double phi_prev = 0.0;
 	
 	for (int i = 0; i < int(path.size()); i++)
 	{
@@ -101,10 +102,14 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 		double phi = vecSph(2);
 		totalPathLength += r;
 
+		cout << "\t\tSource Point: " << ray.sourcePoint.transpose().format(CleanFmt) << endl;
+		cout << "\t\tTarget Point: " << ray.targetPoint.transpose().format(CleanFmt) << endl;
+		cout << "\t\tHit Surface ID: " << ray.hitSurfaceID << endl;
+		cout << "\t\tHit Surface Normal: " << _triangleMesh->at(ray.hitSurfaceID > -1 ? ray.hitSurfaceID:0)->norm.transpose().format(CleanFmt) << endl;
 		cout << "\t\tRay vector global cartesian: " << vecGlobal.transpose().format(CleanFmt) << endl;
 		cout << "\t\tRotate ray from global to this coordinate system: " << nextCoordSys.format(CleanFmt) << endl;
 		cout << "\t\tRay vector rotated to local: " << vecLocal.transpose().format(CleanFmt) << endl;
-		cout << "\t\tRay vector in local spherical coodinates: " << r << ", " << theta * (180.0 / PI) << ", " << phi * (180.0 / PI) << endl;
+		cout << "\t\tRay vector in local spherical coodinates: " << r << ", " << Rad2Deg(theta) << ", " << Rad2Deg(phi) << endl;
 
 		/* Updating the coordinate systems*/
 		currentCoordSys = nextCoordSys;
@@ -118,40 +123,38 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 			// The first ray is always from TX to the next facet or receiver
 			// Get either the gain from the TX or an analytical pattern
 			// E(r,theta,phi) = E(0) * exp(-jkr)/r
-			// E(0) need to be calculated from the field coefficient sqrt(eta * Pr * Gain / 2Pi)
+			// E(0) need to be calculated from the field coefficient sqrt(eta * Pr * Gain / 2Pi) 
 			incidentField = GetAnalyticEfieldPattern(0, theta, phi, txPower); // local spherical
 		}
 		else
 		{
+			std::cout << "\t\tIncident Field Before Rotation: " << totalField.transpose().format(CleanFmt) << std::endl;
 			incidentField = RotateToNewCoordSys(totalField, globalCoordSys,currentCoordSys);
-			incidentField = CartesianToSphericalVector(incidentField, theta, phi);
+			std::cout << "\t\tIncident Field After Rotation: " << incidentField.transpose().format(CleanFmt) << std::endl;
+			incidentField = CartesianToSphericalVector(incidentField, theta_prev, phi_prev);
+			std::cout << "\t\tIncident Field from Catesian to Spherical: " << incidentField.transpose().format(CleanFmt) << std::endl;
 		}
 
 		/* Updating the reflected or transmitted field*/
 		if (ray.reflectionMaterialId >= 0)
 		{
-			//double incidentAngle = AngleBetween(vecGlobal, currentCoordSys(2,Eigen::indexing::all), false, true);
-			//double relPerm = _materials[ray.reflectionMaterialId].relPermittivityRe;
-			//double sigma = _materials[ray.reflectionMaterialId].relConductivity;
 			totalField = ComputeRefcField(vecGlobal, incidentField, ray.reflectionMaterialId, currentCoordSys, nextCoordSys); // local spherical
-
-			//totalField = ComputeRefcField(incidentField, relPerm, sigma, _frequency, incidentAngle, 0, _useFresnelCoeff); // local spherical
 		}
 		else if (ray.penetrationMaterialId >= 0)
 		{
-			// totalField = ComputeTransField(incidentField, relPerm, sigma, frequency, incidentAngle, 0, useFresnelCoeff);
 			totalField = ComputeTransField(vecGlobal, incidentField, ray.penetrationMaterialId, currentCoordSys, nextCoordSys); // local spherical
 		}
 		else
 		{
 			totalField = incidentField;
 		}
-		//std::cout << "Total Field Before Rotation: " << totalField << std::endl;
+		std::cout << "\t\tTotal Field in Spherical Coordinates Before Rotation: " << totalField.transpose().format(CleanFmt) << std::endl;
 		// Need to do: add a case where receiver gain can be applied here
 		totalField = SphericalToCartesianVector(totalField, theta, phi);
 		totalField = RotateToNewCoordSys(totalField, currentCoordSys, globalCoordSys);
-		//std::cout << "Total Field After Rotation: " << totalField << std::endl;
-
+		std::cout << "\t\tTotal Field After Rotation: " << totalField.transpose().format(CleanFmt) << std::endl;
+		theta_prev = theta;
+		phi_prev = phi;
 	}
 	totalField = totalField * exp(-j * k * totalPathLength) / totalPathLength;
 
@@ -310,6 +313,8 @@ void FieldCompute::GetTMCoeff(cdouble theta_i, cdouble theta_t, cdouble rel_perm
 	}
 }
 
+//inline double FieldCompute::GetIncidentAngle(const)
+
 inline cdouble FieldCompute::GetTransAngle(double thetaIncident, cdouble epsilon_i, cdouble epsilon_t)
 {
 	// Snell's Law
@@ -328,12 +333,16 @@ Mat3 FieldCompute::GetSurfCoordSys(const int& hitSurfId, const Ray& rayIncident)
 		return globalCoordSys;
 	}
 
+	// Fail-safe procedure: ensure both ray direction and wall norm is unit vector
+	Vec3 normal = _triangleMesh->at(hitSurfId)->norm;
+
+	
 	// DEBUGGING
-	if (hitSurfId == 0 || hitSurfId == 1)
+	if (normal.y() == 1)
 	{
 		return Mat3{ {0,0,1},{1,0,0},{0,1,0} };
 	}
-	else if (hitSurfId == 2 || hitSurfId == 3)
+	else if (normal.y() == -1)
 	{
 		return Mat3{ {1,0,0},{0,0,1},{0,-1,0} };
 	}
@@ -342,8 +351,6 @@ Mat3 FieldCompute::GetSurfCoordSys(const int& hitSurfId, const Ray& rayIncident)
 		return globalCoordSys;
 	}
 
-	// Fail-safe procedure: ensure both ray direction and wall norm is unit vector
-	Vec3 normal = _triangleMesh->at(hitSurfId)->norm;
 	Vec3 rayDir = (rayIncident.targetPoint - rayIncident.sourcePoint).normalized();
 
 	// This would fail if the normal and rayDir are not unit vectors

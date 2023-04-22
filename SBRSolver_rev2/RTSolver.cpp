@@ -76,8 +76,11 @@ int RTSolver::ExecuteRayTracing
 
 	InitRayPaths();
 
+#if DEBUG_LEVEL > 1
 	Timer timer;
 	timer.start();
+#endif
+
 // #pragma omp parallel for collapse(2)
 	for (int i = 0; i < _pathsCount; i++)
 	{
@@ -85,7 +88,7 @@ int RTSolver::ExecuteRayTracing
 		rootNode.ray.id = RayGlobalId++;
 		rootNode.childTransmit = nullptr;
 		rootNode.childReflect = nullptr;
-		RayLaunch(&rootNode, sourcePoint, _shootRayList->at(i), -1, -1, 0, 0, 0, true, INF);
+		RayLaunch(&rootNode, sourcePoint, _shootRayList->at(i), -1, -1, 0, 0, 0, true);
 		for (int j = 0; j < _receiverCount; j++)
 		{
 			PathTreeNode* cloneRoot = CloneNode(&rootNode);
@@ -136,8 +139,7 @@ void RTSolver::RayLaunch
 	int reflectionCnt, 
 	int transmissionCnt, 
 	double totalPathLength,
-	bool isRoot, 
-	double lastAnglefromN
+	bool isRoot
 )
 {
 	if (reflectionCnt > _maxReflectionCount && transmissionCnt > _maxTransmissionCount)
@@ -150,7 +152,6 @@ void RTSolver::RayLaunch
 
 	if (hasHit)
 	{
-		double anglefromN = AngleBetween(hitResult.normal, directionPoint);
 		PathTreeNode* newRayTreeNode = rayTreeNode;
 		if (!isRoot)
 		{
@@ -162,8 +163,7 @@ void RTSolver::RayLaunch
 				refMaterialID,
 				hitResult.triangelId,
 				hitResult.coplanarId,
-				totalPathLength + hitResult.distance,
-				lastAnglefromN
+				totalPathLength + hitResult.distance
 			);
 
 			if (refMaterialID >= 0)
@@ -181,7 +181,6 @@ void RTSolver::RayLaunch
 			rayTreeNode->ray.hitSurfaceID = hitResult.triangelId;
 			rayTreeNode->ray.hitCoplanarId = hitResult.coplanarId;
 			rayTreeNode->ray.pathLength = hitResult.distance;
-			rayTreeNode->ray.angleFromSurfaceNormal = lastAnglefromN;
 		}
 
 		if (reflectionCnt < _maxReflectionCount)
@@ -198,8 +197,7 @@ void RTSolver::RayLaunch
 				reflectionCnt + 1,
 				transmissionCnt,
 				totalPathLength + hitResult.distance,
-				false, 
-				anglefromN
+				false
 			);
 		}
 
@@ -216,8 +214,7 @@ void RTSolver::RayLaunch
 				reflectionCnt,
 				transmissionCnt + 1,
 				totalPathLength + hitResult.distance,
-				false,
-				anglefromN
+				false
 			);
 		}
 
@@ -234,8 +231,7 @@ void RTSolver::RayLaunch
 				refMaterialID,
 				-1,
 				-1,
-				INF,
-				lastAnglefromN
+				INF
 			);
 			if (refMaterialID >= 0)
 				rayTreeNode->childReflect = newNode;
@@ -350,7 +346,6 @@ bool RTSolver::MultiPathCorrection(std::vector<Ray>& multiPath, int receiverId, 
 			multiPath.at(i).sourcePoint = imgSrc;
 			multiPath.at(i).targetPoint = targetPoint;
 			multiPath.at(i).pathLength = (targetPoint - result.pointIntersect).norm();
-			multiPath.at(i).angleFromSurfaceNormal = INF;
 		}
 		else
 		{
@@ -361,7 +356,6 @@ bool RTSolver::MultiPathCorrection(std::vector<Ray>& multiPath, int receiverId, 
 				multiPath.at(i).sourcePoint = result.pointIntersect;
 				multiPath.at(i).targetPoint = targetPoint;
 				multiPath.at(i).pathLength = (targetPoint - result.pointIntersect).norm();
-				multiPath.at(i).angleFromSurfaceNormal = AngleBetween(triangleMesh[hitSurfId]->norm, targetPoint - result.pointIntersect);
 				targetPoint = result.pointIntersect;
 			}
 			else
@@ -500,7 +494,6 @@ void RTSolver::CmdLineDebug()
 					cout << "\t\t\t\t Penetration Material: " << _rayPaths[i][j].rayPaths[k][l].penetrationMaterialId << endl;
 					cout << "\t\t\t\t Path Length: " << _rayPaths[i][j].rayPaths[k][l].pathLength << endl;
 					cout << "\t\t\t\t Hit Triangle ID: " << _rayPaths[i][j].rayPaths[k][l].hitSurfaceID << endl;
-					cout << "\t\t\t\t Angle From Surface Normal: " << _rayPaths[i][j].rayPaths[k][l].angleFromSurfaceNormal << endl;
 					cout << "\t\t\t\t Captured: " << _rayPaths[i][j].rayPaths[k][l].captured << endl;
 				}
 			}
@@ -594,7 +587,7 @@ bool RTSolver::SavePathsAsVtk(std::string fname)
 		totalPhase = std::isfinite(totalPhase) ? totalPhase : 0.0;
 		if (std::isfinite(totalPhase))
 		{
-			totalPhase >= TWOPI ? (totalPhase - TWOPI) * (180.0 / PI) : totalPhase * (180.0 / PI);
+			totalPhase >= TWOPI ? Rad2Deg(totalPhase - TWOPI) : Rad2Deg(totalPhase);
 		}
 		else
 		{
@@ -675,7 +668,7 @@ bool RTSolver::SaveReceiversAsVtk(std::string fname)
 		totalPhase = std::isfinite(totalPhase) ? totalPhase : 0.0;
 		if (std::isfinite(totalPhase))
 		{
-			totalPhase >= TWOPI ? (totalPhase - TWOPI) * (180.0 / PI) : totalPhase * (180.0 / PI);
+			totalPhase >= TWOPI ? Rad2Deg(totalPhase - TWOPI) : Rad2Deg(totalPhase);
 		}
 		else
 		{
@@ -848,7 +841,7 @@ bool HitReceptionSphere
 
 	// Rappaport's approximation
 	// double unfoldedLength = pathLength + (sourcePoint + t0 * rayDir).norm();
-	// double alpha = (69.0 * PI / 180.0) / txTesslation;
+	// double alpha = Deg2Rad(69.0) / txTesslation;
 	// double sphereRadius = alpha * unfoldedLength / sqrt(3.0);
 
 	// double unfoldedLength = pathLength + (t0 * rayDir).norm();

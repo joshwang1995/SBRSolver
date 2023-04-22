@@ -20,7 +20,6 @@ struct Ray
 	int reflectionMaterialId = -1;
 	int hitSurfaceID = -1;
 	int hitCoplanarId = -1;
-	double angleFromSurfaceNormal = INF;
 	double pathLength = INF;
 	bool captured = false;
 	int id = -1;
@@ -49,8 +48,7 @@ PathTreeNode* newPathTreeNode
 	int reflectionMaterialId,
 	int surfaceId,
 	int coplanarId,
-	double pathLength,
-	double angleFromSurfaceNormal
+	double pathLength
 );
 PathTreeNode* DeleteChildNodes(PathTreeNode* node);
 PathTreeNode* CloneNode(PathTreeNode* node);

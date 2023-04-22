@@ -3,8 +3,12 @@
 #include <complex>
 #include <limits>
 
+// C4267 Warning is suppressed: size_t to int possible loss of data
+#pragma warning(push)
+#pragma warning(disable: 4267)
+
 // Preprocessor directive definitions
-#define DEBUG_LEVEL 0
+#define DEBUG_LEVEL 2
 #define SAVE_BVH_VTK false
 #define SAVE_PATHS_VTK true
 #define SAVE_TX_VTK true

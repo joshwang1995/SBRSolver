@@ -33,7 +33,6 @@ int main()
 	std::string edgesFileName = "./data/output/Edges.vtk";
 	std::string csvFieldFileName = "./data/output/ElectricField.csv";
 
-	Timer timer;
 	double freq = 0.9e9; // frequency
 	double Pt = 1; // transmit power in Watt
 	int maxReflection = 2; 
@@ -56,8 +55,10 @@ int main()
 	VecVec3 rxLocation;
 	std::vector<Triangle*> triangle_mesh;
 	BVH<Triangle> bvh;
-
+#if DEBUG_LEVEL > 1
+	Timer timer;
 	timer.start();
+#endif
 	// Preprocessor::ReadPatternFile(txPatternFileName, txPattern);
 	// Preprocessor::GenerateRxPlane(-18, -40, -17, 0, 1, 1, rxLocation);
 	// Preprocessor::GenerateRxPlane(-1 , 0 , 1, 10, 3, 1, rxLocation); 
