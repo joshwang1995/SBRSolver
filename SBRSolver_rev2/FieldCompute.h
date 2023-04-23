@@ -61,20 +61,18 @@ public:
 
 	Vec3c ComputeRefcField
 	(
-		const Vec3& vecGlobal,
-		const Vec3c& efield_i_sph,
+		const Vec3& k_i,
+		const Vec3c& efieldGlobal,
 		int materialId,
-		const Mat3& currentCoordSys,
-		const Mat3& nextCoordSys
+		const Mat3& surfCoordSys
 	);
 
 	Vec3c ComputeTransField
 	(
-		const Vec3& vecGlobal,
-		const Vec3c& efield_i_sph,
-		int materialId,
-		const Mat3& currentCoordSys,
-		const Mat3& nextCoordSys
+		const Vec3& k_i, 
+		const Vec3c& efieldGlobal, 
+		int materialId, 
+		const Mat3& surfCoordSys
 	);
 
 	void GetTECoeff
@@ -92,6 +90,7 @@ public:
 		double width, bool inf_wall,
 		cdouble& ref_coeff, cdouble& tran_coeff
 	);
+	double GetIncidentAngle(const Vec3& v, const Vec3& normal);
 	cdouble GetTransAngle(double thetaIncident, cdouble epsilonIncident, cdouble epsilonTransmit);
 	Mat3 GetSurfCoordSys(const int& hitSurfId, const Ray& rayIncident);
 	Vec3c GetAnalyticEfieldPattern(int antennaType, double theta, double phi, double pt);

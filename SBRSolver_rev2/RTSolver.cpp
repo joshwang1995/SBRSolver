@@ -77,6 +77,7 @@ int RTSolver::ExecuteRayTracing
 	InitRayPaths();
 
 #if DEBUG_LEVEL > 1
+	std::cout << "[Entering] RTSolver::ExecuteRayTracing" << std::endl;
 	Timer timer;
 	timer.start();
 #endif
@@ -123,7 +124,8 @@ int RTSolver::ExecuteRayTracing
 		_efield->push_back(fieldCore->FieldAtReceiver(k));
 	}
 #if DEBUG_LEVEL > 1
-	std::cout << "\tTotal Time in for loop -> " << timer.getTime() << std::endl;
+	std::cout << "\tRayTracer Finished... Total Time -> " << timer.getTime() << std::endl;
+	std::cout << "[Leaving] RTSolver::ExecuteRayTracing" << std::endl;
 #endif
 	delete fieldCore;
 	return _pathsCount * _receiverCount;

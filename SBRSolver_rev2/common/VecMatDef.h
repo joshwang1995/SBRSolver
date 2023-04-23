@@ -49,11 +49,6 @@ typedef std::vector<std::complex<double>>    Vecc;
 typedef std::vector<double>    Vecd;
 typedef Eigen::dcomplex cdouble;
 
-template<typename T>
-constexpr T ConstrainAngleTo90(T angle)
-{
-	return angle > PI / 2.0 ? static_cast<T>(angle - PI / 2.0) : angle;
-}
 
 template<typename T>
 constexpr T Deg2Rad(T angle_deg)
@@ -98,7 +93,7 @@ inline double AngleBetween(Vec3 v1, Vec3 v2, bool alreadyNormalized = false, boo
 inline Mat3 RotationMatrix(const Mat3& oldSys, const Mat3& newSys)
 {
 	Mat3 result = newSys * oldSys.transpose();
-	return result;
+	return result.transpose();
 }
 
 inline Mat3 TransformationMatrix(double theta, double phi, bool sph2Cart)
