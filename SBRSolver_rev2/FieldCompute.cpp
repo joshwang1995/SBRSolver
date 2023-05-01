@@ -10,7 +10,7 @@ FieldCompute::~FieldCompute()
 
 Vec3c FieldCompute::FieldAtReceiver(int receiverId)
 {
-	std::cout << "\n[Entering] FieldAtReceiver..." << std::endl;
+	//std::cout << "\n[Entering] FieldAtReceiver..." << std::endl;
 	Vec3c totalField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
 
 	// Get all paths for the receiver
@@ -19,12 +19,12 @@ Vec3c FieldCompute::FieldAtReceiver(int receiverId)
 		int numRayPaths = int(_rayPaths[i][receiverId].rayPaths.size());
 		for (int j = 0; j < numRayPaths; j++)
 		{
-			std::cout << "\nStart Field Computation for path " << i << " at receiver " << receiverId << std::endl;
+			//std::cout << "\nStart Field Computation for path " << i << " at receiver " << receiverId << std::endl;
 			totalField += FieldForPath(_rayPaths[i][receiverId].rayPaths[j]);
 		}
 	}
 
-	std::cout << "[Leaving] FieldAtReceiver...\n" << std::endl;
+	//std::cout << "[Leaving] FieldAtReceiver...\n" << std::endl;
 	return totalField;
 }
 
@@ -74,94 +74,67 @@ void FieldCompute::TransCoeffTest(int numPts, double freq, cdouble epsilon1, cdo
 
 Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 {
+#if DEBUG_LEVEL > 1
 	using namespace std;
 	Eigen::IOFormat CleanFmt(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", " ; ", "", "");
 	cout << "[Entering] FieldForPath..." << endl;
+#endif
 
-	//Mat3 currentCoordSys = globalCoordSys;
-	Mat3 nextCoordSys = txCoordSys;
-
-	Vec3c incidentField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
 	Vec3c totalField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
 	double totalPathLength = 0.0;
 	
 	for (int i = 0; i < int(path.size()); i++)
 	{
-		cout << "\tComputing field for Ray" << i << "..." << endl;
+		//cout << "\tComputing field for Ray" << i << "..." << endl;
 
 		// Extract information from current ray
 		const Ray& ray = path[i];
 		Vec3 vecGlobal = ray.targetPoint - ray.sourcePoint;
 		totalPathLength += vecGlobal.norm();
 
-		cout << "\t\tSource Point: " << ray.sourcePoint.transpose().format(CleanFmt) << endl;
-		cout << "\t\tTarget Point: " << ray.targetPoint.transpose().format(CleanFmt) << endl;
-		cout << "\t\tHit Surface ID: " << ray.hitSurfaceID << endl;
-		if (ray.hitSurfaceID > -1)
-		{
-			cout << "\t\tHit Surface Normal: " << _triangleMesh->at(ray.hitSurfaceID)->norm.transpose().format(CleanFmt) << endl;
-		}
-		cout << "\t\tRay vector global cartesian: " << vecGlobal.transpose().format(CleanFmt) << endl;
-		//cout << "\t\tRotate ray from global to this coordinate system: " << nextCoordSys.format(CleanFmt) << endl;
-		//cout << "\t\tRay vector rotated to local: " << vecLocal.transpose().format(CleanFmt) << endl;
-		//cout << "\t\tRay vector in local spherical coodinates: " << r << ", " << Rad2Deg(theta) << ", " << Rad2Deg(phi) << endl;
-
-		/* Updating the coordinate systems*/
-		//currentCoordSys = nextCoordSys;
-		// nextCoordSys = GetSurfCoordSys(ray.hitSurfaceID, ray);
-		//cout << "\t\tUpdated Current Coordinate System: " << currentCoordSys.format(CleanFmt) << endl;
-		//cout << "\t\tUpdated Next Coordinate System: " << nextCoordSys.format(CleanFmt) << endl;
+		//cout << "\t\tSource Point: " << ray.sourcePoint.transpose().format(CleanFmt) << endl;
+		//cout << "\t\tTarget Point: " << ray.targetPoint.transpose().format(CleanFmt) << endl;
+		//cout << "\t\tNext Hit Surface ID: " << ray.hitSurfaceID << endl;
+		//if (ray.hitSurfaceID > -1)
+		//{
+			//cout << "\t\tNext Hit Surface Normal: " << _triangleMesh->at(ray.hitSurfaceID)->norm.transpose().format(CleanFmt) << endl;
+		//}
+		//cout << "\t\tRay vector global cartesian: " << vecGlobal.transpose().format(CleanFmt) << endl;
 
 		/* Updating the incident field*/
 		if (i == 0)
 		{
 			Vec3 vecSph = CartesianToSpherical(RotateToNewCoordSys(vecGlobal, globalCoordSys, txCoordSys));
-			incidentField = GetAnalyticEfieldPattern(0, vecSph[1], vecSph[2], txPower); // local spherical
-			cout << "\t\tTX Coordinate System: " << txCoordSys.format(CleanFmt) << endl;
-			cout << "\t\t\tTX theta: " << Rad2Deg(vecSph[1]) << endl;
-			cout << "\t\t\tTX phi: " << Rad2Deg(vecSph[2]) << endl;
-			cout << "\t\tIncident Field Spherical: " << incidentField.transpose().format(CleanFmt) << endl;
-			incidentField = RotateToNewCoordSys(SphericalToCartesianVector(incidentField, vecSph[1], vecSph[2]), txCoordSys, globalCoordSys);
-			cout << "\t\tIncident Field Global: " << incidentField.transpose().format(CleanFmt) << endl;
+			totalField = GetAnalyticEfieldPattern(0, vecSph[1], vecSph[2], txPower); // local spherical
+			//cout << "\t\tTX Coordinate System: " << txCoordSys.format(CleanFmt) << endl;
+			//cout << "\t\t\tTX theta: " << Rad2Deg(vecSph[1]) << endl;
+			//cout << "\t\t\tTX phi: " << Rad2Deg(vecSph[2]) << endl;
+			//cout << "\t\tIncident Field Spherical: " << incidentField.transpose().format(CleanFmt) << endl;
+			totalField = RotateToNewCoordSys(SphericalToCartesianVector(totalField, vecSph[1], vecSph[2]), txCoordSys, globalCoordSys);
 		}
-		//else
-		//{
-			//std::cout << "\t\tIncident Field Before Rotation: " << totalField.transpose().format(CleanFmt) << std::endl;
-			//incidentField = RotateToNewCoordSys(totalField, globalCoordSys,currentCoordSys);
-			//std::cout << "\t\tIncident Field After Rotation: " << incidentField.transpose().format(CleanFmt) << std::endl;
-			//incidentField = CartesianToSphericalVector(incidentField, theta_prev, phi_prev);
-			//std::cout << "\t\tIncident Field from Catesian to Spherical: " << incidentField.transpose().format(CleanFmt) << std::endl;
-		//}
 
 		/* Updating the reflected or transmitted field*/
 		if (ray.reflectionMaterialId >= 0)
 		{
-			Vec3 k_i = path[i-1].targetPoint - path[i-1].sourcePoint;
-			totalField = ComputeRefcField(k_i, totalField, ray.reflectionMaterialId, GetSurfCoordSys(path[i-1].hitSurfaceID, ray));
+			Vec3 kIncident = path[i-1].targetPoint - path[i-1].sourcePoint;
+			totalField = ComputeRefcField(kIncident, vecGlobal, totalField, ray.reflectionMaterialId, GetSurfCoordSys(path[i-1].hitSurfaceID, ray));
 		}
-		//else if (ray.penetrationMaterialId >= 0)
-		//{
-			//totalField = ComputeTransField(vecGlobal, incidentField, ray.penetrationMaterialId, currentCoordSys, nextCoordSys); // local spherical
-		//}
-		else
+		else if (ray.penetrationMaterialId >= 0)
 		{
-			totalField = incidentField;
+			Vec3 kIncident = path[i - 1].targetPoint - path[i - 1].sourcePoint;
+			totalField = ComputeTransField(kIncident, vecGlobal, totalField, ray.penetrationMaterialId, GetSurfCoordSys(path[i - 1].hitSurfaceID, ray)); // local spherical
 		}
-		//std::cout << "\t\tTotal Field in Spherical Coordinates Before Rotation: " << totalField.transpose().format(CleanFmt) << std::endl;
-		// Need to do: add a case where receiver gain can be applied here
-		//totalField = SphericalToCartesianVector(totalField, theta, phi);
-		//totalField = RotateToNewCoordSys(totalField, currentCoordSys, globalCoordSys);
-		cout << "\t\tTotal Field: " << totalField.transpose().format(CleanFmt) << std::endl;
-		//theta_prev = theta;
-		//phi_prev = phi;
+		//cout << "\t\tTotal Field: " << totalField.transpose().format(CleanFmt) << std::endl;
 	}
 	totalField = totalField * exp(-j * k * totalPathLength) / totalPathLength;
 
+#if DEBUG_LEVEL > 1
 	cout << endl;
 	cout << "\tDelay [ns]: " << (totalPathLength/ SPEED_OF_LIGHT)*1e9 << endl;
 	cout << "\tField Strength [dBuvm]: " << 20.0 * log10(totalField.norm() * 1e6 / sqrt(2)) << endl;
 	cout << "\tField Components [Ex, Ey, Ez]: " << totalField.transpose().format(CleanFmt) << endl;
 	cout << "[Leaving] FieldForPath..." << endl;
+#endif
 
 	return totalField;
 }
@@ -198,11 +171,8 @@ Vec3c FieldCompute::GetAnalyticEfieldPattern(int antennaType, double theta, doub
 	return eFieldSph;
 }
 
-Vec3c FieldCompute::ComputeRefcField(const Vec3& k_i, const Vec3c& efieldGlobal, int materialId, const Mat3& surfCoordSys)
+Vec3c FieldCompute::ComputeRefcField(const Vec3& kIncident, const Vec3& kReflect, const Vec3c& efieldGlobal, int materialId, const Mat3& surfCoordSys)
 {
-	using namespace std;
-	Eigen::IOFormat CleanFmt(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", " ; ", "", "");
-
 	// Permittivity of air
 	cdouble epsilon_i(1, 0);
 
@@ -212,7 +182,7 @@ Vec3c FieldCompute::ComputeRefcField(const Vec3& k_i, const Vec3c& efieldGlobal,
 	epsilon_t.imag(-1 * _materials[materialId].relConductivity/ (E0 * 2 * PI * frequency));
 	
 	// Get theta_i and theta_t
-	double theta_i = GetIncidentAngle(k_i, surfCoordSys(2, Eigen::indexing::all));
+	double theta_i = GetIncidentAngle(kIncident, surfCoordSys(2, Eigen::indexing::all));
 	cdouble theta_t = GetTransAngle(theta_i, epsilon_i, epsilon_t);
 
 	cdouble refTE, refTM, transTE, transTM;
@@ -220,14 +190,17 @@ Vec3c FieldCompute::ComputeRefcField(const Vec3& k_i, const Vec3c& efieldGlobal,
 	GetTMCoeff(theta_i, theta_t, epsilon_i, epsilon_t, _materials[materialId].width, useFresnelCoeff, refTM, transTM);
 
 	// Rotate field from global coordinate system to current coordinate system
-	Vec3 k_i_local_sph = CartesianToSpherical(RotateToNewCoordSys(k_i, globalCoordSys, surfCoordSys));
+	Vec3 k_i_local_sph = CartesianToSpherical(RotateToNewCoordSys(kIncident, globalCoordSys, surfCoordSys));
 	Vec3c efield_local_cart = RotateToNewCoordSys(efieldGlobal, globalCoordSys, surfCoordSys);
 	Vec3c efield_local_sph = CartesianToSphericalVector(efield_local_cart, k_i_local_sph[1], k_i_local_sph[2]);
 	Vec3c refcField (efield_local_sph[0], efield_local_sph[1] * refTM, efield_local_sph[2] * refTE);
-	Vec3c refcField_cart = RotateToNewCoordSys(SphericalToCartesianVector(refcField, k_i_local_sph[1], k_i_local_sph[2]), surfCoordSys, globalCoordSys);
+	Vec3c refcField_cart = RotateToNewCoordSys(SphericalToCartesianVector(refcField, k_i_local_sph[1], k_i_local_sph[2]*0), surfCoordSys, globalCoordSys);
 
+#if DEBUG_LEVEL > 2
+	using namespace std;
+	Eigen::IOFormat CleanFmt(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", " ; ", "", "");
 	cout << "\t\tSurface Coordinate System: " << surfCoordSys.format(CleanFmt) << endl;
-	cout << "\t\tIncident wave vector: " << k_i.transpose().format(CleanFmt) << endl;
+	cout << "\t\tIncident wave vector: " << kIncident.transpose().format(CleanFmt) << endl;
 	cout << "\t\tIncident wave vector Spherical: " << k_i_local_sph[0] << ", " << Rad2Deg(k_i_local_sph[1]) << ", " << Rad2Deg(k_i_local_sph[2]) << endl;
 	cout << "\t\t\tAngle between k_i and normal: " << Rad2Deg(theta_i) << endl;
 	cout << "\t\t\tRefTM: " << refTM << endl;
@@ -236,35 +209,52 @@ Vec3c FieldCompute::ComputeRefcField(const Vec3& k_i, const Vec3c& efieldGlobal,
 	cout << "\t\tEfield local spherical: " << efield_local_sph.transpose().format(CleanFmt) << endl;
 	cout << "\t\tReflected field local spherical: " << refcField.transpose().format(CleanFmt) << endl;
 	cout << "\t\tReflected field global: " << refcField_cart.transpose().format(CleanFmt) << endl;
+#endif
 
 	return refcField_cart;
 }
 
-Vec3c FieldCompute::ComputeTransField(const Vec3& k_i, const Vec3c& efieldGlobal, int materialId, const Mat3& surfCoordSys)
+Vec3c FieldCompute::ComputeTransField(const Vec3& kIncident, const Vec3& kReflect, const Vec3c& efieldGlobal, int materialId, const Mat3& surfCoordSys)
 {
+	// Permittivity of air
+	cdouble epsilon_i(1, 0);
+
 	// Material property of the impinging medium
 	cdouble epsilon_t;
 	epsilon_t.real(_materials[materialId].relPermittivityRe);
 	epsilon_t.imag(-1 * _materials[materialId].relConductivity / (E0 * 2 * PI * frequency));
 
-	// Permittivity of air
-	cdouble epsilon_i(1, 0);
-
 	// Get theta_i and theta_t
-	double theta_i = GetIncidentAngle(k_i, surfCoordSys(2, Eigen::indexing::all));
+	double theta_i = GetIncidentAngle(kIncident, surfCoordSys(2, Eigen::indexing::all));
 	cdouble theta_t = GetTransAngle(theta_i, epsilon_i, epsilon_t);
 
 	cdouble refTE, refTM, transTE, transTM;
 	GetTECoeff(theta_i, theta_t, epsilon_i, epsilon_t, _materials[materialId].width, useFresnelCoeff, refTE, transTE);
 	GetTMCoeff(theta_i, theta_t, epsilon_i, epsilon_t, _materials[materialId].width, useFresnelCoeff, refTM, transTM);
 
-	Vec3 k_i_local_sph = CartesianToSpherical(RotateToNewCoordSys(k_i, globalCoordSys, surfCoordSys));
+	// Rotate field from global coordinate system to current coordinate system
+	Vec3 k_i_local_sph = CartesianToSpherical(RotateToNewCoordSys(kIncident, globalCoordSys, surfCoordSys));
 	Vec3c efield_local_cart = RotateToNewCoordSys(efieldGlobal, globalCoordSys, surfCoordSys);
 	Vec3c efield_local_sph = CartesianToSphericalVector(efield_local_cart, k_i_local_sph[1], k_i_local_sph[2]);
 	Vec3c transField(efield_local_sph[0], efield_local_sph[1] * transTM, efield_local_sph[2] * transTE);
-	Vec3c transField_cart = RotateToNewCoordSys(SphericalToCartesianVector(transField, k_i_local_sph[1], k_i_local_sph[2]), surfCoordSys, globalCoordSys);
+	Vec3c transField_cart = RotateToNewCoordSys(SphericalToCartesianVector(transField, k_i_local_sph[1], k_i_local_sph[2] * 0), surfCoordSys, globalCoordSys);
 
-	return transField;
+#if DEBUG_LEVEL > 2
+	using namespace std;
+	Eigen::IOFormat CleanFmt(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", " ; ", "", "");
+	cout << "\t\tSurface Coordinate System: " << surfCoordSys.format(CleanFmt) << endl;
+	cout << "\t\tIncident wave vector: " << kIncident.transpose().format(CleanFmt) << endl;
+	cout << "\t\tIncident wave vector Spherical: " << k_i_local_sph[0] << ", " << Rad2Deg(k_i_local_sph[1]) << ", " << Rad2Deg(k_i_local_sph[2]) << endl;
+	cout << "\t\t\tAngle between k_i and normal: " << Rad2Deg(theta_i) << endl;
+	cout << "\t\t\tTransTM: " << transTM << endl;
+	cout << "\t\t\tTransTE: " << transTE << endl;
+	cout << "\t\tEfield local cartesian: " << efield_local_cart.transpose().format(CleanFmt) << endl;
+	cout << "\t\tEfield local spherical: " << efield_local_sph.transpose().format(CleanFmt) << endl;
+	cout << "\t\Transmitted field local spherical: " << transField.transpose().format(CleanFmt) << endl;
+	cout << "\t\Transmitted field global: " << transField_cart.transpose().format(CleanFmt) << endl;
+#endif
+
+	return transField_cart;
 }
 
 void FieldCompute::GetTECoeff(cdouble theta_i, cdouble theta_t, cdouble rel_perm_i, cdouble rel_perm_t, double width, bool inf_wall, cdouble& ref_coeff, cdouble& tran_coeff)
@@ -351,23 +341,6 @@ Mat3 FieldCompute::GetSurfCoordSys(const int& hitSurfId, const Ray& rayIncident)
 
 	// Fail-safe procedure: ensure both ray direction and wall norm is unit vector
 	Vec3 normal = _triangleMesh->at(hitSurfId)->norm;
-
-	
-	// DEBUGGING
-	if (normal.y() == 1)
-	{
-		return Mat3{ {0,0,1},{1,0,0},{0,1,0} };
-	}
-	else if (normal.y() == -1)
-	{
-		return Mat3{ {1,0,0},{0,0,1},{0,-1,0} };
-	}
-	else
-	{
-		return globalCoordSys;
-	}
-	
-
 	Vec3 rayDir = (rayIncident.targetPoint - rayIncident.sourcePoint).normalized();
 
 	// This would fail if the normal and rayDir are not unit vectors

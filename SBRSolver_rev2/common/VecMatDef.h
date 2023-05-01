@@ -67,7 +67,7 @@ inline Vec3 Reflect(const Vec3& i, const Vec3& n)
 	return i - 2.0 * n * n.dot(i);
 }
 
-inline double AngleBetween(Vec3 v1, Vec3 v2, bool alreadyNormalized = false, bool resulInRadian = false)
+inline double AngleBetween(Vec3 v1, Vec3 v2, bool alreadyNormalized = false, bool resultInRadian = false)
 {
 	if (!alreadyNormalized)
 	{
@@ -87,13 +87,13 @@ inline double AngleBetween(Vec3 v1, Vec3 v2, bool alreadyNormalized = false, boo
 		theta = static_cast<double>(2.0 * std::asin((v1 - v2).norm() / 2.0));
 	}
 
-	return resulInRadian ? theta : Rad2Deg(theta);
+	return resultInRadian ? theta : Rad2Deg(theta);
 }
 
 inline Mat3 RotationMatrix(const Mat3& oldSys, const Mat3& newSys)
 {
 	Mat3 result = newSys * oldSys.transpose();
-	return result.transpose();
+	return result;
 }
 
 inline Mat3 TransformationMatrix(double theta, double phi, bool sph2Cart)

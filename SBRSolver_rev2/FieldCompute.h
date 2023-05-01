@@ -61,7 +61,8 @@ public:
 
 	Vec3c ComputeRefcField
 	(
-		const Vec3& k_i,
+		const Vec3& kIncident,
+		const Vec3& kReflect,
 		const Vec3c& efieldGlobal,
 		int materialId,
 		const Mat3& surfCoordSys
@@ -69,7 +70,8 @@ public:
 
 	Vec3c ComputeTransField
 	(
-		const Vec3& k_i, 
+		const Vec3& kIncident,
+		const Vec3& kReflect,
 		const Vec3c& efieldGlobal, 
 		int materialId, 
 		const Mat3& surfCoordSys

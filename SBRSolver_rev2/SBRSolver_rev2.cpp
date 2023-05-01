@@ -117,7 +117,7 @@ int main()
 	materials[3].relPermittivityRe = 6;
 	materials[3].relPermittivityIm = 0.05;
 	
-	int tessllation = 2;
+	int tessllation = 4;
 	Mat3 txCoordSys = Mat3::Identity();
 	// Mat3 txCoordSys{ {0,1,0},{0,0,1},{1,0,0} };
 
