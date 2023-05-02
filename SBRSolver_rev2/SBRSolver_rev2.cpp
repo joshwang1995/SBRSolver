@@ -32,6 +32,7 @@ int main()
 	std::string icosahedronFileName = "./data/output/Icosahedron.vtk";
 	std::string edgesFileName = "./data/output/Edges.vtk";
 	std::string csvFieldFileName = "./data/output/ElectricField.csv";
+	std::string pathInfoFileName = "./data/output/PathInfo.csv";
 
 	double freq = 0.9e9; // frequency
 	double Pt = 1; // transmit power in Watt
@@ -150,6 +151,9 @@ int main()
 #endif
 #if SAVE_FIELD_CSV
 	rayTracer->SaveFieldAsCsv(csvFieldFileName);
+#endif
+#if SAVE_PATH_INFO_CSV
+	rayTracer->SavePathInfoAsCSV(pathInfoFileName);
 #endif
 
 	delete rayTracer;

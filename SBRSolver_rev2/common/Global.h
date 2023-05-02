@@ -14,6 +14,7 @@
 #define SAVE_TX_VTK true
 #define SAVE_RX_VTK true
 #define SAVE_FIELD_CSV true
+#define SAVE_PATH_INFO_CSV true
 
 // Threshold value used to compare a double or float number to zero
 const double EPSILON = std::numeric_limits<float>::epsilon();

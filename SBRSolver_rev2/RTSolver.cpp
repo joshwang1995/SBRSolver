@@ -729,10 +729,12 @@ bool RTSolver::SavePathInfoAsCSV(std::string fname)
 	double k = TWOPI * _frequency / SPEED_OF_LIGHT;
 
 	// write header
-	ofs << "X,Y,Z,E(dBuvm),Received Power(dBm),nPath" << endl;
+	ofs << "Receiver Id, X,Y,Z,E(dBuvm),Received Power(dBm),nPath" << endl;
 	for (int i = 0; i < _receiverCount; i++)
 	{
 		double magE = _efield->at(i).norm();
+
+		ofs << i << ",";
 
 		ofs << _receivers->at(i).x() << ","
 			<< _receivers->at(i).y() << ","
@@ -740,6 +742,7 @@ bool RTSolver::SavePathInfoAsCSV(std::string fname)
 
 		ofs << 20 * log10(magE * 1e6) << ","
 			<< 10 * log10(PI / (2.0 * k * k * ETA0) * magE * magE * 1e3) << ","
+			<< GetReceivedNumPaths(i) << ","
 			<< endl;
 	}
 #if DEBUG_LEVEL > 1
@@ -799,19 +802,18 @@ bool RTSolver::SaveIcosahedronAsVtk(std::string fname, Vec3 rayOrg, int tessella
 	return true;
 }
 
-VecIdx RTSolver::GetReceivedNumPaths(void)
+int RTSolver::GetReceivedNumPaths(int receiverId)
 {
+	int numPaths = 0;
 	for (int i = 0; i < _pathsCount; i++)
 	{
-		for (int j = 0; j < _receiverCount; j++)
+		int tmp = int(_rayPaths[i][receiverId].rayPaths.size());
+		if (tmp > 0)
 		{
-			int numRayPaths = int(_rayPaths[i][j].rayPaths.size());
-			if (numRayPaths > 0)
-			{
-				
-			}
+			numPaths += tmp;
 		}
 	}
+	return numPaths;
 }
 
 void PathsToVector

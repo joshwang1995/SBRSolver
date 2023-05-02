@@ -36,7 +36,7 @@ public:
 	bool SaveFieldAsCsv(std::string fname);
 	bool SavePathInfoAsCSV(std::string fname);
 	bool SaveIcosahedronAsVtk(std::string fname, Vec3 rayOrg, int tessellation);
-	VecIdx GetReceivedNumPaths(void);
+	int GetReceivedNumPaths(int receiverId);
 	void CmdLineDebug();
 protected:
 	MaterialProperties* _materialProperties = nullptr;
