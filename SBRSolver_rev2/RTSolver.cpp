@@ -73,6 +73,7 @@ int RTSolver::ExecuteRayTracing
 	_receiverCount = int(receivers.size());
 	_pathsCount = int(_shootRayList->size());
 	_efield = new std::vector<Vec3c>;
+	_frequency = frequency;
 
 	InitRayPaths();
 
@@ -716,6 +717,38 @@ bool RTSolver::SaveFieldAsCsv(std::string fname)
 	return true;
 }
 
+bool RTSolver::SavePathInfoAsCSV(std::string fname)
+{
+	using namespace std;
+#if DEBUG_LEVEL > 1
+	cout << "[Entering] RTSolver::SavePathInfoAsCSV ..." << endl;
+#endif 
+	ofstream ofs;
+	ofs.open(fname);
+
+	double k = TWOPI * _frequency / SPEED_OF_LIGHT;
+
+	// write header
+	ofs << "X,Y,Z,E(dBuvm),Received Power(dBm),nPath" << endl;
+	for (int i = 0; i < _receiverCount; i++)
+	{
+		double magE = _efield->at(i).norm();
+
+		ofs << _receivers->at(i).x() << ","
+			<< _receivers->at(i).y() << ","
+			<< _receivers->at(i).z() << ",";
+
+		ofs << 20 * log10(magE * 1e6) << ","
+			<< 10 * log10(PI / (2.0 * k * k * ETA0) * magE * magE * 1e3) << ","
+			<< endl;
+	}
+#if DEBUG_LEVEL > 1
+	cout << "\tSaved " << _receiverCount << " received field into " << fname << endl;
+	cout << "[Leaving] RTSolver::SavePathInfoAsCSV ..." << endl;
+#endif
+	return true;
+}
+
 bool RTSolver::SaveIcosahedronAsVtk(std::string fname, Vec3 rayOrg, int tessellation)
 {
 	using namespace std;
@@ -764,6 +797,21 @@ bool RTSolver::SaveIcosahedronAsVtk(std::string fname, Vec3 rayOrg, int tessella
 	cout << "[Leaving] RTSolver::SaveIcosahedronAsVtk" << endl;
 #endif
 	return true;
+}
+
+VecIdx RTSolver::GetReceivedNumPaths(void)
+{
+	for (int i = 0; i < _pathsCount; i++)
+	{
+		for (int j = 0; j < _receiverCount; j++)
+		{
+			int numRayPaths = int(_rayPaths[i][j].rayPaths.size());
+			if (numRayPaths > 0)
+			{
+				
+			}
+		}
+	}
 }
 
 void PathsToVector

@@ -8,7 +8,7 @@
 #pragma warning(disable: 4267)
 
 // Preprocessor directive definitions
-#define DEBUG_LEVEL 2
+#define DEBUG_LEVEL 1
 #define SAVE_BVH_VTK false
 #define SAVE_PATHS_VTK true
 #define SAVE_TX_VTK true

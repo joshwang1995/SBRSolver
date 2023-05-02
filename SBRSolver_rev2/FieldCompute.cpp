@@ -190,18 +190,16 @@ Vec3c FieldCompute::ComputeRefcField(const Vec3& kIncident, const Vec3& kReflect
 	GetTMCoeff(theta_i, theta_t, epsilon_i, epsilon_t, _materials[materialId].width, useFresnelCoeff, refTM, transTM);
 
 	// Rotate field from global coordinate system to current coordinate system
-	Vec3 k_i_local_sph = CartesianToSpherical(RotateToNewCoordSys(kIncident, globalCoordSys, surfCoordSys));
 	Vec3c efield_local_cart = RotateToNewCoordSys(efieldGlobal, globalCoordSys, surfCoordSys);
-	Vec3c efield_local_sph = CartesianToSphericalVector(efield_local_cart, k_i_local_sph[1], k_i_local_sph[2]);
+	Vec3c efield_local_sph = CartesianToSphericalVector(efield_local_cart, theta_i, 0);
 	Vec3c refcField (efield_local_sph[0], efield_local_sph[1] * refTM, efield_local_sph[2] * refTE);
-	Vec3c refcField_cart = RotateToNewCoordSys(SphericalToCartesianVector(refcField, k_i_local_sph[1], k_i_local_sph[2]*0), surfCoordSys, globalCoordSys);
+	Vec3c refcField_cart = RotateToNewCoordSys(SphericalToCartesianVector(refcField, theta_i, PI), surfCoordSys, globalCoordSys);
 
 #if DEBUG_LEVEL > 2
 	using namespace std;
 	Eigen::IOFormat CleanFmt(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", " ; ", "", "");
 	cout << "\t\tSurface Coordinate System: " << surfCoordSys.format(CleanFmt) << endl;
 	cout << "\t\tIncident wave vector: " << kIncident.transpose().format(CleanFmt) << endl;
-	cout << "\t\tIncident wave vector Spherical: " << k_i_local_sph[0] << ", " << Rad2Deg(k_i_local_sph[1]) << ", " << Rad2Deg(k_i_local_sph[2]) << endl;
 	cout << "\t\t\tAngle between k_i and normal: " << Rad2Deg(theta_i) << endl;
 	cout << "\t\t\tRefTM: " << refTM << endl;
 	cout << "\t\t\tRefTE: " << refTE << endl;

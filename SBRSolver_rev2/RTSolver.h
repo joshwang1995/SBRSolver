@@ -34,7 +34,9 @@ public:
 	bool SavePathsAsVtk(std::string fname);
 	bool SaveReceiversAsVtk(std::string fname);
 	bool SaveFieldAsCsv(std::string fname);
+	bool SavePathInfoAsCSV(std::string fname);
 	bool SaveIcosahedronAsVtk(std::string fname, Vec3 rayOrg, int tessellation);
+	VecIdx GetReceivedNumPaths(void);
 	void CmdLineDebug();
 protected:
 	MaterialProperties* _materialProperties = nullptr;
@@ -44,6 +46,7 @@ protected:
 	VecVec3* _receivers;
 	std::vector<Vec3c>* _efield;
 
+	double _frequency;
 	bool _isSceneInitialized;
 	int _txTesslation;
 	int _maxTransmissionCount;
