@@ -10,7 +10,9 @@ FieldCompute::~FieldCompute()
 
 Vec3c FieldCompute::FieldAtReceiver(int receiverId)
 {
-	//std::cout << "\n[Entering] FieldAtReceiver..." << std::endl;
+#if DEBUG_LEVEL > 1
+	std::cout << "\n[Entering] FieldAtReceiver..." << std::endl;
+#endif
 	Vec3c totalField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
 
 	// Get all paths for the receiver
@@ -19,12 +21,20 @@ Vec3c FieldCompute::FieldAtReceiver(int receiverId)
 		int numRayPaths = int(_rayPaths[i][receiverId].rayPaths.size());
 		for (int j = 0; j < numRayPaths; j++)
 		{
-			//std::cout << "\nStart Field Computation for path " << i << " at receiver " << receiverId << std::endl;
+#if DEBUG_LEVEL > 1
+			std::cout << "\nStart Field Computation for path " << i << " at receiver " << receiverId << std::endl;
+#endif
 			totalField += FieldForPath(_rayPaths[i][receiverId].rayPaths[j]);
 		}
 	}
-
-	//std::cout << "[Leaving] FieldAtReceiver...\n" << std::endl;
+#if DEBUG_LEVEL > 1
+	std::cout << std::endl;
+	std::cout << "\t\tCombined Field Components (Ex, Ey, Ez) = " << totalField.x() << ", " << totalField.y() << ", " << totalField.z() << std::endl;
+	std::cout << "\t\tCombined Field Components (|Ex|,|Ey|,|Ez|) = " << abs(totalField.x()) << ", " << abs(totalField.y()) << ", " << abs(totalField.z()) << std::endl;
+	std::cout << "\t\tCombined Field Components arg(Ex, Ey, Ez) = " << Rad2Deg(std::arg(totalField.x())) << ", " << Rad2Deg(std::arg(totalField.y())) << ", " << Rad2Deg(std::arg(totalField.z())) << std::endl;
+	std::cout << "\t\tCombined Field Strength (dBuVm): " << 20.0 * log10(totalField.norm() * 1e6 / sqrt(2)) << std::endl;
+	std::cout << "[Leaving] FieldAtReceiver...\n" << std::endl;
+#endif
 	return totalField;
 }
 
@@ -82,7 +92,8 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 
 	Vec3c totalField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
 	double totalPathLength = 0.0;
-	
+	int numRef = 0;
+
 	for (int i = 0; i < int(path.size()); i++)
 	{
 		//cout << "\tComputing field for Ray" << i << "..." << endl;
@@ -116,6 +127,7 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 		/* Updating the reflected or transmitted field*/
 		if (ray.reflectionMaterialId >= 0)
 		{
+			numRef++;
 			Vec3 kIncident = path[i-1].targetPoint - path[i-1].sourcePoint;
 			totalField = ComputeRefcField(kIncident, vecGlobal, totalField, ray.reflectionMaterialId, GetSurfCoordSys(path[i-1].hitSurfaceID, ray));
 		}
@@ -129,8 +141,9 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 	totalField = totalField * exp(-j * k * totalPathLength) / totalPathLength;
 
 #if DEBUG_LEVEL > 1
-	cout << endl;
+	//cout << endl;
 	cout << "\tDelay [ns]: " << (totalPathLength/ SPEED_OF_LIGHT)*1e9 << endl;
+	cout << "\tPhase [deg]: " << Rad2Deg(WrapToTwoPi(k * totalPathLength + numRef * PI)) << endl;
 	cout << "\tField Strength [dBuvm]: " << 20.0 * log10(totalField.norm() * 1e6 / sqrt(2)) << endl;
 	cout << "\tField Components [Ex, Ey, Ez]: " << totalField.transpose().format(CleanFmt) << endl;
 	cout << "[Leaving] FieldForPath..." << endl;
@@ -201,8 +214,8 @@ Vec3c FieldCompute::ComputeRefcField(const Vec3& kIncident, const Vec3& kReflect
 	cout << "\t\tSurface Coordinate System: " << surfCoordSys.format(CleanFmt) << endl;
 	cout << "\t\tIncident wave vector: " << kIncident.transpose().format(CleanFmt) << endl;
 	cout << "\t\t\tAngle between k_i and normal: " << Rad2Deg(theta_i) << endl;
-	cout << "\t\t\tRefTM: " << refTM << endl;
-	cout << "\t\t\tRefTE: " << refTE << endl;
+	cout << "\t\t\t|RefTM| = " << abs(refTM) << ", arg(RefTM) = " << Rad2Deg(std::arg(refTM)) << endl;
+	cout << "\t\t\t|RefTE| = " << abs(refTE) << ", arg(RefTE) = " << Rad2Deg(std::arg(refTE)) << endl;
 	cout << "\t\tEfield local cartesian: " << efield_local_cart.transpose().format(CleanFmt) << endl;
 	cout << "\t\tEfield local spherical: " << efield_local_sph.transpose().format(CleanFmt) << endl;
 	cout << "\t\tReflected field local spherical: " << refcField.transpose().format(CleanFmt) << endl;
@@ -248,8 +261,8 @@ Vec3c FieldCompute::ComputeTransField(const Vec3& kIncident, const Vec3& kReflec
 	cout << "\t\t\tTransTE: " << transTE << endl;
 	cout << "\t\tEfield local cartesian: " << efield_local_cart.transpose().format(CleanFmt) << endl;
 	cout << "\t\tEfield local spherical: " << efield_local_sph.transpose().format(CleanFmt) << endl;
-	cout << "\t\Transmitted field local spherical: " << transField.transpose().format(CleanFmt) << endl;
-	cout << "\t\Transmitted field global: " << transField_cart.transpose().format(CleanFmt) << endl;
+	cout << "\t\tTransmitted field local spherical: " << transField.transpose().format(CleanFmt) << endl;
+	cout << "\t\tTransmitted field global: " << transField_cart.transpose().format(CleanFmt) << endl;
 #endif
 
 	return transField_cart;
@@ -266,8 +279,7 @@ void FieldCompute::GetTECoeff(cdouble theta_i, cdouble theta_t, cdouble rel_perm
 	cdouble cos_t = cos(theta_t);
 	cdouble sin_i = sin(theta_i);
 
-	//  cdouble gamma_te = ((n_i * cos_i) - (n_t * cos_t)) / ((n_i * cos_i) + (n_t * cos_t));
-	cdouble gamma_te = -((eta_t / cos_t) - (eta_i / cos_i)) / ((eta_t / cos_t) + (eta_i / cos_i));
+	cdouble gamma_te = (-eta_t * cos_i + eta_i * cos_t) / (eta_t * cos_i + eta_i * cos_t);
 	cdouble tau_te = (2.0 * eta_t * cos_i) / (eta_t * cos_i + eta_i * cos_t);
 	if (inf_wall)
 	{
@@ -295,7 +307,6 @@ void FieldCompute::GetTMCoeff(cdouble theta_i, cdouble theta_t, cdouble rel_perm
 	cdouble cos_t = cos(theta_t);
 	cdouble sin_i = sin(theta_i);
 
-	// cdouble gamma_tm = (n_t * cos_i - n_i * cos_t) / (n_i * cos_t + n_t * cos_i);
 	cdouble gamma_tm = (-eta_t * cos_t + eta_i * cos_i) / (eta_t * cos_t + eta_i * cos_i);
 	cdouble tau_tm = (2.0 * eta_t * cos_i) / (eta_t * cos_t + eta_i * cos_i);
 	if (inf_wall)
@@ -348,6 +359,11 @@ Mat3 FieldCompute::GetSurfCoordSys(const int& hitSurfId, const Ray& rayIncident)
 	if (theta_i > PI / 2)
 	{
 		theta_i = PI - theta_i;
+	}
+
+	if (theta_i == 0.0)
+	{
+		return globalCoordSys;
 	}
 
 	Vec3 zw = normal;

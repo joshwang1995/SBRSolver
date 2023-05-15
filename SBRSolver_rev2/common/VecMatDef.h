@@ -62,6 +62,15 @@ constexpr T Rad2Deg(T angle_rad)
 	return static_cast<T>(angle_rad * (180.0 / PI));
 }
 
+template<typename T>
+constexpr T WrapToTwoPi(T angle_rad)
+{
+	T result = fmod(angle_rad, static_cast<T>(TWOPI));
+	if (result < static_cast<T>(0.0))
+		result += TWOPI;
+	return result;
+}
+
 inline Vec3 Reflect(const Vec3& i, const Vec3& n)
 {
 	return i - 2.0 * n * n.dot(i);
