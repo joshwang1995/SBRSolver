@@ -10,7 +10,7 @@ FieldCompute::~FieldCompute()
 
 Vec3c FieldCompute::FieldAtReceiver(int receiverId)
 {
-#if DEBUG_LEVEL > 1
+#if DEBUG_LEVEL > 2
 	std::cout << "\n[Entering] FieldAtReceiver..." << std::endl;
 #endif
 	Vec3c totalField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
@@ -21,13 +21,13 @@ Vec3c FieldCompute::FieldAtReceiver(int receiverId)
 		int numRayPaths = int(_rayPaths[i][receiverId].rayPaths.size());
 		for (int j = 0; j < numRayPaths; j++)
 		{
-#if DEBUG_LEVEL > 1
+#if DEBUG_LEVEL > 2
 			std::cout << "\nStart Field Computation for path " << i << " at receiver " << receiverId << std::endl;
 #endif
 			totalField += FieldForPath(_rayPaths[i][receiverId].rayPaths[j]);
 		}
 	}
-#if DEBUG_LEVEL > 1
+#if DEBUG_LEVEL > 2
 	std::cout << std::endl;
 	std::cout << "\t\tCombined Field Components (Ex, Ey, Ez) = " << totalField.x() << ", " << totalField.y() << ", " << totalField.z() << std::endl;
 	std::cout << "\t\tCombined Field Components (|Ex|,|Ey|,|Ez|) = " << abs(totalField.x()) << ", " << abs(totalField.y()) << ", " << abs(totalField.z()) << std::endl;
@@ -84,7 +84,7 @@ void FieldCompute::TransCoeffTest(int numPts, double freq, cdouble epsilon1, cdo
 
 Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 {
-#if DEBUG_LEVEL > 1
+#if DEBUG_LEVEL > 2
 	using namespace std;
 	Eigen::IOFormat CleanFmt(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", " ; ", "", "");
 	cout << "[Entering] FieldForPath..." << endl;
@@ -116,7 +116,7 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 		if (i == 0)
 		{
 			Vec3 vecSph = CartesianToSpherical(RotateToNewCoordSys(vecGlobal, globalCoordSys, txCoordSys));
-			totalField = GetAnalyticEfieldPattern(0, vecSph[1], vecSph[2], txPower); // local spherical
+			totalField = GetAnalyticEfieldPattern(1, vecSph[1], vecSph[2], txPower); // local spherical
 			//cout << "\t\tTX Coordinate System: " << txCoordSys.format(CleanFmt) << endl;
 			//cout << "\t\t\tTX theta: " << Rad2Deg(vecSph[1]) << endl;
 			//cout << "\t\t\tTX phi: " << Rad2Deg(vecSph[2]) << endl;
@@ -140,7 +140,7 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 	}
 	totalField = totalField * exp(-j * k * totalPathLength) / totalPathLength;
 
-#if DEBUG_LEVEL > 1
+#if DEBUG_LEVEL > 2
 	//cout << endl;
 	cout << "\tDelay [ns]: " << (totalPathLength/ SPEED_OF_LIGHT)*1e9 << endl;
 	cout << "\tPhase [deg]: " << Rad2Deg(WrapToTwoPi(k * totalPathLength + numRef * PI)) << endl;

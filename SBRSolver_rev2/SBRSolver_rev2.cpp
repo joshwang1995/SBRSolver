@@ -22,7 +22,7 @@ int main()
 #endif
 	// Input filenames
 	std::string stlFileName = "./data/stl_files/urban_canyon.stl";
-	std::string rxLocationFileName = "./data/RX_Urban_Canyon_debug.dat";
+	std::string rxLocationFileName = "./data/RX_Urban_Canyon.dat";
 	std::string txPatternFileName = "./data/TxPatternTest.dat";
 
 	// Output filenames
@@ -118,7 +118,7 @@ int main()
 	materials[3].relPermittivityRe = 6;
 	materials[3].relPermittivityIm = 0.05;
 	
-	int tessllation = 5;
+	int tessllation = 4;
 	Mat3 txCoordSys = Mat3::Identity();
 	// Mat3 txCoordSys{ {0,1,0},{0,0,1},{1,0,0} };
 

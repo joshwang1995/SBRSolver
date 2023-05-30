@@ -365,3 +365,4 @@ FodyWeavers.xsd
 # Ray tracer output files
 *.csv
 *.vtk
+/.vscode

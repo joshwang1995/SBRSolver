@@ -77,28 +77,13 @@ std::pair<std::vector<Vec3>, std::vector<Idx3>> ConstructIcosahedron(int subdivi
 	return{ vertices, triangles };
 }
 
-std::vector<Vec3>* GenerateRaysOnIcosahedron(int tessellation, Vec3 origin)
+std::vector<Vec3>* GenerateRaysOnIcosahedron(int tessellation)
 {
 	auto icosahedron = ConstructIcosahedron(tessellation);
 	std::vector<Vec3> vertices = icosahedron.first;
 	std::vector<Idx3> faces = icosahedron.second;
 
 	std::vector<Vec3>* outbound_rays = new std::vector<Vec3>;
-
-
-	// Launch from the face center
-	/*
-	for (int i = 0; i < faces.size(); i++)
-	{
-		//Compute the cente of the triangle
-		double center_x = (vertices[faces[i](0)](0) + vertices[faces[i](1)](0) + vertices[faces[i](2)](0)) / 3.0f;
-		double center_y = (vertices[faces[i](0)](1) + vertices[faces[i](1)](1) + vertices[faces[i](2)](1)) / 3.0f;
-		double center_z = (vertices[faces[i](0)](2) + vertices[faces[i](1)](2) + vertices[faces[i](2)](2)) / 3.0f;
-		Vec3 direction = (Vec3(center_x, center_y, center_z)).normalized();
-		outbound_rays->push_back(direction);
-	}
-	*/
-	
 	
 	// Launch from the vertices
 	for (int i = 0; i < vertices.size(); i++)

@@ -107,24 +107,28 @@ Paths::Paths(TreeNode* rootNode)
 	std::vector<Ray> newVect;
 	newVect.push_back(rootNode->ray);
 	q.push(std::make_pair(std::make_pair(newVect, false), rootNode));
-	while (!q.empty())
+#pragma omp parallel
 	{
-		auto p = q.front();
-		q.pop();
-		if (p.second->child.size() > 0)
+		while (!q.empty())
 		{
-			for (auto i = p.second->child.begin(); i != p.second->child.end(); ++i)
+			auto p = q.front();
+			q.pop();
+			if (p.second->child.size() > 0)
 			{
-				std::vector<Ray> newVect(p.first.first);
-				newVect.push_back(i->ray);
-				q.push(std::make_pair(std::make_pair(newVect, p.first.second || i->ray.reflectionMaterialId >= 0), &*i));
+				for (auto i = p.second->child.begin(); i != p.second->child.end(); ++i)
+				{
+					std::vector<Ray> newVect(p.first.first);
+					newVect.push_back(i->ray);
+					q.push(std::make_pair(std::make_pair(newVect, p.first.second || i->ray.reflectionMaterialId >= 0), &*i));
+				}
 			}
-		}
-		else
-		{
-			if (p.first.second)
+			else
 			{
-				rayPaths.push_back(p.first.first);
+				if (p.first.second)
+				{
+#pragma omp critical
+					rayPaths.push_back(p.first.first);
+				}
 			}
 		}
 	}

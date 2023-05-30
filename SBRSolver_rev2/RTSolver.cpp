@@ -68,7 +68,7 @@ int RTSolver::ExecuteRayTracing
 	_maxReflectionCount = maxReflectionCount;
 	_maxTransmissionCount = maxTransmissionCount;
 	_txTesslation = txTesslation + 1; // user can enter 0 as txTesslation
-	_shootRayList = GenerateRaysOnIcosahedron(txTesslation, sourcePoint);
+	_shootRayList = GenerateRaysOnIcosahedron(txTesslation);
 	_receivers = &receivers;
 	_receiverCount = int(receivers.size());
 	_pathsCount = int(_shootRayList->size());
@@ -459,6 +459,7 @@ void RTSolver::RemoveDuplicatePath(int receiverId)
 void RTSolver::InitRayPaths()
 {
 	_rayPaths = new Paths* [_pathsCount];
+#pragma omp parallel for
 	for (int i = 0; i < _pathsCount; i++)
 	{
 		_rayPaths[i] = new Paths[_receiverCount];
