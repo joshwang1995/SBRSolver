@@ -6,6 +6,15 @@
 #include "common/VecMatDef.h"
 #include "RTSolver.h"
 
+struct FieldComputeParams
+{
+	const Vec3& ki;
+	const Vec3& kr;
+	const Vec3c& efieldGlobal;
+	int materialId;
+	const Mat3& surfCoordSys;
+};
+
 class FieldCompute
 {
 public:
