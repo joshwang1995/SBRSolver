@@ -11,10 +11,6 @@
 #include "FieldCompute.h"
 #include <mutex>
 
-// C4267 Warning is suppressed: size_t to int possible loss of data
-#pragma warning(push)
-#pragma warning(disable: 4267)
-
 class RTSolver
 {
 public:
@@ -42,18 +38,18 @@ public:
 	void CmdLineDebug();
 protected:
 	MaterialProperties* _materialProperties = nullptr;
-	Paths** _rayPaths;
-	BVH<Triangle>* _bvh;
-	std::vector<Vec3>* _shootRayList;
-	VecVec3* _receivers;
-	std::vector<Vec3c>* _efield;
+	Paths** _rayPaths = nullptr;
+	BVH<Triangle>* _bvh = nullptr;
+	std::vector<Vec3>* _shootRayList = nullptr;
+	VecVec3* _receivers = nullptr;
+	std::vector<Vec3c>* _efield = nullptr;
 
-	bool _isSceneInitialized;
-	int _txTesslation;
-	int _maxTransmissionCount;
-	int _maxReflectionCount;
-	int _pathsCount;
-	int _receiverCount;
+	bool _isSceneInitialized = false;
+	int _txTesslation = 0;
+	int _maxTransmissionCount = 0;
+	int _maxReflectionCount = 0;
+	int _pathsCount = 0;
+	int _receiverCount = 0;
 private:
 	void RayLaunch
 	(

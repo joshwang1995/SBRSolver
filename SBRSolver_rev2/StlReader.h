@@ -703,7 +703,7 @@ bool ReadStlFile_BINARY(const char* filename,
 inline bool StlFileHasASCIIFormat(const char* filename)
 {
   using namespace std;
-  ifstream in(filename);
+  ifstream in(filename, ios::binary);
   STL_READER_COND_THROW(!in, "Couldnt open file " << filename);
 
   char chars [256];

@@ -1,5 +1,8 @@
 #include "FieldCompute.h"
 
+#include <cmath>
+#include <fstream>
+
 FieldCompute::FieldCompute()
 {
 }

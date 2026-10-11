@@ -1,5 +1,13 @@
 #include "Preprocessor.h"
 
+#include <algorithm>
+#include <cassert>
+#include <cmath>
+#include <iterator>
+#include <map>
+#include <sstream>
+#include <utility>
+
 bool Preprocessor::ReadPatternFile(std::string fileName, GainMap& output)
 {
     std::string line;

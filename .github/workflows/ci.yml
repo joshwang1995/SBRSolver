@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux (GCC, OpenMP)
+            os: ubuntu-latest
+            cc: gcc
+            cxx: g++
+            cmake_args: -DSBR_ENABLE_OPENMP=ON
+          - name: Linux (Clang)
+            os: ubuntu-latest
+            cc: clang
+            cxx: clang++
+          - name: macOS (AppleClang)
+            os: macos-latest
+          - name: Windows (MSVC)
+            os: windows-latest
+
+    steps:
+      - name: Check out sources and Eigen submodule
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmake_args }}
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Run the default scene and compare with the reference field
+        working-directory: build
+        run: ctest -C Release --output-on-failure

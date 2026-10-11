@@ -1,5 +1,7 @@
 #include "Triangle.h"
 
+#include <algorithm>
+
 Triangle::Triangle()
 {
     BVHNode<Triangle>::EmptyAABB(bbox);

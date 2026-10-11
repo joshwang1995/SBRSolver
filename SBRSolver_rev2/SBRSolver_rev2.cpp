@@ -1,6 +1,7 @@
 // SBRSolver_rev2.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 
+#include <filesystem>
 #include <iostream>
 #include <string>
 #include "BVH/BVH.h"
@@ -15,23 +16,77 @@
 
 #define DEBUG 1
 
-int main()
+// Directory that holds stl_files/, the RX_*.dat receiver files and the TX pattern.
+// The build system points this at <repo>/SBRSolver_rev2/data so the executable can
+// be started from any working directory; it can be overridden on the command line.
+#ifndef SBR_DEFAULT_DATA_DIR
+#define SBR_DEFAULT_DATA_DIR "./data"
+#endif
+
+namespace fs = std::filesystem;
+
+static void PrintUsage(const char* program)
 {
+	std::cout
+		<< "Usage: " << program << " [data_dir] [output_dir]\n"
+		<< "  data_dir    directory containing stl_files/ and the RX_*.dat files\n"
+		<< "              (default: " << SBR_DEFAULT_DATA_DIR << ")\n"
+		<< "  output_dir  directory for the generated VTK/CSV files\n"
+		<< "              (default: <data_dir>/output, created if missing)\n";
+}
+
+static std::string PathString(const fs::path& p)
+{
+	// Use forward slashes everywhere; every supported OS accepts them.
+	return p.generic_string();
+}
+
+int main(int argc, char* argv[])
+{
+	for (int i = 1; i < argc; i++)
+	{
+		const std::string arg = argv[i];
+		if (arg == "-h" || arg == "--help")
+		{
+			PrintUsage(argv[0]);
+			return 0;
+		}
+	}
+
+	const fs::path dataDir = (argc > 1) ? fs::path(argv[1]) : fs::path(SBR_DEFAULT_DATA_DIR);
+	const fs::path outputDir = (argc > 2) ? fs::path(argv[2]) : dataDir / "output";
+
 	std::cout << "[Entering] main ..." << std::endl;
 	std::cout << "Initializing Simulation Parameters" << std::endl;
 
 	// Input filenames
-	std::string stlFileName = "./data/stl_files/ground.stl";
-	std::string rxLocationFileName = "./data/RX_Ground.dat";
-	std::string txPatternFileName = "./data/TxPatternTest.dat";
+	std::string stlFileName = PathString(dataDir / "stl_files" / "ground.stl");
+	std::string rxLocationFileName = PathString(dataDir / "RX_Ground.dat");
+	std::string txPatternFileName = PathString(dataDir / "TxPatternTest.dat");
 
 	// Output filenames
-	std::string rxLocationOutputFileName = "./data/output/RxLocations.vtk";
-	std::string bvhFileName = "./data/output/BVH.vtk";
-	std::string rayPathFileName = "./data/output/RayPath.vtk";
-	std::string icosahedronFileName = "./data/output/Icosahedron.vtk";
-	std::string edgesFileName = "./data/output/Edges.vtk";
-	std::string csvFieldFileName = "./data/output/ElectricField.csv";
+	std::string rxLocationOutputFileName = PathString(outputDir / "RxLocations.vtk");
+	std::string bvhFileName = PathString(outputDir / "BVH.vtk");
+	std::string rayPathFileName = PathString(outputDir / "RayPath.vtk");
+	std::string icosahedronFileName = PathString(outputDir / "Icosahedron.vtk");
+	std::string edgesFileName = PathString(outputDir / "Edges.vtk");
+	std::string csvFieldFileName = PathString(outputDir / "ElectricField.csv");
+
+	if (!fs::exists(stlFileName))
+	{
+		std::cerr << "Error: STL file not found: " << stlFileName << std::endl;
+		PrintUsage(argv[0]);
+		return 1;
+	}
+
+	std::error_code ec;
+	fs::create_directories(outputDir, ec);
+	if (ec)
+	{
+		std::cerr << "Error: cannot create output directory " << PathString(outputDir) << ": " << ec.message() << std::endl;
+		return 1;
+	}
+
 
 	Timer timer;
 	double freq = 1.8e9; // frequency
@@ -40,6 +95,8 @@ int main()
 	int maxTransmission = 0;
 
 #if DEBUG
+	std::cout << "\tData Directory        -> " << PathString(dataDir) << std::endl;
+	std::cout << "\tOutput Directory      -> " << PathString(outputDir) << std::endl;
 	std::cout << "\tTX Pattern File Name  -> " << txPatternFileName << std::endl;
 	std::cout << "\tRX Location File Name -> " << rxLocationFileName << std::endl;
 	std::cout << "\tSTL File Name         -> " << stlFileName << std::endl;
@@ -64,7 +121,11 @@ int main()
 	// Preprocessor::GenerateRxPlane(-5, -5, 5, 5, 7, 1, rxLocation);
 	//Preprocessor::ReadLocationFile(rxLocationFileName, rxLocation);
 	Preprocessor::GenerateRXLine(Vec3(0, 0, 3), Vec3(0, 3000, 3), 1, rxLocation);
-	Preprocessor::StlToGeometry(stlFileName, triangle_mesh, true, true, "./data/output/");
+	if (!Preprocessor::StlToGeometry(stlFileName, triangle_mesh, true, true, PathString(outputDir) + "/") || triangle_mesh.empty())
+	{
+		std::cerr << "Error: failed to load any triangles from " << stlFileName << std::endl;
+		return 1;
+	}
 	bvh.ConstructBVH(triangle_mesh);
 	// Preprocessor End
 
@@ -121,7 +182,7 @@ int main()
 	RTSolver* rayTracer = new RTSolver();
 	rayTracer->Init(materials, 1, bvh);
 
-	int total_paths = rayTracer->ExecuteRayTracing
+	int totalPaths = rayTracer->ExecuteRayTracing
 	(
 		rayOrig,
 		txCoordSys,
@@ -135,6 +196,8 @@ int main()
 		tessllation
 	);
 
+	std::cout << "Total ray paths traced -> " << totalPaths << std::endl;
+
 	// rayTracer->CmdLineDebug();
 	rayTracer->SavePathsAsVtk(rayPathFileName);
 	// rayTracer->SaveIcosahedronAsVtk(icosahedronFileName,rayOrig, tessllation);
@@ -142,4 +205,12 @@ int main()
 	rayTracer->SaveFieldAsCsv(csvFieldFileName);
 
 	delete rayTracer;
+
+	for (Triangle* triangle : triangle_mesh)
+	{
+		delete triangle;
+	}
+	triangle_mesh.clear();
+
+	return 0;
 }

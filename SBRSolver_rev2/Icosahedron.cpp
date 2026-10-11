@@ -1,4 +1,8 @@
-#include "icosahedron.h"
+#include "Icosahedron.h"
+
+#include <cmath>
+#include <map>
+#include <utility>
 
 int vertex_for_edge(std::map<std::pair<int, int>, int>& lookup, std::vector<Vec3>& vertices, int first, int second)
 {

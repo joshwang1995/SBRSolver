@@ -1,6 +1,6 @@
 #include "Ray.h"
 
-extern std::atomic<int> RayGlobalId = 0;
+std::atomic<int> RayGlobalId{0};
 
 PathTreeNode* newPathTreeNode
 (
