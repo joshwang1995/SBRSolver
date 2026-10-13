@@ -96,7 +96,9 @@ required keys, values of the wrong type or range and missing files are reported 
 | Section | Key | Meaning |
 |---|---|---|
 | `[scene]` | `stl_file` | scene geometry (STL, ASCII or binary) |
+| | `material` | material of `stl_file` (default: the first `[material]`) |
 | | `save_edges`, `save_faces` | write `Edges.vtk` / `Faces.vtk` (default `true`) |
+| `[geometry]` (repeatable) | `file`, `material` | a further STL file whose triangles all get `material` |
 | `[transmitter]` | `position` | ray origin, `x y z` in metres |
 | | `coordinate_system` | three rows of the TX frame, e.g. `0 1 0; 0 0 1; 1 0 0` (default identity) |
 | | `power_watts`, `frequency_hz` | transmit power (default `1`) and frequency |
@@ -108,10 +110,20 @@ required keys, values of the wrong type or range and missing files are reported 
 | | `layout = file` | `file`, an `RX_*.dat` location file |
 | `[ray_tracing]` | `max_reflections`, `max_transmissions` | bounce limits (default `1` and `0`) |
 | | `use_fresnel_coefficients` | default `true` |
-| `[material]` | `name`, `reflection_loss`, `transmission_loss`, `rel_conductivity`, `rel_permittivity_re`, `rel_permittivity_im`, `frequency_hz` | one section per material; the first is material 0, applied to every surface. `frequency_hz` defaults to the transmitter frequency |
+| `[material]` (repeatable) | `name`, `reflection_loss`, `transmission_loss`, `rel_conductivity`, `rel_permittivity_re`, `rel_permittivity_im`, `frequency_hz` | one section per material with a unique name; the first is the default for `stl_file`. `frequency_hz` defaults to the transmitter frequency |
+| `[surface_materials]` | `<surface id> = <material name>` | override whole coplanar surfaces; ids are the `CoplanarID` field of `Faces.vtk` |
 | `[outputs]` | `ray_paths`, `receivers`, `field_csv`, `icosahedron` | which result files to write (defaults `true`, `true`, `true`, `false`) |
 
 The scene, receiver layout and material parameters are no longer set in the source code.
+
+**Assigning materials to surfaces.** STL files carry no material information, so there are two ways
+to say which surface is made of what. The usual way is one STL file per material: export the walls,
+windows, floor and so on as separate files from Blender or your CAD tool, name the first in `stl_file`
+with its `material`, and list the others in `[geometry]` sections. For finer control, or for a single
+file, `[surface_materials]` overrides whole coplanar surfaces by id. To find an id, run the scene once,
+open `output/Faces.vtk` in ParaView and colour by `CoplanarID` (or `MaterialID` to check the result).
+Ids are assigned in file order and change if the geometry changes. The program prints how many
+triangles each material received. `SBRSolver_rev2/data/office.ini` shows both mechanisms.
 
 ### Test
 
@@ -120,7 +132,7 @@ cd build && ctest -C Release --output-on-failure
 ```
 
 This runs `ground.ini` and compares the resulting electric field with the reference results
-committed in `SBRSolver_rev2/data/output/ElectricField.csv`. The same build and test matrix runs in
+committed in `SBRSolver_rev2/data/output/ElectricField.csv`, and runs the multi-material `office.ini`. The same build and test matrix runs in
 GitHub Actions on Ubuntu (GCC and Clang), macOS and Windows for every pull request and every push to `master`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>

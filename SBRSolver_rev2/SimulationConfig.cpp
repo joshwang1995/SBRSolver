@@ -348,6 +348,13 @@ namespace
 			return true;
 		}
 
+		std::vector<std::string> Keys() const
+		{
+			std::vector<std::string> keys;
+			for (const auto& kv : _section.entries) keys.push_back(kv.first);
+			return keys;
+		}
+
 		void ReportUnusedKeys()
 		{
 			for (const auto& kv : _section.entries)
@@ -381,11 +388,73 @@ namespace
 		return false;
 	}
 
-	void ReadScene(SectionReader& r, SimulationConfig& cfg)
+	int FindMaterial(const SimulationConfig& cfg, const std::string& name)
+	{
+		for (size_t i = 0; i < cfg.materials.size(); i++)
+		{
+			if (cfg.materials[i].name == name) return int(i);
+		}
+		return -1;
+	}
+
+	// Resolves a material name from `key`; reports unknown names.
+	bool ReadMaterialReference(SectionReader& r, const SimulationConfig& cfg, const std::string& key,
+		bool required, std::string& name, int& id, Diagnostics& diag)
+	{
+		if (!r.String(key, name, required)) return false;
+		id = FindMaterial(cfg, name);
+		if (id < 0)
+		{
+			std::string known;
+			for (const MaterialConfig& m : cfg.materials) known += (known.empty() ? "" : ", ") + m.name;
+			diag.Add(r.Line(key), "key '" + key + "': unknown material '" + name + "' (defined materials: " + known + ")");
+			return false;
+		}
+		return true;
+	}
+
+	void ReadScene(SectionReader& r, SimulationConfig& cfg, Diagnostics& diag)
 	{
 		r.Path("stl_file", cfg.stlFile, true, true);
+		if (!cfg.materials.empty())
+		{
+			cfg.sceneMaterial = cfg.materials[0].name;
+			cfg.sceneMaterialId = 0;
+		}
+		ReadMaterialReference(r, cfg, "material", false, cfg.sceneMaterial, cfg.sceneMaterialId, diag);
 		r.Boolean("save_edges", cfg.saveEdges, false);
 		r.Boolean("save_faces", cfg.saveFaces, false);
+	}
+
+	void ReadGeometry(SectionReader& r, SimulationConfig& cfg, Diagnostics& diag)
+	{
+		GeometryConfig g;
+		r.Path("file", g.file, true, true);
+		ReadMaterialReference(r, cfg, "material", true, g.material, g.materialId, diag);
+		cfg.geometries.push_back(g);
+	}
+
+	// Every key is a coplanar surface id, every value a material name.
+	void ReadSurfaceMaterials(SectionReader& r, SimulationConfig& cfg, Diagnostics& diag)
+	{
+		for (const std::string& key : r.Keys())
+		{
+			std::istringstream iss(key);
+			int surfaceId;
+			if (!(iss >> surfaceId) || !(iss >> std::ws).eof() || surfaceId < 0)
+			{
+				std::string ignored;
+				r.String(key, ignored, false); // mark as used so it is not reported twice
+				diag.Add(r.Line(key), "[surface_materials] keys must be non-negative surface ids (see the CoplanarID field of Faces.vtk), got '" + key + "'");
+				continue;
+			}
+			std::string name;
+			int id;
+			if (ReadMaterialReference(r, cfg, key, true, name, id, diag))
+			{
+				cfg.surfaceMaterials[surfaceId] = id;
+			}
+		}
 	}
 
 	void ReadTransmitter(SectionReader& r, SimulationConfig& cfg, Diagnostics& diag)
@@ -518,7 +587,8 @@ namespace
 	{
 		MaterialConfig m;
 		MaterialProperties& p = m.properties;
-		r.String("name", m.name, true);
+		if (r.String("name", m.name, true) && FindMaterial(cfg, m.name) >= 0)
+			diag.Add(r.Line("name"), "material name '" + m.name + "' is used more than once");
 		// Defaults to the transmitter frequency when omitted (the solver only
 		// evaluates materials at the simulation frequency).
 		p.frequency = cfg.frequencyHz;
@@ -562,28 +632,33 @@ bool LoadSimulationConfig(const std::string& path, SimulationConfig& config, std
 		return false;
 	}
 
-	// Sections are read in a fixed order so that [material] can default its
-	// frequency to the transmitter frequency regardless of file order.
-	const char* order[] = { "scene", "transmitter", "receivers", "ray_tracing", "material", "outputs" };
-	bool seen[6] = { false, false, false, false, false, false };
-	for (int i = 0; i < 6; i++)
+	// Sections are read in a fixed order regardless of file order: [material]
+	// needs the transmitter frequency for its default, and [scene],
+	// [geometry] and [surface_materials] refer to materials by name.
+	const char* order[] = { "transmitter", "material", "scene", "geometry", "receivers", "ray_tracing", "surface_materials", "outputs" };
+	const int sectionCount = int(sizeof(order) / sizeof(order[0]));
+	std::vector<bool> seen(sectionCount, false);
+	for (int i = 0; i < sectionCount; i++)
 	{
 		const std::string name = order[i];
+		const bool repeatable = (name == "material" || name == "geometry");
 		for (Section& section : sections)
 		{
 			if (section.name != name) continue;
-			if (seen[i] && name != "material")
+			if (seen[i] && !repeatable)
 			{
 				diag.Add(section.line, "section [" + name + "] appears more than once");
 				continue;
 			}
 			seen[i] = true;
 			SectionReader reader(section, diag, baseDir);
-			if (name == "scene") ReadScene(reader, config);
+			if (name == "scene") ReadScene(reader, config, diag);
 			else if (name == "transmitter") ReadTransmitter(reader, config, diag);
 			else if (name == "receivers") ReadReceivers(reader, config, diag);
 			else if (name == "ray_tracing") ReadRayTracing(reader, config, diag);
 			else if (name == "material") ReadMaterial(reader, config, diag);
+			else if (name == "geometry") ReadGeometry(reader, config, diag);
+			else if (name == "surface_materials") ReadSurfaceMaterials(reader, config, diag);
 			else ReadOutputs(reader, config);
 			reader.ReportUnusedKeys();
 		}
@@ -636,7 +711,11 @@ void PrintSimulationConfig(const SimulationConfig& c)
 	const Eigen::IOFormat matFmt(Eigen::StreamPrecision, Eigen::DontAlignCols, " ", "; ", "", "", "", "");
 
 	cout << "\tconfig_file              -> " << c.configFile << endl;
-	cout << "\t[scene] stl_file         -> " << c.stlFile << endl;
+	cout << "\t[scene] stl_file         -> " << c.stlFile << " (material " << c.sceneMaterialId << ": " << c.sceneMaterial << ")" << endl;
+	for (const GeometryConfig& g : c.geometries)
+		cout << "\t[geometry] file          -> " << g.file << " (material " << g.materialId << ": " << g.material << ")" << endl;
+	for (const auto& kv : c.surfaceMaterials)
+		cout << "\t[surface_materials] surface " << kv.first << " -> material " << kv.second << ": " << c.materials[kv.second].name << endl;
 	cout << "\t[scene] save_edges       -> " << (c.saveEdges ? "true" : "false") << endl;
 	cout << "\t[scene] save_faces       -> " << (c.saveFaces ? "true" : "false") << endl;
 	cout << "\t[transmitter] position   -> " << c.txPosition.transpose().format(rowFmt) << endl;
