@@ -117,7 +117,7 @@ Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
 			// Get either the gain from the TX or an analytical pattern
 			// E(r,theta,phi) = E(0) * exp(-jkr)/r
 			// E(0) need to be calculated from the field coefficient sqrt(eta * Pr * Gain / 2Pi)
-			incidentField = GetAnalyticEfieldPattern(1, theta, phi, _txPower); // local spherical
+			incidentField = GetAnalyticEfieldPattern(_antennaType, theta, phi, _txPower); // local spherical
 		}
 		else
 		{

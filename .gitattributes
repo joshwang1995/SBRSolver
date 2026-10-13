@@ -8,6 +8,7 @@
 
 # Plain-text data and results
 *.dat text
+*.ini text
 *.vtk text
 *.csv text
 *.m   text

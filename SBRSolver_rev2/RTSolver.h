@@ -27,6 +27,7 @@ public:
 		double frequency,
 		double pt,
 		bool useFresnelCoeff,
+		int antennaType,
 		VecVec3& receivers,
 		std::vector<Triangle*>& triangleMesh,
 		int txTesslation

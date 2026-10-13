@@ -71,16 +71,44 @@ with `cmake -S . -B build -G "Visual Studio 17 2022"`; both use the same `CMakeL
 ### Run
 
 ```sh
-./build/sbrsolver                        # uses SBRSolver_rev2/data, writes to SBRSolver_rev2/data/output
-./build/sbrsolver path/to/data out_dir   # custom data and output directories
+./build/sbrsolver                                   # runs SBRSolver_rev2/data/ground.ini
+./build/sbrsolver SBRSolver_rev2/data/office.ini    # another scene, results next to the config in data/output
+./build/sbrsolver my_case.ini results/              # custom config and output directory
 ./build/sbrsolver --help
 ```
 
-The first argument is the data directory (containing `stl_files/` and the `RX_*.dat` receiver files),
-the second the output directory for the VTK/CSV results. The data directory defaults to `SBRSolver_rev2/data`
-in the source tree (the path is baked in at build time, so the program can be started from any working
-directory); the output directory defaults to `<data_dir>/output` and is created if missing. The scene, receiver layout and material
-parameters are currently set in `SBRSolver_rev2/SBRSolver_rev2.cpp`.
+The first argument is a configuration file (see below), the second the output directory for the
+VTK/CSV results. The configuration defaults to `ground.ini` in the data folder of the source tree
+(the path is baked in at build time, so the program can be started from any working directory);
+the output directory defaults to `output/` next to the configuration file and is created if missing.
+
+### Configuration file
+
+All simulation settings live in an INI-style text file. `SBRSolver_rev2/data/ground.ini` is the
+documented reference; `corner.ini`, `office.ini` and `bahen.ini` are further examples. File names
+inside the configuration are relative to the configuration file. Lines starting with `#` or `;` are
+comments, and `#` preceded by a space starts an inline comment. Unknown sections or keys, missing
+required keys, values of the wrong type and missing files are reported with their line number.
+
+| Section | Key | Meaning |
+|---|---|---|
+| `[scene]` | `stl_file` | scene geometry (STL, ASCII or binary) |
+| | `save_edges`, `save_faces` | write `Edges.vtk` / `Faces.vtk` (default `true`) |
+| `[transmitter]` | `position` | ray origin, `x y z` in metres |
+| | `coordinate_system` | three rows of the TX frame, e.g. `0 1 0; 0 0 1; 1 0 0` (default identity) |
+| | `power_watts`, `frequency_hz` | transmit power (default `1`) and frequency |
+| | `tessellation` | icosahedron subdivision level (default `2`) |
+| | `antenna_type` | `isotropic`, `hertzian_dipole` (default), `half_wave_dipole` or `array` |
+| | `pattern_file` | optional measured pattern; read and validated, not applied yet |
+| `[receivers]` | `layout = line` | `line_start`, `line_end`, `resolution` |
+| | `layout = plane` | `x_min`, `y_min`, `x_max`, `y_max`, `height`, `resolution` |
+| | `layout = file` | `file`, an `RX_*.dat` location file |
+| `[ray_tracing]` | `max_reflections`, `max_transmissions` | bounce limits (default `1` and `0`) |
+| | `use_fresnel_coefficients` | default `true` |
+| `[material]` | `name`, `reflection_loss`, `transmission_loss`, `rel_conductivity`, `rel_permittivity_re`, `rel_permittivity_im`, `frequency_hz` | one section per material; the first is material 0, applied to every surface. `frequency_hz` defaults to the transmitter frequency |
+| `[outputs]` | `ray_paths`, `receivers`, `field_csv`, `icosahedron` | which result files to write (defaults `true`, `true`, `true`, `false`) |
+
+The scene, receiver layout and material parameters are no longer set in the source code.
 
 ### Test
 
@@ -88,7 +116,7 @@ parameters are currently set in `SBRSolver_rev2/SBRSolver_rev2.cpp`.
 cd build && ctest -C Release --output-on-failure
 ```
 
-This runs the default scene and compares the resulting electric field with the reference results
+This runs `ground.ini` and compares the resulting electric field with the reference results
 committed in `SBRSolver_rev2/data/output/ElectricField.csv`. The same build and test matrix runs in
 GitHub Actions on Ubuntu (GCC and Clang), macOS and Windows for every pull request and every push to `master`.
 
@@ -119,8 +147,9 @@ Any Git client (command line, Visual Studio, VS Code, GitKraken, ...) works for 
   git submodule update --init --recursive
   ```
   in the repository root and configure again.
-* **`STL file not found`** at start-up. Pass the data directory explicitly:
-  `sbrsolver /path/to/SBRSolver/SBRSolver_rev2/data`.
+* **`Error: invalid configuration`** at start-up. The message lists each offending line of the
+  configuration file (unknown key, bad value, missing file). File names inside the configuration are
+  relative to the configuration file, not to the current directory.
 * **OpenMP.** Nothing in the solver uses OpenMP yet, so it is off by default. To link it (for example
   before re-enabling the `#pragma omp` loops in `RTSolver.cpp`) configure with `-DSBR_ENABLE_OPENMP=ON`;
   on macOS install it first with `brew install libomp` and add `-DOpenMP_ROOT=$(brew --prefix libomp)`.
