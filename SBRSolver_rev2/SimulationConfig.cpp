@@ -6,6 +6,7 @@
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <map>
 #include <sstream>
@@ -14,10 +15,17 @@ namespace fs = std::filesystem;
 
 namespace
 {
-	// Sanity limits: beyond these the run is not useful and the generators'
-	// int conversions would overflow.
-	const int kMaxTessellation = 8;              // 655,362 launch directions
-	const long long kMaxGeneratedReceivers = 10000000;
+	// Sanity limits. The solver stores one path set per receiver and per
+	// launch ray (measured at roughly 30 bytes each before any path is
+	// found), so the budget is on the product; 1e8 is about 3 GB. It also
+	// keeps the generators' int conversions in range.
+	const int kMaxTessellation = 8;                      // 655,362 launch directions
+	const double kMaxReceiverRayProducts = 100000000.0;  // receivers x rays
+
+	int LaunchRayCount(int tessellation)
+	{
+		return 10 * (1 << (2 * tessellation)) + 2;      // 12, 42, 162, 642, ...
+	}
 
 	struct Entry
 	{
@@ -78,13 +86,23 @@ namespace
 
 	bool ParseIniFile(const std::string& path, std::vector<Section>& sections, Diagnostics& diag)
 	{
+		// Only a directory or an unreadable path is refused here; a pipe or
+		// process substitution falls through to std::ifstream as before.
 		std::error_code ec;
 		const fs::file_status status = fs::status(fs::path(path), ec);
-		if (!fs::is_regular_file(status))
+		if (status.type() == fs::file_type::not_found)
 		{
-			if (status.type() == fs::file_type::not_found) diag.Add(0, "configuration file not found");
-			else if (ec) diag.Add(0, "cannot open configuration file: " + ec.message());
-			else diag.Add(0, "configuration file is not a regular file (is it a directory?)");
+			diag.Add(0, "configuration file not found");
+			return false;
+		}
+		if (ec)
+		{
+			diag.Add(0, "cannot open configuration file: " + ec.message());
+			return false;
+		}
+		if (fs::is_directory(status))
+		{
+			diag.Add(0, "configuration file is a directory");
 			return false;
 		}
 		std::ifstream in(path);
@@ -100,8 +118,9 @@ namespace
 		while (std::getline(in, rawLine))
 		{
 			lineNo++;
-			// Drop a UTF-8 byte order mark: Notepad, PowerShell's Out-File and
-			// Visual Studio ("UTF-8 with signature") all write one.
+			// Drop a UTF-8 byte order mark; some Windows tools write one (Visual
+			// Studio "UTF-8 with signature", Notepad "UTF-8 with BOM",
+			// Windows PowerShell 5.1 Out-File -Encoding UTF8).
 			if (lineNo == 1 && rawLine.compare(0, 3, "\xEF\xBB\xBF") == 0) rawLine.erase(0, 3);
 			std::string line = Trim(rawLine);
 			// Whole-line comments start with '#' or ';'. Inline comments start
@@ -319,7 +338,8 @@ namespace
 					std::string why;
 					if (status.type() == fs::file_type::not_found) why = "file not found";
 					else if (ec) why = ec.message();
-					else why = "not a regular file (is it a directory?)";
+					else if (fs::is_directory(status)) why = "is a directory, not a file";
+					else why = "is not a regular file";
 					_diag.Add(Line(key), "key '" + key + "': " + why + ": " + p.generic_string());
 					return false;
 				}
@@ -378,7 +398,7 @@ namespace
 			diag.Add(r.Line("frequency_hz"), "frequency_hz must be positive");
 		if (r.Integer("tessellation", cfg.tessellation, false) && (cfg.tessellation < 0 || cfg.tessellation > kMaxTessellation))
 			diag.Add(r.Line("tessellation"), "tessellation must be between 0 and " + std::to_string(kMaxTessellation)
-				+ " (level " + std::to_string(kMaxTessellation) + " already launches " + std::to_string(10 * (1 << (2 * kMaxTessellation)) + 2) + " rays)");
+				+ " (level " + std::to_string(kMaxTessellation) + " already launches " + std::to_string(LaunchRayCount(kMaxTessellation)) + " rays)");
 		std::string antenna;
 		if (r.String("antenna_type", antenna, false) && !ParseAntennaType(antenna, cfg.antennaType))
 			diag.Add(r.Line("antenna_type"), "antenna_type must be one of isotropic, hertzian_dipole, half_wave_dipole; got '" + antenna + "'");
@@ -387,8 +407,11 @@ namespace
 
 	// Checks that a generated line or plane has a sane, representable number
 	// of points before Preprocessor::GenerateRXLine/GenerateRxPlane convert the
-	// counts to int.
-	void ValidateReceiverCount(SectionReader& r, const ReceiverConfig& rx, Diagnostics& diag)
+	// counts to int. Mirrors the generators: a line yields
+	// floor(length / resolution) points, a plane (nx + 1) * (ny + 1) with
+	// nx = floor(dx / resolution) and ny = floor(dy / resolution). Only called
+	// when every value it uses parsed and passed its own range check.
+	void ValidateReceiverCount(SectionReader& r, const ReceiverConfig& rx, int tessellation, Diagnostics& diag)
 	{
 		double count = 0.0;
 		if (rx.layout == ReceiverLayout::Line)
@@ -400,20 +423,44 @@ namespace
 				return;
 			}
 			count = std::floor(length / rx.resolution);
+			if (count < 1.0)
+			{
+				diag.Add(r.Line("resolution"), "the line is shorter than resolution, so no receivers would be generated");
+				return;
+			}
 		}
 		else if (rx.layout == ReceiverLayout::Plane)
 		{
-			count = std::floor((rx.xMax - rx.xMin) / rx.resolution) * std::floor((rx.yMax - rx.yMin) / rx.resolution);
+			const double nx = std::floor((rx.xMax - rx.xMin) / rx.resolution);
+			const double ny = std::floor((rx.yMax - rx.yMin) / rx.resolution);
+			count = (nx + 1.0) * (ny + 1.0);
 		}
 		else
 		{
 			return;
 		}
-		if (!std::isfinite(count) || count > double(kMaxGeneratedReceivers))
+		const double rays = double(LaunchRayCount(tessellation));
+		if (!std::isfinite(count) || count * rays > kMaxReceiverRayProducts)
 		{
-			diag.Add(r.Line("resolution"), "the receiver layout would generate more than "
-				+ std::to_string(kMaxGeneratedReceivers) + " receivers; increase resolution or shrink the extent");
+			std::ostringstream msg;
+			msg << "the receiver layout would generate " << std::fixed << std::setprecision(0) << count
+				<< " receivers, and with " << rays << " launch rays (tessellation " << tessellation
+				<< ") the solver would have to store " << count * rays << " path sets, more than the limit of "
+				<< kMaxReceiverRayProducts << " (about 3 GB); increase resolution, shrink the extent or lower tessellation";
+			diag.Add(r.Line("resolution"), msg.str());
 		}
+	}
+
+	// Reads `resolution`; true only when it parsed and is positive.
+	bool ReadResolution(SectionReader& r, ReceiverConfig& rx, Diagnostics& diag)
+	{
+		if (!r.Double("resolution", rx.resolution, true)) return false;
+		if (rx.resolution <= 0.0)
+		{
+			diag.Add(r.Line("resolution"), "resolution must be positive");
+			return false;
+		}
+		return true;
 	}
 
 	void ReadReceivers(SectionReader& r, SimulationConfig& cfg, Diagnostics& diag)
@@ -426,30 +473,36 @@ namespace
 			diag.Add(r.Line("layout"), "layout must be one of line, plane, file; got '" + layout + "'");
 			return;
 		}
+		// `ok` tracks only the values the count check derives from, so an
+		// error in another section cannot hide a receiver-count problem.
+		// (`&=` rather than `&&=` so every key is still read and reported.)
+		bool ok = true;
 		switch (rx.layout)
 		{
 		case ReceiverLayout::Line:
-			r.Vector3("line_start", rx.lineStart, true);
-			r.Vector3("line_end", rx.lineEnd, true);
-			if (r.Double("resolution", rx.resolution, true) && rx.resolution <= 0.0)
-				diag.Add(r.Line("resolution"), "resolution must be positive");
+			ok &= r.Vector3("line_start", rx.lineStart, true);
+			ok &= r.Vector3("line_end", rx.lineEnd, true);
+			ok &= ReadResolution(r, rx, diag);
 			break;
 		case ReceiverLayout::Plane:
-			r.Double("x_min", rx.xMin, true);
-			r.Double("y_min", rx.yMin, true);
-			r.Double("x_max", rx.xMax, true);
-			r.Double("y_max", rx.yMax, true);
+			ok &= r.Double("x_min", rx.xMin, true);
+			ok &= r.Double("y_min", rx.yMin, true);
+			ok &= r.Double("x_max", rx.xMax, true);
+			ok &= r.Double("y_max", rx.yMax, true);
 			r.Double("height", rx.height, true);
-			if (r.Double("resolution", rx.resolution, true) && rx.resolution <= 0.0)
-				diag.Add(r.Line("resolution"), "resolution must be positive");
-			if (rx.xMax < rx.xMin || rx.yMax < rx.yMin)
+			ok &= ReadResolution(r, rx, diag);
+			if (ok && (rx.xMax < rx.xMin || rx.yMax < rx.yMin))
+			{
 				diag.Add(r.Line("x_max"), "plane bounds must satisfy x_min <= x_max and y_min <= y_max");
+				ok = false;
+			}
 			break;
 		case ReceiverLayout::File:
 			r.Path("file", rx.file, true, true);
+			ok = false;
 			break;
 		}
-		if (diag.Empty()) ValidateReceiverCount(r, rx, diag);
+		if (ok) ValidateReceiverCount(r, rx, cfg.tessellation, diag);
 	}
 
 	void ReadRayTracing(SectionReader& r, SimulationConfig& cfg, Diagnostics& diag)

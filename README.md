@@ -103,7 +103,7 @@ required keys, values of the wrong type or range and missing files are reported 
 | | `tessellation` | icosahedron subdivision level 0 to 8; launches 10·4ⁿ+2 rays (default `2`, 162 rays) |
 | | `antenna_type` | `isotropic`, `hertzian_dipole` (default) or `half_wave_dipole` |
 | | `pattern_file` | optional measured pattern; read and validated, not applied yet |
-| `[receivers]` | `layout = line` | `line_start`, `line_end`, `resolution` |
+| `[receivers]` | `layout = line` | `line_start`, `line_end`, `resolution` (generated layouts are limited to 100 million receiver × ray combinations, about 3 GB) |
 | | `layout = plane` | `x_min`, `y_min`, `x_max`, `y_max`, `height`, `resolution` |
 | | `layout = file` | `file`, an `RX_*.dat` location file |
 | `[ray_tracing]` | `max_reflections`, `max_transmissions` | bounce limits (default `1` and `0`) |
