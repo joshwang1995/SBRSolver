@@ -439,13 +439,19 @@ namespace
 	{
 		for (const std::string& key : r.Keys())
 		{
+			// Plain decimal digits only (no sign, no leading zeros), so every
+			// surface id has exactly one spelling and the parser's duplicate-key
+			// check catches an id given twice.
+			const bool canonical = !key.empty()
+				&& std::all_of(key.begin(), key.end(), [](unsigned char c) { return std::isdigit(c) != 0; })
+				&& (key.size() == 1 || key[0] != '0');
 			std::istringstream iss(key);
 			int surfaceId;
-			if (!(iss >> surfaceId) || !(iss >> std::ws).eof() || surfaceId < 0)
+			if (!canonical || !(iss >> surfaceId) || !(iss >> std::ws).eof())
 			{
 				std::string ignored;
 				r.String(key, ignored, false); // mark as used so it is not reported twice
-				diag.Add(r.Line(key), "[surface_materials] keys must be non-negative surface ids (see the CoplanarID field of Faces.vtk), got '" + key + "'");
+				diag.Add(r.Line(key), "[surface_materials] keys must be plain decimal surface ids such as 12 (see the CoplanarID field of Faces.vtk), got '" + key + "'");
 				continue;
 			}
 			std::string name;
@@ -675,7 +681,7 @@ bool LoadSimulationConfig(const std::string& path, SimulationConfig& config, std
 			diag.Add(0, std::string("missing required section [") + name + "]");
 	}
 	if (config.materials.empty())
-		diag.Add(0, "at least one [material] section is required (material 0 is the default for every surface)");
+		diag.Add(0, "at least one [material] section is required (the first one is the default for [scene] stl_file)");
 
 	error = diag.Join();
 	return diag.Empty();

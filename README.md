@@ -97,7 +97,7 @@ required keys, values of the wrong type or range and missing files are reported 
 |---|---|---|
 | `[scene]` | `stl_file` | scene geometry (STL, ASCII or binary) |
 | | `material` | material of `stl_file` (default: the first `[material]`) |
-| | `save_edges`, `save_faces` | write `Edges.vtk` / `Faces.vtk` (default `true`) |
+| | `save_edges`, `save_faces` | write `Edges.vtk` / `Faces.vtk` (default `true`); edge connectivity is computed per STL file, so an edge shared by two files appears once per file |
 | `[geometry]` (repeatable) | `file`, `material` | a further STL file whose triangles all get `material` |
 | `[transmitter]` | `position` | ray origin, `x y z` in metres |
 | | `coordinate_system` | three rows of the TX frame, e.g. `0 1 0; 0 0 1; 1 0 0` (default identity) |
@@ -111,7 +111,7 @@ required keys, values of the wrong type or range and missing files are reported 
 | `[ray_tracing]` | `max_reflections`, `max_transmissions` | bounce limits (default `1` and `0`) |
 | | `use_fresnel_coefficients` | default `true` |
 | `[material]` (repeatable) | `name`, `reflection_loss`, `transmission_loss`, `rel_conductivity`, `rel_permittivity_re`, `rel_permittivity_im`, `frequency_hz` | one section per material with a unique name; the first is the default for `stl_file`. `frequency_hz` defaults to the transmitter frequency |
-| `[surface_materials]` | `<surface id> = <material name>` | override whole coplanar surfaces; ids are the `CoplanarID` field of `Faces.vtk` |
+| `[surface_materials]` | `<surface id> = <material name>` | override whole coplanar surfaces; ids are the `CoplanarID` field of `Faces.vtk`, written as plain decimal numbers, each at most once |
 | `[outputs]` | `ray_paths`, `receivers`, `field_csv`, `icosahedron` | which result files to write (defaults `true`, `true`, `true`, `false`) |
 
 The scene, receiver layout and material parameters are no longer set in the source code.
@@ -122,8 +122,9 @@ windows, floor and so on as separate files from Blender or your CAD tool, name t
 with its `material`, and list the others in `[geometry]` sections. For finer control, or for a single
 file, `[surface_materials]` overrides whole coplanar surfaces by id. To find an id, run the scene once,
 open `output/Faces.vtk` in ParaView and colour by `CoplanarID` (or `MaterialID` to check the result).
-Ids are assigned in file order and change if the geometry changes. The program prints how many
-triangles each material received. `SBRSolver_rev2/data/office.ini` shows both mechanisms.
+Ids are assigned in file order and change if the geometry changes; a run that names an unknown id
+still writes `Faces.vtk` so the valid ids can be looked up. The program prints how many triangles each
+material received. `SBRSolver_rev2/data/office.ini` shows both mechanisms.
 
 ### Test
 

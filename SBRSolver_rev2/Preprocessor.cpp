@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <stdexcept>
 #include <cassert>
 #include <cmath>
 #include <iterator>
@@ -147,6 +148,20 @@ bool Preprocessor::StlToGeometry
             std::vector<float> fileCoords, fileNormals;
             std::vector<unsigned int> fileTris, solids;
             stl_reader::ReadStlFile(source.fileName.c_str(), fileCoords, fileNormals, fileTris, solids);
+            if (fileTris.empty())
+            {
+                throw std::runtime_error("No triangles in " + source.fileName);
+            }
+            // stl_reader keeps one normal per facet; a facet without endfacet
+            // (truncated file) leaves more normals than triangles. Merging the
+            // arrays index by index would then hand the wrong normal to every
+            // later triangle, in this file and in every file after it.
+            if (fileNormals.size() != fileTris.size())
+            {
+                throw std::runtime_error(source.fileName + ": " + std::to_string(fileNormals.size() / 3)
+                    + " facet normals but " + std::to_string(fileTris.size() / 3)
+                    + " triangles; the file is truncated or malformed");
+            }
 
             // Vertex indices of this file are rebased onto the merged array.
             // (Vertices shared between files stay distinct, so coplanar
@@ -186,14 +201,21 @@ bool Preprocessor::StlToGeometry
         BfsCoplanarSurface(adjacencyList, output);
 
         std::string surfaceError;
-        if (!ApplySurfaceMaterials(surfaceMaterials, output, surfaceError))
-        {
-            std::cerr << surfaceError << std::endl;
-            return fail();
-        }
+        const bool surfacesOk = ApplySurfaceMaterials(surfaceMaterials, output, surfaceError);
 
+        // Written even when an override is rejected, so the error below can
+        // point at a Faces.vtk that describes the geometry just loaded (its
+        // MaterialID then shows the per-file materials).
         if (saveEdges) SaveEdgesAsVtk(dataDir + "Edges.vtk", edgeMap, coords);
         if (saveFaces) SaveFacesAsVtk(dataDir + "Faces.vtk", output, coords, tris);
+
+        if (!surfacesOk)
+        {
+            std::cerr << surfaceError
+                << (saveFaces ? " (written to " + dataDir + "Faces.vtk)" : " (set save_faces = true to write it)")
+                << std::endl;
+            return fail();
+        }
         return true;
     }
     catch (std::exception& e)
