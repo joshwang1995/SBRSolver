@@ -3,6 +3,8 @@
 #include <complex>
 #include <limits>
 
+#include <Eigen/Core> // EIGEN_PI
+
 const double SPEED_OF_LIGHT = 2.99792458e8; // Speed of light in vaccum
 const double U0 = 4*EIGEN_PI*1e-7; // permeability of free space 
 const double E0 = 1.0/(U0*SPEED_OF_LIGHT*SPEED_OF_LIGHT); // Permittivity of free space

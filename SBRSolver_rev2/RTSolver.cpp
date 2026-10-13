@@ -1,5 +1,11 @@
 #include "RTSolver.h"
 
+#include <algorithm>
+#include <cassert>
+#include <cmath>
+#include <map>
+#include <utility>
+
 RTSolver::RTSolver()
 {
 	Cleanup();
@@ -95,6 +101,9 @@ int RTSolver::ExecuteRayTracing
 			cloneRoot = DeleteChildNodes(cloneRoot);
 			delete cloneRoot;
 		}
+		// The per-launch tree has been cloned for every receiver; release it.
+		rootNode.childTransmit = DeleteChildNodes(rootNode.childTransmit);
+		rootNode.childReflect = DeleteChildNodes(rootNode.childReflect);
 	}
 
 	FieldCompute* fieldCore = new FieldCompute
@@ -590,15 +599,8 @@ bool RTSolver::SavePathsAsVtk(std::string fname)
 	for (int i = 0; i < receiverIds.size(); i++)
 	{
 		double totalPhase = std::arg(_efield->at(receiverIds[i]).x()) + std::arg(_efield->at(receiverIds[i]).y()) + std::arg(_efield->at(receiverIds[i]).z());
+		// Written in radians, unwrapped (non-finite values are clamped to 0).
 		totalPhase = std::isfinite(totalPhase) ? totalPhase : 0.0;
-		if (std::isfinite(totalPhase))
-		{
-			totalPhase >= TWOPI ? (totalPhase - TWOPI) * (180.0 / PI) : totalPhase * (180.0 / PI);
-		}
-		else
-		{
-			totalPhase = 361.0;
-		}
 		ofs << " " << totalPhase << endl;
 	}
 
@@ -670,15 +672,8 @@ bool RTSolver::SaveReceiversAsVtk(std::string fname)
 	for (int i = 0; i < _receiverCount; i++)
 	{
 		double totalPhase = std::arg(_efield->at(i).x()) + std::arg(_efield->at(i).y()) + std::arg(_efield->at(i).z());
+		// Written in radians, unwrapped (non-finite values are clamped to 0).
 		totalPhase = std::isfinite(totalPhase) ? totalPhase : 0.0;
-		if (std::isfinite(totalPhase))
-		{
-			totalPhase >= TWOPI ? (totalPhase - TWOPI) * (180.0 / PI) : totalPhase * (180.0 / PI);
-		}
-		else
-		{
-			totalPhase = 361.0;
-		}
 		ofs << " " << totalPhase << endl;
 	}
 

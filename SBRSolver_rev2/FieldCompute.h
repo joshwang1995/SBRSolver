@@ -41,8 +41,8 @@ public:
 protected:
 	Paths** _rayPaths;
 	std::vector<Triangle*>* _triangleMesh;
-	int _pathsCount;
 	VecVec3* _receivers;
+	int _pathsCount;
 	MaterialProperties* _materials;
 	Mat3 _txCoordSys;
 	double _frequency;

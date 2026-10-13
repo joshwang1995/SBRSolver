@@ -33,49 +33,96 @@ Features
 
 <!-- GETTING STARTED -->
 ## Getting Started
-Follw the instructions below to download the required software and compile the source code. 
+
+SBRSolver is a plain C++17 program built with [CMake](https://cmake.org). It compiles and runs
+on Windows, Linux and macOS with any recent compiler (MSVC 2019+, GCC 8+, Clang 9+, Xcode 11+ on macOS 10.15 or newer).
+The only dependency, [Eigen](https://eigen.tuxfamily.org), is bundled as a git submodule.
 
 ### Prerequisites
-Required Software
-* Visual Studio (latest version)
-  - Download link: https://visualstudio.microsoft.com/
-* Your GitHub account needs to be added as a Collaborator on the sarrisgroup/raytracer repository (ask Prof. Sarris to add you).
 
-### Installation
-1. Open Visual Studio &rarr; <kbd>File | Clone Repository </kbd>
-2. Under <kbd>Browse a repository</kbd>, click on <kbd>GitHub</kbd>
-3. If you havn't signed into your GitHub account, you can do so by clicking the <kbd>Sign In</kbd> box.
-4. Under <kbd>Collaborator repositories</kbd>, choose <kbd>sarrisgroup/raytracer</kbd>
-5. Pick the path to clone the repo to in the <kbd>Local Path:</kbd> box
-6. Click <kbd>Clone</kbd> and project is now cloned locally
-7. **Before making any changes to the code, read the Usage section**
+* Git
+* CMake 3.16 or newer
+* A C++17 compiler
+  - Windows: Visual Studio 2019/2022 with the *Desktop development with C++* workload
+    (the command-line *Build Tools* are enough), or MinGW-w64/Clang
+  - Linux: `sudo apt install build-essential cmake git` (Debian/Ubuntu) or the equivalent
+  - macOS 10.15 (Catalina) or newer: `xcode-select --install` and `brew install cmake`
+* Optional: Python 3 to run the regression test
+
+### Build
+
+```sh
+git clone --recurse-submodules https://github.com/joshwang1995/SBRSolver.git
+cd SBRSolver
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release --parallel
+```
+
+If you cloned without `--recurse-submodules`, fetch Eigen first with
+`git submodule update --init --recursive`. Alternatively install Eigen 3.4 system-wide
+(`apt install libeigen3-dev`, `brew install eigen`, `vcpkg install eigen3`) and CMake will pick it up.
+
+The executable is written to `build/sbrsolver` on Linux/macOS. On Windows the Visual Studio generator
+(CMake's default when Visual Studio is installed) puts it in `build\Release\sbrsolver.exe`; single-config
+generators such as Ninja or MinGW Makefiles put it in `build\sbrsolver.exe`.
+On Windows you can also open the folder in Visual Studio (*File | Open | Folder*) or generate a solution
+with `cmake -S . -B build -G "Visual Studio 17 2022"`; both use the same `CMakeLists.txt`.
+
+### Run
+
+```sh
+./build/sbrsolver                        # uses SBRSolver_rev2/data, writes to SBRSolver_rev2/data/output
+./build/sbrsolver path/to/data out_dir   # custom data and output directories
+./build/sbrsolver --help
+```
+
+The first argument is the data directory (containing `stl_files/` and the `RX_*.dat` receiver files),
+the second the output directory for the VTK/CSV results. The data directory defaults to `SBRSolver_rev2/data`
+in the source tree (the path is baked in at build time, so the program can be started from any working
+directory); the output directory defaults to `<data_dir>/output` and is created if missing. The scene, receiver layout and material
+parameters are currently set in `SBRSolver_rev2/SBRSolver_rev2.cpp`.
+
+### Test
+
+```sh
+cd build && ctest -C Release --output-on-failure
+```
+
+This runs the default scene and compares the resulting electric field with the reference results
+committed in `SBRSolver_rev2/data/output/ElectricField.csv`. The same build and test matrix runs in
+GitHub Actions on Ubuntu (GCC and Clang), macOS and Windows for every pull request and every push to `master`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- USAGE EXAMPLES -->
-## Usage
+## Contributing
 
-**_Git is used for version control in this entire proejct, any use of Git without fully understanding the consequence of each action can be detrimental. Read the following resource to get started with using Git. https://git-scm.com/book/en/v2_**
+**_Git is used for version control in this entire project. Any use of Git without fully understanding the consequence of each action can be detrimental. Read the following resource to get started with using Git: https://git-scm.com/book/en/v2_**
 
-1. Once you have a local repo, you need to make sure you are not changing code that is in the master branch. This branch should only contain verified working code.
-2. To make a branch from master, click <kbd>Git | New Local Branch From</kbd>
-3. Choose a branch name and click <kbd>Create</kbd>
-4. Now you should have your own branch where the codebase is the exact replica of the master branch. Any changes in the local repo will be recorded. 
-5. It is a good idea to frequently commit your code so you can go back if something goes wrong. Think of it as quick save in video games.
-  - To commit your code, click <kbd>Git | Commit or Stash...</kbd>
-  - In the side panel window, write a short and concise commit message (insert link here for good commit message practices), then click <kbd>Commit All</kbd>
-6. You can push the commit to the remote branch by clicking the <kbd> Git | Push </kbd>. This uploades your code changes from your local repo to the GitHub repo
-7. Once you finish your code fixes/implementation on your remote branch, you can create a pull request to merge your code changes to the master branch. **Make sure you test out your code as much as you can before merging and get someone else to review it for you**
+1. Do not commit directly to the `master` branch. It should only contain verified working code.
+2. Create your own branch from `master`: `git switch -c my-feature master`
+3. Commit frequently so you can go back if something goes wrong. Think of it as quick save in video games:
+   `git add -A && git commit -m "Short, descriptive message"`
+4. Push your branch to GitHub: `git push -u origin my-feature`
+5. Once your fix/implementation is finished, open a pull request to merge it into `master`.
+   **Make sure the build and `ctest` pass on your machine, and get someone else to review it for you.**
+
+Any Git client (command line, Visual Studio, VS Code, GitKraken, ...) works for the steps above.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- TROUBLESHOOTING -->
 ## Troubleshooting
 
-* When you clone the entire project from Visual Studio, it should recursively clone all submodules. If the submodule folder is empty, run the following command in the directory where the git repo exists
-   ```sh
-   git submodule init & git submodule update
-   ```
+* **CMake reports that Eigen was not found.** The submodule folder `eigen/` is empty. Run
+  ```sh
+  git submodule update --init --recursive
+  ```
+  in the repository root and configure again.
+* **`STL file not found`** at start-up. Pass the data directory explicitly:
+  `sbrsolver /path/to/SBRSolver/SBRSolver_rev2/data`.
+* **OpenMP.** Nothing in the solver uses OpenMP yet, so it is off by default. To link it (for example
+  before re-enabling the `#pragma omp` loops in `RTSolver.cpp`) configure with `-DSBR_ENABLE_OPENMP=ON`;
+  on macOS install it first with `brew install libomp` and add `-DOpenMP_ROOT=$(brew --prefix libomp)`.
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-

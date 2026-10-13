@@ -23,66 +23,48 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+// Derived from the Timer class in the NVIDIA samples; ported to
+// std::chrono::steady_clock so it needs no platform-specific code.
 
-
-//From NVIDIA samples
 #pragma once
 
-#if defined(_WIN32)
-#include <Windows.h>
-#else
-#include <sys/time.h>
-#endif
+#include <chrono>
 
+/*! \brief A simple, portable timer class.
+ *
+ * Measures wall-clock time intervals in seconds using std::chrono, so it
+ * behaves identically on Windows, Linux and macOS. The timer can be started
+ * and stopped several times and accumulates the time elapsed between the
+ * start() and stop() calls.
+ */
+class Timer
+{
+public:
+	//! Constructs a Timer, but does not start it yet.
+	Timer();
 
-	/*! \brief A simple timer class.
-	 * This timer class can be used on Windows and Linux systems to
-	 * measure time intervals in seconds.
-	 * The timer can be started and stopped several times and accumulates
-	 * time elapsed between the start() and stop() calls. */
-	class Timer
-	{
-		public:
-			//! Default constructor. Constructs a Timer, but does not start it yet. 
-			Timer();
+	//! Starts the timer (no-op if already running).
+	void start();
 
-			//! Default destructor.
-			~Timer();
+	//! Stops the timer and accumulates the elapsed time.
+	void stop();
 
-			//! Starts the timer.
-			void start();
+	//! Resets the accumulated time and stops the timer.
+	void reset();
 
-			//! Stops the timer.
-			void stop();
+	//! Resets the timer and starts it.
+	void restart();
 
-			//! Resets the timer.
-			void reset();
+	//! Returns the accumulated time in seconds (including the running interval).
+	double getTime() const;
 
-			//! Resets the timer and starts it.
-			void restart();
+	//! Returns whether the timer is currently running.
+	bool isRunning() const { return m_running; }
 
-			//! Returns the current time in seconds.
-			double getTime() const;
+private:
+	using Clock = std::chrono::steady_clock;
 
-			//! Return whether the timer is still running.
-			bool isRunning() const { return m_running; }
-
-		private:
-#if defined(_WIN32)
-			typedef LARGE_INTEGER Time;
-#else
-			typedef timeval Time;
-#endif
-
-		private:
-			double calcDuration(Time begin, Time end) const;
-
-		private:
-#if defined(_WIN32)
-			LARGE_INTEGER m_freq;
-#endif
-			Time   m_begin;
-			bool   m_running;
-			double m_seconds;
-	};
-
+	Clock::time_point m_begin;
+	bool m_running;
+	double m_seconds;
+};
