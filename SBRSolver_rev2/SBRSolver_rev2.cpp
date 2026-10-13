@@ -82,7 +82,12 @@ int main(int argc, char* argv[])
 	}
 
 	const fs::path configPath = (argc > 1) ? fs::path(argv[1]) : fs::path(SBR_DEFAULT_DATA_DIR) / SBR_DEFAULT_CONFIG_NAME;
-	const fs::path outputDir = (argc > 2) ? fs::path(argv[2]) : fs::absolute(configPath).parent_path() / "output";
+	if (configPath.empty() || (argc > 2 && std::string(argv[2]).empty()))
+	{
+		std::cerr << "Error: empty path argument" << std::endl;
+		PrintUsage(argv[0]);
+		return 1;
+	}
 
 	std::cout << "[Entering] main ..." << std::endl;
 	std::cout << "Loading simulation parameters from " << PathString(configPath) << std::endl;
@@ -95,6 +100,9 @@ int main(int argc, char* argv[])
 		PrintUsage(argv[0]);
 		return 1;
 	}
+
+	// config.configFile is already absolute and normalised.
+	const fs::path outputDir = (argc > 2) ? fs::path(argv[2]) : fs::path(config.configFile).parent_path() / "output";
 
 	std::error_code ec;
 	fs::create_directories(outputDir, ec);

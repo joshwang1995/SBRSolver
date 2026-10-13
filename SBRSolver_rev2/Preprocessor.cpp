@@ -1,12 +1,40 @@
 #include "Preprocessor.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <cassert>
 #include <cmath>
 #include <iterator>
 #include <map>
 #include <sstream>
 #include <utility>
+
+namespace
+{
+    // Converts a whole token to a finite number; returns false for anything
+    // else (so a textual header line is skipped instead of throwing).
+    bool ParseNumber(const std::string& token, double& value)
+    {
+        if (token.empty()) return false;
+        char* end = nullptr;
+        value = std::strtod(token.c_str(), &end);
+        return end == token.c_str() + token.size() && std::isfinite(value);
+    }
+
+    // Parses every token of `line` into `values`; returns false if any token
+    // is not a number.
+    bool ParseNumericLine(const std::vector<std::string>& tokens, std::vector<double>& values)
+    {
+        values.clear();
+        for (const std::string& token : tokens)
+        {
+            double v;
+            if (!ParseNumber(token, v)) return false;
+            values.push_back(v);
+        }
+        return true;
+    }
+}
 
 bool Preprocessor::ReadPatternFile(std::string fileName, GainMap& output)
 {
@@ -15,20 +43,28 @@ bool Preprocessor::ReadPatternFile(std::string fileName, GainMap& output)
 
     if (patternFile.is_open())
     {
+        int lineNo = 0;
         while (getline(patternFile, line))
         {
+            lineNo++;
             std::stringstream ss(line);
             std::istream_iterator<std::string> begin(ss);
             std::istream_iterator<std::string> end;
             std::vector<std::string> vstrings(begin, end);
             
-            if (vstrings.size() != 6) continue; // Need to add function to check if vector has only numeric values
+            if (vstrings.size() != 6) continue; // header or blank line
 
-            ThetaPhiAngle angle{ std::stof(vstrings[0]), std::stof(vstrings[1]) };
+            std::vector<double> values;
+            if (!ParseNumericLine(vstrings, values))
+            {
+                std::cerr << "Warning: " << fileName << ":" << lineNo << ": skipping non-numeric line" << std::endl;
+                continue;
+            }
+            ThetaPhiAngle angle{ float(values[0]), float(values[1]) };
             GainInfo gain{};
             for (int i = 2; i < 6; i++)
             {
-                gain.data[i - 2] = std::stof(vstrings[i]);
+                gain.data[i - 2] = float(values[i]);
             }
             output.insert({ angle,gain });
         }
@@ -49,20 +85,24 @@ bool Preprocessor::ReadLocationFile(std::string fileName, VecVec3& output)
 
     if (locationFile.is_open())
     {
+        int lineNo = 0;
         while (getline(locationFile, line))
         {
+            lineNo++;
             std::stringstream ss(line);
             std::istream_iterator<std::string> begin(ss);
             std::istream_iterator<std::string> end;
             std::vector<std::string> vstrings(begin, end);
-            Vec3 loc{};
 
-            if (vstrings.size() != 3) continue;
-            std::transform(vstrings.begin(), vstrings.end(), loc.begin(), [](const std::string& val)
+            if (vstrings.size() != 3) continue; // header or blank line
+
+            std::vector<double> values;
+            if (!ParseNumericLine(vstrings, values))
             {
-                return std::stod(val);
-            });
-            output.push_back(loc);
+                std::cerr << "Warning: " << fileName << ":" << lineNo << ": skipping non-numeric line" << std::endl;
+                continue;
+            }
+            output.push_back(Vec3(values[0], values[1], values[2]));
         }
         locationFile.close();
         return true;

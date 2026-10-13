@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cctype>
+#include <climits>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -12,6 +14,11 @@ namespace fs = std::filesystem;
 
 namespace
 {
+	// Sanity limits: beyond these the run is not useful and the generators'
+	// int conversions would overflow.
+	const int kMaxTessellation = 8;              // 655,362 launch directions
+	const long long kMaxGeneratedReceivers = 10000000;
+
 	struct Entry
 	{
 		std::string value;
@@ -71,6 +78,15 @@ namespace
 
 	bool ParseIniFile(const std::string& path, std::vector<Section>& sections, Diagnostics& diag)
 	{
+		std::error_code ec;
+		const fs::file_status status = fs::status(fs::path(path), ec);
+		if (!fs::is_regular_file(status))
+		{
+			if (status.type() == fs::file_type::not_found) diag.Add(0, "configuration file not found");
+			else if (ec) diag.Add(0, "cannot open configuration file: " + ec.message());
+			else diag.Add(0, "configuration file is not a regular file (is it a directory?)");
+			return false;
+		}
 		std::ifstream in(path);
 		if (!in)
 		{
@@ -84,6 +100,9 @@ namespace
 		while (std::getline(in, rawLine))
 		{
 			lineNo++;
+			// Drop a UTF-8 byte order mark: Notepad, PowerShell's Out-File and
+			// Visual Studio ("UTF-8 with signature") all write one.
+			if (lineNo == 1 && rawLine.compare(0, 3, "\xEF\xBB\xBF") == 0) rawLine.erase(0, 3);
 			std::string line = Trim(rawLine);
 			// Whole-line comments start with '#' or ';'. Inline comments start
 			// with '#' preceded by whitespace, so ';' stays usable as a row
@@ -148,15 +167,23 @@ namespace
 		return true;
 	}
 
+	// Numbers are separated by whitespace (';' additionally separates matrix
+	// rows); the decimal mark is always '.'. Every token must be a complete
+	// number, so '1.8e9-' or '2,5' are rejected rather than silently truncated.
 	bool ParseDoubles(const std::string& text, std::vector<double>& out)
 	{
 		std::string cleaned = text;
-		std::replace(cleaned.begin(), cleaned.end(), ',', ' ');
 		std::replace(cleaned.begin(), cleaned.end(), ';', ' ');
 		std::istringstream iss(cleaned);
-		double v;
-		while (iss >> v) out.push_back(v);
-		return iss.eof() && !out.empty();
+		std::string token;
+		while (iss >> token)
+		{
+			std::istringstream t(token);
+			double v;
+			if (!(t >> v) || !t.eof() || !std::isfinite(v)) return false;
+			out.push_back(v);
+		}
+		return !out.empty();
 	}
 
 	bool ParseBoolean(const std::string& text, bool& out)
@@ -207,7 +234,7 @@ namespace
 			std::vector<double> values;
 			if (!ParseDoubles(text, values) || values.size() != 1)
 			{
-				_diag.Add(Line(key), "key '" + key + "' expects one number, got '" + text + "'");
+				_diag.Add(Line(key), "key '" + key + "' expects one number (decimal mark '.'), got '" + text + "'");
 				return false;
 			}
 			out = values[0];
@@ -219,13 +246,14 @@ namespace
 			std::string text;
 			if (!String(key, text, required)) return false;
 			std::istringstream iss(text);
-			long long value;
+			int value;
+			// operator>>(int&) sets failbit for values outside the int range.
 			if (!(iss >> value) || !(iss >> std::ws).eof())
 			{
-				_diag.Add(Line(key), "key '" + key + "' expects an integer, got '" + text + "'");
+				_diag.Add(Line(key), "key '" + key + "' expects an integer within the int range, got '" + text + "'");
 				return false;
 			}
-			out = static_cast<int>(value);
+			out = value;
 			return true;
 		}
 
@@ -248,7 +276,7 @@ namespace
 			std::vector<double> values;
 			if (!ParseDoubles(text, values) || values.size() != 3)
 			{
-				_diag.Add(Line(key), "key '" + key + "' expects three numbers 'x y z', got '" + text + "'");
+				_diag.Add(Line(key), "key '" + key + "' expects three space-separated numbers 'x y z' (decimal mark '.'), got '" + text + "'");
 				return false;
 			}
 			out = Vec3(values[0], values[1], values[2]);
@@ -263,7 +291,7 @@ namespace
 			std::vector<double> values;
 			if (!ParseDoubles(text, values) || values.size() != 9)
 			{
-				_diag.Add(Line(key), "key '" + key + "' expects nine numbers (three rows of three), got '" + text + "'");
+				_diag.Add(Line(key), "key '" + key + "' expects nine space-separated numbers (three rows of three, rows may be separated by ';'), got '" + text + "'");
 				return false;
 			}
 			for (int r = 0; r < 3; r++)
@@ -280,10 +308,21 @@ namespace
 			fs::path p(text);
 			if (p.is_relative()) p = _baseDir / p;
 			p = p.lexically_normal();
-			if (mustExist && !fs::exists(p))
+			if (mustExist)
 			{
-				_diag.Add(Line(key), "key '" + key + "': file not found: " + p.generic_string());
-				return false;
+				// Non-throwing overload: an unreadable path (ENAMETOOLONG, ELOOP,
+				// EACCES, ...) must become a diagnostic, not a filesystem_error.
+				std::error_code ec;
+				const fs::file_status status = fs::status(p, ec);
+				if (!fs::is_regular_file(status))
+				{
+					std::string why;
+					if (status.type() == fs::file_type::not_found) why = "file not found";
+					else if (ec) why = ec.message();
+					else why = "not a regular file (is it a directory?)";
+					_diag.Add(Line(key), "key '" + key + "': " + why + ": " + p.generic_string());
+					return false;
+				}
 			}
 			out = p.generic_string();
 			return true;
@@ -310,7 +349,6 @@ namespace
 		if (v == "isotropic") { out = AntennaType::Isotropic; return true; }
 		if (v == "hertzian_dipole") { out = AntennaType::HertzianDipole; return true; }
 		if (v == "half_wave_dipole") { out = AntennaType::HalfWaveDipole; return true; }
-		if (v == "array") { out = AntennaType::Array; return true; }
 		return false;
 	}
 
@@ -338,12 +376,44 @@ namespace
 			diag.Add(r.Line("power_watts"), "power_watts must be positive");
 		if (r.Double("frequency_hz", cfg.frequencyHz, true) && cfg.frequencyHz <= 0.0)
 			diag.Add(r.Line("frequency_hz"), "frequency_hz must be positive");
-		if (r.Integer("tessellation", cfg.tessellation, false) && cfg.tessellation < 0)
-			diag.Add(r.Line("tessellation"), "tessellation must be 0 or greater");
+		if (r.Integer("tessellation", cfg.tessellation, false) && (cfg.tessellation < 0 || cfg.tessellation > kMaxTessellation))
+			diag.Add(r.Line("tessellation"), "tessellation must be between 0 and " + std::to_string(kMaxTessellation)
+				+ " (level " + std::to_string(kMaxTessellation) + " already launches " + std::to_string(10 * (1 << (2 * kMaxTessellation)) + 2) + " rays)");
 		std::string antenna;
 		if (r.String("antenna_type", antenna, false) && !ParseAntennaType(antenna, cfg.antennaType))
-			diag.Add(r.Line("antenna_type"), "antenna_type must be one of isotropic, hertzian_dipole, half_wave_dipole, array; got '" + antenna + "'");
+			diag.Add(r.Line("antenna_type"), "antenna_type must be one of isotropic, hertzian_dipole, half_wave_dipole; got '" + antenna + "'");
 		r.Path("pattern_file", cfg.patternFile, false, true);
+	}
+
+	// Checks that a generated line or plane has a sane, representable number
+	// of points before Preprocessor::GenerateRXLine/GenerateRxPlane convert the
+	// counts to int.
+	void ValidateReceiverCount(SectionReader& r, const ReceiverConfig& rx, Diagnostics& diag)
+	{
+		double count = 0.0;
+		if (rx.layout == ReceiverLayout::Line)
+		{
+			const double length = (rx.lineEnd - rx.lineStart).norm();
+			if (!(length > 0.0))
+			{
+				diag.Add(r.Line("line_end"), "line_start and line_end must be different points");
+				return;
+			}
+			count = std::floor(length / rx.resolution);
+		}
+		else if (rx.layout == ReceiverLayout::Plane)
+		{
+			count = std::floor((rx.xMax - rx.xMin) / rx.resolution) * std::floor((rx.yMax - rx.yMin) / rx.resolution);
+		}
+		else
+		{
+			return;
+		}
+		if (!std::isfinite(count) || count > double(kMaxGeneratedReceivers))
+		{
+			diag.Add(r.Line("resolution"), "the receiver layout would generate more than "
+				+ std::to_string(kMaxGeneratedReceivers) + " receivers; increase resolution or shrink the extent");
+		}
 	}
 
 	void ReadReceivers(SectionReader& r, SimulationConfig& cfg, Diagnostics& diag)
@@ -379,6 +449,7 @@ namespace
 			r.Path("file", rx.file, true, true);
 			break;
 		}
+		if (diag.Empty()) ValidateReceiverCount(r, rx, diag);
 	}
 
 	void ReadRayTracing(SectionReader& r, SimulationConfig& cfg, Diagnostics& diag)
@@ -489,7 +560,6 @@ const char* AntennaTypeName(AntennaType type)
 	case AntennaType::Isotropic: return "isotropic";
 	case AntennaType::HertzianDipole: return "hertzian_dipole";
 	case AntennaType::HalfWaveDipole: return "half_wave_dipole";
-	case AntennaType::Array: return "array";
 	}
 	return "unknown";
 }

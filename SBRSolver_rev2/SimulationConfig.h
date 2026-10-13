@@ -11,8 +11,9 @@ enum class AntennaType
 {
 	Isotropic = 0,
 	HertzianDipole = 1,
-	HalfWaveDipole = 2,
-	Array = 3
+	HalfWaveDipole = 2
+	// 3 ("array") exists in FieldCompute but has no implementation, so it is
+	// not selectable from a configuration file.
 };
 
 enum class ReceiverLayout

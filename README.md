@@ -71,9 +71,9 @@ with `cmake -S . -B build -G "Visual Studio 17 2022"`; both use the same `CMakeL
 ### Run
 
 ```sh
-./build/sbrsolver                                   # runs SBRSolver_rev2/data/ground.ini
-./build/sbrsolver SBRSolver_rev2/data/office.ini    # another scene, results next to the config in data/output
-./build/sbrsolver my_case.ini results/              # custom config and output directory
+./build/sbrsolver                                                # runs SBRSolver_rev2/data/ground.ini
+./build/sbrsolver SBRSolver_rev2/data/office.ini results/office  # another scene, into its own output directory
+./build/sbrsolver my_case.ini                                    # custom config, results in output/ next to it
 ./build/sbrsolver --help
 ```
 
@@ -81,14 +81,17 @@ The first argument is a configuration file (see below), the second the output di
 VTK/CSV results. The configuration defaults to `ground.ini` in the data folder of the source tree
 (the path is baked in at build time, so the program can be started from any working directory);
 the output directory defaults to `output/` next to the configuration file and is created if missing.
+`SBRSolver_rev2/data/output` holds the committed reference results that `ctest` compares against, so run
+scenes other than `ground.ini` with an explicit output directory.
 
 ### Configuration file
 
 All simulation settings live in an INI-style text file. `SBRSolver_rev2/data/ground.ini` is the
 documented reference; `corner.ini`, `office.ini` and `bahen.ini` are further examples. File names
 inside the configuration are relative to the configuration file. Lines starting with `#` or `;` are
-comments, and `#` preceded by a space starts an inline comment. Unknown sections or keys, missing
-required keys, values of the wrong type and missing files are reported with their line number.
+comments, and `#` preceded by a space starts an inline comment. Numbers in a value are separated by
+spaces (matrix rows by `;`) and always use `.` as the decimal mark. Unknown sections or keys, missing
+required keys, values of the wrong type or range and missing files are reported with their line number.
 
 | Section | Key | Meaning |
 |---|---|---|
@@ -97,8 +100,8 @@ required keys, values of the wrong type and missing files are reported with thei
 | `[transmitter]` | `position` | ray origin, `x y z` in metres |
 | | `coordinate_system` | three rows of the TX frame, e.g. `0 1 0; 0 0 1; 1 0 0` (default identity) |
 | | `power_watts`, `frequency_hz` | transmit power (default `1`) and frequency |
-| | `tessellation` | icosahedron subdivision level (default `2`) |
-| | `antenna_type` | `isotropic`, `hertzian_dipole` (default), `half_wave_dipole` or `array` |
+| | `tessellation` | icosahedron subdivision level 0 to 8; launches 10·4ⁿ+2 rays (default `2`, 162 rays) |
+| | `antenna_type` | `isotropic`, `hertzian_dipole` (default) or `half_wave_dipole` |
 | | `pattern_file` | optional measured pattern; read and validated, not applied yet |
 | `[receivers]` | `layout = line` | `line_start`, `line_end`, `resolution` |
 | | `layout = plane` | `x_min`, `y_min`, `x_max`, `y_max`, `height`, `resolution` |
