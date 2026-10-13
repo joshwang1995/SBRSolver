@@ -75,20 +75,20 @@ set(SBR_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/SBRSolver_rev2")
 add_executable(sbrsolver
     ${SBR_SRC_DIR}/SBRSolver_rev2.cpp
     ${SBR_SRC_DIR}/FieldCompute.cpp
-    ${SBR_SRC_DIR}/GlobalConfig.cpp
     ${SBR_SRC_DIR}/Icosahedron.cpp
     ${SBR_SRC_DIR}/Preprocessor.cpp
     ${SBR_SRC_DIR}/Ray.cpp
     ${SBR_SRC_DIR}/RTSolver.cpp
+    ${SBR_SRC_DIR}/SimulationConfig.cpp
     ${SBR_SRC_DIR}/Triangle.cpp
     ${SBR_SRC_DIR}/timer/Timer.cpp
     # headers listed so IDE generators show them
     ${SBR_SRC_DIR}/FieldCompute.h
-    ${SBR_SRC_DIR}/GlobalConfig.h
     ${SBR_SRC_DIR}/Icosahedron.h
     ${SBR_SRC_DIR}/Preprocessor.h
     ${SBR_SRC_DIR}/Ray.h
     ${SBR_SRC_DIR}/RTSolver.h
+    ${SBR_SRC_DIR}/SimulationConfig.h
     ${SBR_SRC_DIR}/StlReader.h
     ${SBR_SRC_DIR}/Triangle.h
     ${SBR_SRC_DIR}/BVH/BVH.h
@@ -102,8 +102,9 @@ add_executable(sbrsolver
 target_include_directories(sbrsolver PRIVATE "${SBR_SRC_DIR}")
 target_link_libraries(sbrsolver PRIVATE sbr_eigen Threads::Threads ${_sbr_openmp_target})
 
-# Where the shipped scenes/receiver files live, so the binary can be run from
-# any working directory. Can be overridden at run time with the first argument.
+# Where the shipped configuration files, scenes and receiver files live, so the
+# binary can be run from any working directory. The configuration file to use
+# is the first command-line argument (default: <data>/ground.ini).
 target_compile_definitions(sbrsolver PRIVATE
     SBR_DEFAULT_DATA_DIR="${SBR_SRC_DIR}/data")
 
@@ -150,15 +151,15 @@ set_target_properties(sbrsolver PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "${SBR_SRC_DIR}")
 
 # ---------------------------------------------------------------------------
-# Tests (ctest): run the default scene from the build tree and, when a Python
-# interpreter is available, compare the resulting field with the reference
-# results committed under SBRSolver_rev2/data/output.
+# Tests (ctest): run the reference configuration (ground.ini) from the build
+# tree and, when a Python interpreter is available, compare the resulting field
+# with the reference results committed under SBRSolver_rev2/data/output.
 # ---------------------------------------------------------------------------
 enable_testing()
 
 set(_sbr_test_output "${CMAKE_CURRENT_BINARY_DIR}/test_output")
 add_test(NAME sbrsolver_smoke
-         COMMAND sbrsolver "${SBR_SRC_DIR}/data" "${_sbr_test_output}")
+         COMMAND sbrsolver "${SBR_SRC_DIR}/data/ground.ini" "${_sbr_test_output}")
 set_tests_properties(sbrsolver_smoke PROPERTIES TIMEOUT 600)
 
 find_package(Python3 COMPONENTS Interpreter QUIET)

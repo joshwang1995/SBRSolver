@@ -20,7 +20,8 @@ public:
 		Mat3 txCoordSys,
 		double frequency,
 		double pt,
-		bool useFresnelCoeff
+		bool useFresnelCoeff,
+		int antennaType
 	)
 		:
 		_rayPaths(rayPaths),
@@ -31,7 +32,8 @@ public:
 		_txCoordSys(txCoordSys),
 		_frequency(frequency),
 		_txPower(pt),
-		_useFresnelCoeff(useFresnelCoeff)
+		_useFresnelCoeff(useFresnelCoeff),
+		_antennaType(antennaType)
 	{};
 	~FieldCompute();
 	Vec3c FieldAtReceiver(int receiverId);
@@ -48,6 +50,7 @@ protected:
 	double _frequency;
 	double _txPower;
 	bool _useFresnelCoeff;
+	int _antennaType; // see AntennaType in SimulationConfig.h
 
 	Vec3c FieldForPath(const std::vector<Ray>& path);
 
