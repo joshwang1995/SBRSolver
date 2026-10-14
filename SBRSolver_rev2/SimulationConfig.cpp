@@ -20,6 +20,7 @@ namespace
 	// found), so the budget is on the product; 1e8 is about 3 GB. It also
 	// keeps the generators' int conversions in range.
 	const int kMaxTessellation = 8;                      // 655,362 launch directions
+	const int kMaxThreads = 1024;
 	const double kMaxReceiverRayProducts = 100000000.0;  // receivers x rays
 
 	int LaunchRayCount(int tessellation)
@@ -587,6 +588,8 @@ namespace
 		if (r.Integer("max_transmissions", cfg.maxTransmissions, false) && cfg.maxTransmissions < 0)
 			diag.Add(r.Line("max_transmissions"), "max_transmissions must be 0 or greater");
 		r.Boolean("use_fresnel_coefficients", cfg.useFresnelCoefficients, false);
+		if (r.Integer("threads", cfg.threads, false) && (cfg.threads < 0 || cfg.threads > kMaxThreads))
+			diag.Add(r.Line("threads"), "threads must be between 0 (all hardware threads) and " + std::to_string(kMaxThreads));
 	}
 
 	void ReadMaterial(SectionReader& r, SimulationConfig& cfg, Diagnostics& diag)
@@ -753,6 +756,7 @@ void PrintSimulationConfig(const SimulationConfig& c)
 	cout << "\t[ray_tracing] max_reflections   -> " << c.maxReflections << endl;
 	cout << "\t[ray_tracing] max_transmissions -> " << c.maxTransmissions << endl;
 	cout << "\t[ray_tracing] use_fresnel_coefficients -> " << (c.useFresnelCoefficients ? "true" : "false") << endl;
+	cout << "\t[ray_tracing] threads           -> " << c.threads << (c.threads == 0 ? " (all hardware threads)" : "") << endl;
 	for (size_t i = 0; i < c.materials.size(); i++)
 	{
 		const MaterialProperties& p = c.materials[i].properties;

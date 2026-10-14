@@ -17,6 +17,8 @@ public:
 	RTSolver();
 	virtual ~RTSolver();
 	int Init(MaterialProperties materialProperties[], int materialPropertiesCount, BVH<Triangle>& triangles);
+	// Threads used by ExecuteRayTracing (0 = one per hardware thread).
+	void SetThreadCount(int threads) { _threadCount = threads; }
 	void Cleanup();
 	int ExecuteRayTracing
 	(
@@ -51,6 +53,7 @@ protected:
 	int _maxReflectionCount = 0;
 	int _pathsCount = 0;
 	int _receiverCount = 0;
+	int _threadCount = 0;
 private:
 	void RayLaunch
 	(

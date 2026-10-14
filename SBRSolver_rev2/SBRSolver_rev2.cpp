@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <iostream>
+#include <new>
 #include <string>
 #include <vector>
 #include "BVH/BVH.h"
@@ -202,21 +203,38 @@ int main(int argc, char* argv[])
 
 	RTSolver* rayTracer = new RTSolver();
 	rayTracer->Init(materials.data(), int(materials.size()), bvh);
+	rayTracer->SetThreadCount(config.threads);
 
-	int totalPaths = rayTracer->ExecuteRayTracing
-	(
-		config.txPosition,
-		config.txCoordSys,
-		config.maxReflections,
-		config.maxTransmissions,
-		config.frequencyHz,
-		config.txPowerWatts,
-		config.useFresnelCoefficients,
-		int(config.antennaType),
-		rxLocation,
-		triangle_mesh,
-		config.tessellation
-	);
+	int totalPaths = 0;
+	try
+	{
+		totalPaths = rayTracer->ExecuteRayTracing
+		(
+			config.txPosition,
+			config.txCoordSys,
+			config.maxReflections,
+			config.maxTransmissions,
+			config.frequencyHz,
+			config.txPowerWatts,
+			config.useFresnelCoefficients,
+			int(config.antennaType),
+			rxLocation,
+			triangle_mesh,
+			config.tessellation
+		);
+	}
+	catch (const std::bad_alloc&)
+	{
+		std::cerr << "Error: out of memory while tracing " << rxLocation.size() << " receivers x "
+			<< (10 * (1 << (2 * config.tessellation)) + 2) << " launch rays; reduce the receiver count, "
+			<< "the tessellation or the number of threads" << std::endl;
+		return 1;
+	}
+	catch (const std::exception& e)
+	{
+		std::cerr << "Error: " << e.what() << std::endl;
+		return 1;
+	}
 
 	std::cout << "Total ray paths traced -> " << totalPaths << std::endl;
 

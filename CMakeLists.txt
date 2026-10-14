@@ -8,9 +8,6 @@ project(SBRSolver
 # ---------------------------------------------------------------------------
 # Options
 # ---------------------------------------------------------------------------
-# Nothing in the solver uses OpenMP yet (the pragmas in RTSolver.cpp are commented
-# out), so it is opt-in. Eigen picks it up automatically when enabled.
-option(SBR_ENABLE_OPENMP "Link OpenMP if the compiler provides it" OFF)
 option(SBR_WARNINGS "Enable the compiler's standard warning set" ON)
 
 # Default to a Release build for single-config generators (Makefiles, Ninja).
@@ -51,20 +48,27 @@ else()
 endif()
 
 # ---------------------------------------------------------------------------
-# Threads / OpenMP
+# Threads (the solver parallelises with std::thread, see common/ParallelFor.h)
 # ---------------------------------------------------------------------------
+set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
-set(_sbr_openmp_target "")
-if(SBR_ENABLE_OPENMP)
-    find_package(OpenMP COMPONENTS CXX)
-    if(OpenMP_CXX_FOUND)
-        set(_sbr_openmp_target OpenMP::OpenMP_CXX)
-        message(STATUS "SBRSolver: OpenMP enabled (${OpenMP_CXX_VERSION})")
-    else()
-        message(STATUS "SBRSolver: OpenMP requested but not found, building without it "
-                       "(on macOS: brew install libomp and configure with -DOpenMP_ROOT=$(brew --prefix libomp))")
-    endif()
+# FindThreads succeeds on every Windows toolchain, but libstdc++ only provides
+# std::thread / std::mutex when built with gthreads (the MinGW-w64 "win32"
+# thread model before GCC 13 has neither), so probe for them explicitly.
+include(CheckCXXSourceCompiles)
+set(CMAKE_REQUIRED_LIBRARIES Threads::Threads)
+check_cxx_source_compiles("
+#include <mutex>
+#include <thread>
+int main() { std::mutex m; std::lock_guard<std::mutex> l(m); std::thread t([] {}); t.join(); return 0; }
+" SBR_HAS_STD_THREAD)
+unset(CMAKE_REQUIRED_LIBRARIES)
+if(NOT SBR_HAS_STD_THREAD)
+    message(FATAL_ERROR
+        "SBRSolver: this toolchain's standard library has no std::thread/std::mutex. "
+        "On Windows use MSVC, or a MinGW-w64 build with the posix or mcf thread model "
+        "(for example the MSYS2 UCRT64/MINGW64 packages, or GCC 13+ for the win32 model).")
 endif()
 
 # ---------------------------------------------------------------------------
@@ -95,12 +99,13 @@ add_executable(sbrsolver
     ${SBR_SRC_DIR}/BVH/BVHNode.h
     ${SBR_SRC_DIR}/common/Constants.h
     ${SBR_SRC_DIR}/common/DataStructures.h
+    ${SBR_SRC_DIR}/common/ParallelFor.h
     ${SBR_SRC_DIR}/common/VecMatDef.h
     ${SBR_SRC_DIR}/timer/Timer.h
 )
 
 target_include_directories(sbrsolver PRIVATE "${SBR_SRC_DIR}")
-target_link_libraries(sbrsolver PRIVATE sbr_eigen Threads::Threads ${_sbr_openmp_target})
+target_link_libraries(sbrsolver PRIVATE sbr_eigen Threads::Threads)
 
 # Where the shipped configuration files, scenes and receiver files live, so the
 # binary can be run from any working directory. The configuration file to use
@@ -125,7 +130,6 @@ endif()
 # std::filesystem lives in a separate library on older toolchains (libstdc++ 8:
 # stdc++fs, libc++ 7/8: c++fs). Probe by linking instead of guessing from the
 # compiler id, because Clang can be paired with either standard library.
-include(CheckCXXSourceCompiles)
 set(_sbr_fs_src "#include <filesystem>\nint main() { return std::filesystem::exists(std::filesystem::current_path()) ? 0 : 1; }")
 check_cxx_source_compiles("${_sbr_fs_src}" SBR_FILESYSTEM_BUILTIN)
 if(NOT SBR_FILESYSTEM_BUILTIN)
