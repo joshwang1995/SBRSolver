@@ -133,7 +133,8 @@ cd build && ctest -C Release --output-on-failure
 ```
 
 This runs `ground.ini` and compares the resulting electric field with the reference results
-committed in `SBRSolver_rev2/data/output/ElectricField.csv`, and runs the multi-material `office.ini`. The same build and test matrix runs in
+committed in `SBRSolver_rev2/data/output/ElectricField.csv`, and runs the multi-material `office.ini`
+against `SBRSolver_rev2/data/reference/office_ElectricField.csv`. The same build and test matrix runs in
 GitHub Actions on Ubuntu (GCC and Clang), macOS and Windows for every pull request and every push to `master`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
