@@ -162,10 +162,12 @@ add_test(NAME sbrsolver_smoke
          COMMAND sbrsolver "${SBR_SRC_DIR}/data/ground.ini" "${_sbr_test_output}")
 set_tests_properties(sbrsolver_smoke PROPERTIES TIMEOUT 600)
 
-# A second scene exercising per-file and per-surface materials.
+# A second scene exercising per-file and per-surface materials, compared with
+# its reference field as well (data/reference/office_ElectricField.csv).
+set(_sbr_test_output_office "${CMAKE_CURRENT_BINARY_DIR}/test_output_office")
 add_test(NAME sbrsolver_office_smoke
-         COMMAND sbrsolver "${SBR_SRC_DIR}/data/office.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_office")
-set_tests_properties(sbrsolver_office_smoke PROPERTIES TIMEOUT 600)
+         COMMAND sbrsolver "${SBR_SRC_DIR}/data/office.ini" "${_sbr_test_output_office}")
+set_tests_properties(sbrsolver_office_smoke PROPERTIES TIMEOUT 600 FIXTURES_SETUP sbr_office_run)
 
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
@@ -177,6 +179,12 @@ if(Python3_Interpreter_FOUND)
     # even when only the comparison test is selected with ctest -R.
     set_tests_properties(sbrsolver_smoke PROPERTIES FIXTURES_SETUP sbr_default_run)
     set_tests_properties(sbrsolver_reference_field PROPERTIES FIXTURES_REQUIRED sbr_default_run)
+
+    add_test(NAME sbrsolver_office_reference_field
+             COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/compare_fields.py"
+                     "${SBR_SRC_DIR}/data/reference/office_ElectricField.csv"
+                     "${_sbr_test_output_office}/ElectricField.csv")
+    set_tests_properties(sbrsolver_office_reference_field PROPERTIES FIXTURES_REQUIRED sbr_office_run)
 else()
     message(STATUS "SBRSolver: Python3 not found, skipping the reference field comparison test")
 endif()

@@ -22,7 +22,10 @@ public:
 
 	std::vector<BVHNode<T>> nodes;
 
-	void ConstructBVH(std::vector<T*>& objects);
+	// Builds the hierarchy over `objects`. The caller's vector is not modified:
+	// the solver indexes it by Triangle::triangleId, so its order must stay the
+	// creation order.
+	void ConstructBVH(const std::vector<T*>& objects);
 	void SaveAsVtk(const std::string& fname) const; // for visualization
 	bool RayIntersects(int index, const Vec3& rayOrg, const Vec3& rayDir, HitInfo& info);
 
@@ -49,9 +52,12 @@ BVH<T>::~BVH()
 }
 
 template <typename T>
-void BVH<T>::ConstructBVH(std::vector<T*>& objects)
+void BVH<T>::ConstructBVH(const std::vector<T*>& objects)
 {
-	ConstructBVHInternal(objects, 0);
+	// ConstructBVHInternal sorts its input along the split axes, so it works on
+	// a copy; the leaves keep pointers, not indices, so the copy is temporary.
+	std::vector<T*> working(objects);
+	ConstructBVHInternal(working, 0);
 }
 
 template <typename T>

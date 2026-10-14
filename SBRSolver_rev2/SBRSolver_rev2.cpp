@@ -162,6 +162,16 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 	bvh.ConstructBVH(triangle_mesh);
+	// The solver looks surfaces up as triangle_mesh[ray.hitSurfaceID], so the
+	// list must still be in creation order after the BVH is built.
+	for (size_t i = 0; i < triangle_mesh.size(); i++)
+	{
+		if (triangle_mesh[i]->triangleId != int(i))
+		{
+			std::cerr << "Error: internal error, triangle list is not in id order after BVH construction" << std::endl;
+			return 1;
+		}
+	}
 	// Preprocessor End
 
 	std::cout << "\tReceivers                -> " << rxLocation.size() << std::endl;
