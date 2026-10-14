@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <stdexcept>
 #include <cassert>
 #include <cmath>
 #include <iterator>
@@ -116,20 +117,68 @@ bool Preprocessor::ReadLocationFile(std::string fileName, VecVec3& output)
 
 bool Preprocessor::StlToGeometry
 (
-    std::string fileName, 
+    const std::vector<StlSource>& sources,
+    const std::map<int, int>& surfaceMaterials,
     std::vector<Triangle*>& output, 
     bool saveEdges, 
     bool saveFaces, 
     std::string dataDir
 )
 {
+    // Merged arrays over all files, in stl_reader's layout: coords holds
+    // x y z per vertex, tris holds three vertex indices per triangle.
     std::vector<float> coords, normals;
-    std::vector<unsigned int> tris, solids;
+    std::vector<unsigned int> tris;
+    std::vector<int> triangleMaterial;
     std::map<std::pair<int, int>, std::vector<int>> edgeMap;
+
+    // Triangles appended by this call are released again if it fails.
+    const size_t firstNew = output.size();
+    auto fail = [&output, firstNew]()
+    {
+        for (size_t i = firstNew; i < output.size(); i++) delete output[i];
+        output.resize(firstNew);
+        return false;
+    };
 
     try
     {
-        stl_reader::ReadStlFile(fileName.c_str(), coords, normals, tris, solids);
+        for (const StlSource& source : sources)
+        {
+            std::vector<float> fileCoords, fileNormals;
+            std::vector<unsigned int> fileTris, solids;
+            stl_reader::ReadStlFile(source.fileName.c_str(), fileCoords, fileNormals, fileTris, solids);
+            if (fileTris.empty())
+            {
+                throw std::runtime_error("No triangles in " + source.fileName);
+            }
+            // stl_reader keeps one normal per facet; a facet without endfacet
+            // (truncated file) leaves more normals than triangles. Merging the
+            // arrays index by index would then hand the wrong normal to every
+            // later triangle, in this file and in every file after it.
+            if (fileNormals.size() != fileTris.size())
+            {
+                throw std::runtime_error(source.fileName + ": " + std::to_string(fileNormals.size() / 3)
+                    + " facet normals but " + std::to_string(fileTris.size() / 3)
+                    + " triangles; the file is truncated or malformed");
+            }
+
+            // Vertex indices of this file are rebased onto the merged array.
+            // (Vertices shared between files stay distinct, so coplanar
+            // surfaces never span two files.)
+            const unsigned int vertexOffset = static_cast<unsigned int>(coords.size() / 3);
+            coords.insert(coords.end(), fileCoords.begin(), fileCoords.end());
+            normals.insert(normals.end(), fileNormals.begin(), fileNormals.end());
+            for (unsigned int vertex : fileTris)
+            {
+                tris.push_back(vertex + vertexOffset);
+            }
+            const size_t fileTriangles = fileTris.size() / 3;
+            triangleMaterial.insert(triangleMaterial.end(), fileTriangles, source.materialId);
+            std::cout << "\tLoaded " << fileTriangles << " triangles from " << source.fileName
+                << " (material " << source.materialId << ")" << std::endl;
+        }
+
         const size_t numTris = tris.size() / 3;
         std::vector<std::vector<int>> adjacencyList(numTris);
         for (size_t itri = 0; itri < numTris; ++itri)
@@ -144,21 +193,79 @@ bool Preprocessor::StlToGeometry
             Vec3 norm{ normals[3 * itri], normals[3 * itri + 1], normals[3 * itri + 2] };
 
             Triangle* t = new Triangle(v1, v2, v3, norm, int(itri));
+            t->materialId = triangleMaterial[itri];
             output.push_back(t);
             InsertEdgeIntoMap(v1_idx, v2_idx, v3_idx, itri, output, edgeMap, adjacencyList);
         }
 
         BfsCoplanarSurface(adjacencyList, output);
 
+        std::string surfaceError;
+        const bool surfacesOk = ApplySurfaceMaterials(surfaceMaterials, output, surfaceError);
+
+        // Written even when an override is rejected, so the error below can
+        // point at a Faces.vtk that describes the geometry just loaded (its
+        // MaterialID then shows the per-file materials).
         if (saveEdges) SaveEdgesAsVtk(dataDir + "Edges.vtk", edgeMap, coords);
         if (saveFaces) SaveFacesAsVtk(dataDir + "Faces.vtk", output, coords, tris);
+
+        if (!surfacesOk)
+        {
+            std::cerr << surfaceError
+                << (saveFaces ? " (written to " + dataDir + "Faces.vtk)" : " (set save_faces = true to write it)")
+                << std::endl;
+            return fail();
+        }
         return true;
     }
     catch (std::exception& e)
     {
-        std::cout << e.what() << std::endl;
+        std::cerr << e.what() << std::endl;
+        return fail();
+    }
+}
+
+bool Preprocessor::ApplySurfaceMaterials
+(
+    const std::map<int, int>& surfaceMaterials,
+    std::vector<Triangle*>& triangles,
+    std::string& error
+)
+{
+    error.clear();
+    if (surfaceMaterials.empty()) return true;
+
+    int maxSurfaceId = -1;
+    for (const Triangle* t : triangles)
+    {
+        maxSurfaceId = std::max(maxSurfaceId, t->coplanarId);
+    }
+
+    std::string missing;
+    for (const auto& kv : surfaceMaterials)
+    {
+        if (kv.first < 0 || kv.first > maxSurfaceId)
+        {
+            missing += (missing.empty() ? "" : ", ") + std::to_string(kv.first);
+        }
+    }
+    if (!missing.empty())
+    {
+        error = "[surface_materials] refers to surface id(s) " + missing + " but the scene has "
+            + std::to_string(maxSurfaceId + 1) + " coplanar surfaces (ids 0 to " + std::to_string(maxSurfaceId)
+            + "); see the CoplanarID field of Faces.vtk";
         return false;
     }
+
+    for (Triangle* t : triangles)
+    {
+        std::map<int, int>::const_iterator it = surfaceMaterials.find(t->coplanarId);
+        if (it != surfaceMaterials.end())
+        {
+            t->materialId = it->second;
+        }
+    }
+    return true;
 }
 
 void Preprocessor::InsertEdgeIntoMap

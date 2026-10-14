@@ -17,13 +17,36 @@ namespace Preprocessor
 	bool ReadPatternFile(std::string fileName, GainMap& output);
 	bool ReadLocationFile(std::string fileName, VecVec3& output);
 	bool ReadMaterialsFile(std::string fileName, Materials& output);
+	// One STL file and the material id its triangles receive.
+	struct StlSource
+	{
+		std::string fileName;
+		int materialId = 0;
+	};
+
+	// Loads every source into one triangle mesh (triangle ids are global across
+	// the files), builds the coplanar surface ids, applies the per-surface
+	// material overrides and optionally writes Edges.vtk / Faces.vtk into
+	// dataDir. Returns false (after printing the reason) if a file fails to
+	// load or an override names a surface that does not exist.
 	bool StlToGeometry
 	(
-		std::string fileName,
+		const std::vector<StlSource>& sources,
+		const std::map<int, int>& surfaceMaterials,
 		std::vector<Triangle*>& output,
 		bool saveEdges, 
 		bool saveFaces,
 		std::string dataDir
+	);
+
+	// Overrides the material of whole coplanar surfaces (key: the CoplanarID
+	// field written to Faces.vtk, value: material id). Returns false and fills
+	// `error` if an id does not exist in the mesh.
+	bool ApplySurfaceMaterials
+	(
+		const std::map<int, int>& surfaceMaterials,
+		std::vector<Triangle*>& triangles,
+		std::string& error
 	);
 
 	// Functions for processing coplanar IDs and edge connectivity

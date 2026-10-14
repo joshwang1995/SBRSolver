@@ -445,8 +445,9 @@ namespace stl_reader_impl {
 
   // sorts the array coordsWithIndexInOut and copies unique indices to coordsOut.
   // Triangle-corners are re-indexed on the fly and degenerated triangles are removed.
-  template <class TNumberContainer, class TIndexContainer>
+  template <class TNumberContainer, class TNormalContainer, class TIndexContainer>
   void RemoveDoubles (TNumberContainer& uniqueCoordsOut,
+                      TNormalContainer& normalsInOut,
                       TIndexContainer& trisInOut,
                       std::vector <CoordWithIndex<
                         typename TNumberContainer::value_type,
@@ -457,6 +458,15 @@ namespace stl_reader_impl {
 
     typedef typename TNumberContainer::value_type number_t;
     typedef typename TIndexContainer::value_type  index_t;
+
+  // SBRSolver: an empty mesh (e.g. a binary STL with a zero triangle count)
+  // must not index coordsWithIndexInOut[0] below.
+    if(coordsWithIndexInOut.empty()){
+      uniqueCoordsOut.clear();
+      normalsInOut.clear();
+      trisInOut.clear();
+      return;
+    }
 
     sort (coordsWithIndexInOut.begin(), coordsWithIndexInOut.end());
   
@@ -489,7 +499,11 @@ namespace stl_reader_impl {
     }
 
   //  re-index triangles, so that they refer to 'uniqueCoordsOut'
-  //  make sure to only add triangles which refer to three different indices
+  //  make sure to only add triangles which refer to three different indices.
+  //  SBRSolver: the per-facet normals are compacted in the same pass, so a
+  //  dropped (degenerate) triangle does not leave its normal behind and shift
+  //  the normals of every later triangle.
+    const bool alignNormals = (normalsInOut.size() == trisInOut.size());
     index_t numUniqueTriInds = 0;
     for(index_t i = 0; i < trisInOut.size(); i+=3){
       int ni[3];
@@ -497,14 +511,20 @@ namespace stl_reader_impl {
         ni[j] = newIndex[trisInOut[i+j]];
 
       if((ni[0] != ni[1]) && (ni[0] != ni[2]) && (ni[1] != ni[2])){
-        for(int j = 0; j < 3; ++j)
+        for(int j = 0; j < 3; ++j){
           trisInOut[numUniqueTriInds + j] = ni[j];
+          if(alignNormals)
+            normalsInOut[numUniqueTriInds + j] = normalsInOut[i + j];
+        }
         numUniqueTriInds += 3;
       }
     }
 
-    if(numUniqueTriInds < trisInOut.size())
+    if(numUniqueTriInds < trisInOut.size()){
       trisInOut.resize (numUniqueTriInds);
+      if(alignNormals)
+        normalsInOut.resize (numUniqueTriInds);
+    }
   }
 }// end of namespace stl_reader_impl
 
@@ -628,7 +648,7 @@ bool ReadStlFile_ASCII(const char* filename,
 
   solidRangesOut.push_back(static_cast<index_t> (trisOut.size() / 3));
 
-  RemoveDoubles (coordsOut, trisOut, coordsWithIndex);
+  RemoveDoubles (coordsOut, normalsOut, trisOut, coordsWithIndex);
 
   return true;
 }
@@ -694,7 +714,7 @@ bool ReadStlFile_BINARY(const char* filename,
   solidRangesOut.push_back(0);
   solidRangesOut.push_back(static_cast<index_t> (trisOut.size() / 3));
 
-  RemoveDoubles (coordsOut, trisOut, coordsWithIndex);
+  RemoveDoubles (coordsOut, normalsOut, trisOut, coordsWithIndex);
 
   return true;
 }

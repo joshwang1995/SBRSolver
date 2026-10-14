@@ -1,6 +1,7 @@
 // SBRSolver_rev2.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 
+#include <algorithm>
 #include <filesystem>
 #include <iostream>
 #include <string>
@@ -149,9 +150,15 @@ int main(int argc, char* argv[])
 	{
 		return 1;
 	}
-	if (!Preprocessor::StlToGeometry(config.stlFile, triangle_mesh, config.saveEdges, config.saveFaces, PathString(outputDir) + "/") || triangle_mesh.empty())
+	std::vector<Preprocessor::StlSource> sources;
+	sources.push_back({ config.stlFile, config.sceneMaterialId });
+	for (const GeometryConfig& g : config.geometries)
 	{
-		std::cerr << "Error: failed to load any triangles from " << config.stlFile << std::endl;
+		sources.push_back({ g.file, g.materialId });
+	}
+	if (!Preprocessor::StlToGeometry(sources, config.surfaceMaterials, triangle_mesh, config.saveEdges, config.saveFaces, PathString(outputDir) + "/") || triangle_mesh.empty())
+	{
+		std::cerr << "Error: failed to load the scene geometry" << std::endl;
 		return 1;
 	}
 	bvh.ConstructBVH(triangle_mesh);
@@ -159,11 +166,24 @@ int main(int argc, char* argv[])
 
 	std::cout << "\tReceivers                -> " << rxLocation.size() << std::endl;
 	std::cout << "\tTriangles                -> " << triangle_mesh.size() << std::endl;
+	{
+		int surfaces = 0;
+		std::vector<size_t> perMaterial(config.materials.size(), 0);
+		for (const Triangle* t : triangle_mesh)
+		{
+			surfaces = std::max(surfaces, t->coplanarId + 1);
+			perMaterial[t->materialId]++;
+		}
+		std::cout << "\tCoplanar surfaces        -> " << surfaces << std::endl;
+		for (size_t i = 0; i < perMaterial.size(); i++)
+		{
+			std::cout << "\tMaterial " << i << " (" << config.materials[i].name << ") -> " << perMaterial[i] << " triangles" << std::endl;
+		}
+	}
 	std::cout << "\tTotal Time in Preprocessor -> " << timer.getTime() << std::endl;
 	std::cout << "[Leaving] Preprocessor" << std::endl;
 
-	// Material 0 is the default material of every surface; the others are
-	// available for surfaces that carry a different material id.
+	// Materials in file order; triangles carry the index they were assigned.
 	std::vector<MaterialProperties> materials;
 	for (const MaterialConfig& m : config.materials)
 	{

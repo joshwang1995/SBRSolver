@@ -162,6 +162,11 @@ add_test(NAME sbrsolver_smoke
          COMMAND sbrsolver "${SBR_SRC_DIR}/data/ground.ini" "${_sbr_test_output}")
 set_tests_properties(sbrsolver_smoke PROPERTIES TIMEOUT 600)
 
+# A second scene exercising per-file and per-surface materials.
+add_test(NAME sbrsolver_office_smoke
+         COMMAND sbrsolver "${SBR_SRC_DIR}/data/office.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_office")
+set_tests_properties(sbrsolver_office_smoke PROPERTIES TIMEOUT 600)
+
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
     add_test(NAME sbrsolver_reference_field

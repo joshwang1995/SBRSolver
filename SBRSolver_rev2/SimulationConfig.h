@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -43,6 +44,14 @@ struct MaterialConfig
 	MaterialProperties properties{};
 };
 
+// An extra STL file whose triangles all get one material ([geometry] section).
+struct GeometryConfig
+{
+	std::string file;     // absolute path once loaded
+	std::string material; // name of a [material]
+	int materialId = 0;   // resolved index into SimulationConfig::materials
+};
+
 // Every simulation setting that used to be hard-coded in main(), as read from
 // an INI-style file (see SBRSolver_rev2/data/ground.ini for the reference).
 struct SimulationConfig
@@ -51,8 +60,16 @@ struct SimulationConfig
 
 	// [scene]
 	std::string stlFile; // absolute path once loaded
+	std::string sceneMaterial; // name of the material of stl_file (default: the first [material])
+	int sceneMaterialId = 0;
 	bool saveEdges = true;
 	bool saveFaces = true;
+
+	// [geometry] (zero or more): further STL files, each with its own material
+	std::vector<GeometryConfig> geometries;
+
+	// [surface_materials]: coplanar surface id (see Faces.vtk) -> material id
+	std::map<int, int> surfaceMaterials;
 
 	// [transmitter]
 	Vec3 txPosition = Vec3::Zero();
@@ -71,7 +88,7 @@ struct SimulationConfig
 	int maxTransmissions = 0;
 	bool useFresnelCoefficients = true;
 
-	// [material] (one section per material, in order of material id)
+	// [material] (one section per material, in order of material id; names are unique)
 	std::vector<MaterialConfig> materials;
 
 	// [outputs]
