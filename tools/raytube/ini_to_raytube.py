@@ -28,9 +28,10 @@ Mapping notes
   which is exactly how SBRSolver builds its complex permittivity.
 * Per-file materials and ``[surface_materials]`` overrides are turned into
   ``face_index`` lists. The coplanar surface ids are recomputed here with the
-  same rule SBRSolver uses (triangles sharing an edge, with equal or opposite
-  facet normals, in file order); ``--check-faces Faces.vtk`` verifies the
-  result against the ``MaterialID`` field SBRSolver wrote.
+  same rule SBRSolver uses (triangles sharing an edge, with facet normals
+  parallel or antiparallel within 0.01 degrees, in file order);
+  ``--check-faces Faces.vtk`` verifies the result against the ``MaterialID``
+  field SBRSolver wrote.
 * ``use_fresnel_coefficients = false`` (every surface a perfect conductor in
   SBRSolver) becomes a material with conductivity 1e30, the Fresnel limit of
   a perfect conductor in the reference.
@@ -198,6 +199,18 @@ def read_stl(path):
     return facets
 
 
+COS_TOLERANCE = math.cos(0.01 * math.pi / 180.0)
+
+
+def same_orientation(a, b):
+    """Parallel or antiparallel within 0.01 degrees (Preprocessor::SameOrientation)."""
+    la = math.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2])
+    lb = math.sqrt(b[0] * b[0] + b[1] * b[1] + b[2] * b[2])
+    if la == 0.0 or lb == 0.0:
+        return False
+    return abs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2]) / (la * lb) >= COS_TOLERANCE
+
+
 def coplanar_ids(files):
     """Replicates Preprocessor::StlToGeometry + BfsCoplanarSurface.
 
@@ -223,8 +236,7 @@ def coplanar_ids(files):
             key = (file_index, min(a, b), max(a, b))
             if key in edge_map:
                 for other in edge_map[key]:
-                    on = tris[other][2]
-                    if on == normal or on == tuple(-c for c in normal):
+                    if same_orientation(tris[other][2], normal):
                         adjacency[other].append(t)
                         adjacency[t].append(other)
                 edge_map[key].append(t)
