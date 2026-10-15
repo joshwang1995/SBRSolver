@@ -44,7 +44,8 @@ The only dependency, [Eigen](https://eigen.tuxfamily.org), is bundled as a git s
 * CMake 3.16 or newer
 * A C++17 compiler
   - Windows: Visual Studio 2019/2022 with the *Desktop development with C++* workload
-    (the command-line *Build Tools* are enough), or MinGW-w64/Clang
+    (the command-line *Build Tools* are enough), or MinGW-w64 with the posix or mcf thread model
+    (the MSYS2 UCRT64/MINGW64 packages; the older win32 thread model lacks `std::thread` before GCC 13)
   - Linux: `sudo apt install build-essential cmake git` (Debian/Ubuntu) or the equivalent
   - macOS 10.15 (Catalina) or newer: `xcode-select --install` and `brew install cmake`
 * Optional: Python 3 to run the regression test
@@ -110,6 +111,7 @@ required keys, values of the wrong type or range and missing files are reported 
 | | `layout = file` | `file`, an `RX_*.dat` location file |
 | `[ray_tracing]` | `max_reflections`, `max_transmissions` | bounce limits (default `1` and `0`) |
 | | `use_fresnel_coefficients` | default `true` |
+| | `threads` | worker threads for ray launching and field computation; `0` (default) uses every hardware thread |
 | `[material]` (repeatable) | `name`, `reflection_loss`, `transmission_loss`, `rel_conductivity`, `rel_permittivity_re`, `rel_permittivity_im`, `frequency_hz` | one section per material with a unique name; the first is the default for `stl_file`. `frequency_hz` defaults to the transmitter frequency |
 | `[surface_materials]` | `<surface id> = <material name>` | override whole coplanar surfaces; ids are the `CoplanarID` field of `Faces.vtk`, written as plain decimal numbers, each at most once |
 | `[outputs]` | `ray_paths`, `receivers`, `field_csv`, `icosahedron` | which result files to write (defaults `true`, `true`, `true`, `false`) |
@@ -167,8 +169,9 @@ Any Git client (command line, Visual Studio, VS Code, GitKraken, ...) works for 
 * **`Error: invalid configuration`** at start-up. The message lists each offending line of the
   configuration file (unknown key, bad value, missing file). File names inside the configuration are
   relative to the configuration file, not to the current directory.
-* **OpenMP.** Nothing in the solver uses OpenMP yet, so it is off by default. To link it (for example
-  before re-enabling the `#pragma omp` loops in `RTSolver.cpp`) configure with `-DSBR_ENABLE_OPENMP=ON`;
-  on macOS install it first with `brew install libomp` and add `-DOpenMP_ROOT=$(brew --prefix libomp)`.
+* **Parallelism.** The solver runs the ray launches and the per-receiver field computation on all
+  hardware threads by default, with results identical to a single-threaded run. Set `threads = 1` in
+  `[ray_tracing]` to run serially (for example when timing or debugging), or a specific count to leave
+  cores free. No build option is involved; the standard library's threads are used on every platform.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>

@@ -1,4 +1,5 @@
 #include "RTSolver.h"
+#include "common/ParallelFor.h"
 
 #include <algorithm>
 #include <cassert>
@@ -83,16 +84,22 @@ int RTSolver::ExecuteRayTracing
 
 	InitRayPaths();
 
+	const int threads = (_threadCount > 0) ? _threadCount : DefaultThreadCount();
+	std::cout << "\tThreads                  -> " << threads << std::endl;
+
 	Timer timer;
 	timer.start();
-//#pragma omp parallel for collapse(2)
-	for (int i = 0; i < _pathsCount; i++)
+	// Every launch direction builds its own ray tree and fills its own row of
+	// _rayPaths, so the launches run independently. Ray ids come from an
+	// atomic counter and are only used for debugging output.
+	ParallelFor(_pathsCount, threads, [&](int i)
 	{
+		Vec3 origin = sourcePoint;
 		PathTreeNode rootNode;
 		rootNode.ray.id = RayGlobalId++;
 		rootNode.childTransmit = nullptr;
 		rootNode.childReflect = nullptr;
-		RayLaunch(&rootNode, sourcePoint, _shootRayList->at(i), -1, -1, 0, 0, 0, true, INF);
+		RayLaunch(&rootNode, origin, _shootRayList->at(i), -1, -1, 0, 0, 0, true, INF);
 		for (int j = 0; j < _receiverCount; j++)
 		{
 			PathTreeNode* cloneRoot = CloneNode(&rootNode);
@@ -105,7 +112,8 @@ int RTSolver::ExecuteRayTracing
 		// The per-launch tree has been cloned for every receiver; release it.
 		rootNode.childTransmit = DeleteChildNodes(rootNode.childTransmit);
 		rootNode.childReflect = DeleteChildNodes(rootNode.childReflect);
-	}
+	});
+	std::cout << "\tTotal Time in ray launching -> " << timer.getTime() << std::endl;
 
 	FieldCompute* fieldCore = new FieldCompute
 	(
@@ -121,16 +129,17 @@ int RTSolver::ExecuteRayTracing
 		antennaType
 	);
 
-	Vec3c field = { cdouble(0,0), cdouble(0,0), cdouble(0,0) };
-
-//#pragma omp parallel for
-	for (int k = 0; k < _receiverCount; k++)
+	// Each receiver only touches its own column of _rayPaths and its own
+	// entry of _efield, so the receivers run independently as well.
+	_efield->assign(_receiverCount, Vec3c{ cdouble(0,0), cdouble(0,0), cdouble(0,0) });
+	timer.restart();
+	ParallelFor(_receiverCount, threads, [&](int k)
 	{
 		ImagePathCorrection(k, sourcePoint, triangleMesh);
 		RemoveDuplicatePath(k);
-		_efield->push_back(fieldCore->FieldAtReceiver(k));
-	}
-	std::cout << "\tTotal Time in for loop -> " << timer.getTime() << std::endl;
+		(*_efield)[k] = fieldCore->FieldAtReceiver(k);
+	});
+	std::cout << "\tTotal Time in field computation -> " << timer.getTime() << std::endl;
 	
 	delete fieldCore;
 	return _pathsCount * _receiverCount;

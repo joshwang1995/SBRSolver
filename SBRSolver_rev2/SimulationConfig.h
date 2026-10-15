@@ -87,6 +87,7 @@ struct SimulationConfig
 	int maxReflections = 1;
 	int maxTransmissions = 0;
 	bool useFresnelCoefficients = true;
+	int threads = 0; // 0 = one per hardware thread
 
 	// [material] (one section per material, in order of material id; names are unique)
 	std::vector<MaterialConfig> materials;

@@ -14,11 +14,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Linux (GCC, OpenMP)
+          - name: Linux (GCC)
             os: ubuntu-latest
             cc: gcc
             cxx: g++
-            cmake_args: -DSBR_ENABLE_OPENMP=ON
           - name: Linux (Clang)
             os: ubuntu-latest
             cc: clang
