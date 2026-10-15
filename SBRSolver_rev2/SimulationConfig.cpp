@@ -467,7 +467,15 @@ namespace
 	void ReadTransmitter(SectionReader& r, SimulationConfig& cfg, Diagnostics& diag)
 	{
 		r.Vector3("position", cfg.txPosition, true);
-		r.Matrix3("coordinate_system", cfg.txCoordSys, false);
+		if (r.Matrix3("coordinate_system", cfg.txCoordSys, false))
+		{
+			// The rows are the antenna axes in global coordinates and are used
+			// as such (no normalisation), so they must form a right-handed
+			// orthonormal frame.
+			const Mat3 gram = cfg.txCoordSys * cfg.txCoordSys.transpose();
+			if ((gram - Mat3::Identity()).cwiseAbs().maxCoeff() > 1e-9 || cfg.txCoordSys.determinant() < 0.0)
+				diag.Add(r.Line("coordinate_system"), "coordinate_system rows must be unit length, mutually perpendicular and right-handed (x, y, z axes of the antenna in global coordinates)");
+		}
 		if (r.Double("power_watts", cfg.txPowerWatts, false) && cfg.txPowerWatts <= 0.0)
 			diag.Add(r.Line("power_watts"), "power_watts must be positive");
 		if (r.Double("frequency_hz", cfg.frequencyHz, true) && cfg.frequencyHz <= 0.0)

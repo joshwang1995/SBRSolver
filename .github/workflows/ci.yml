@@ -1,8 +1,7 @@
 name: CI
 
 on:
-  push:
-    branches: [master, main]
+  push:            # every commit on every branch is compared with the reference solver
   pull_request:
   workflow_dispatch:
 
@@ -40,7 +39,9 @@ jobs:
         env:
           CC: ${{ matrix.cc }}
           CXX: ${{ matrix.cxx }}
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmake_args }}
+        # SBR_REQUIRE_REFERENCE_TESTS: a runner without Python must fail here
+        # rather than pass a test suite without the comparisons.
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSBR_REQUIRE_REFERENCE_TESTS=ON ${{ matrix.cmake_args }}
 
       - name: Build
         run: cmake --build build --config Release --parallel

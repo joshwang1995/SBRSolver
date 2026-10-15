@@ -54,22 +54,29 @@ path is reported even when its field is small.
 | `power_watts` | `transmitting_power_dBm` |
 | `antenna_type` | `tx_antenna_pattern_file` tabulated from the analytic pattern (`pattern_file` is ignored by both) |
 | `[material]` (`rel_permittivity_re`, `rel_conductivity`) | `epsilon_setting_mode` 1 (static permittivity and conductivity), Fresnel reflection and transmission (type 1) |
+| `use_fresnel_coefficients = false` (perfect conductors) | every material with static permittivity 1 and conductivity 1e30, the Fresnel limit of a perfect conductor |
+| STL files | merged into one ASCII file whose coordinates are the float32 values SBRSolver reads, printed with 17 digits; both solvers recompute the facet normals from the vertices |
 | per-file materials and `[surface_materials]` | `face_index` lists; the converter recomputes the coplanar ids and `--check-faces` verifies them against sbrsolver's `Faces.vtk` |
 | `tessellation` n | `num_tesselate` 2^n, overridden per scene by `cases.json` |
 | `[receivers]` line / plane / file | `receivers.dat` with the same points in the same order |
 
 ## Limits of the reference
 
-RayTubeTracing launches ray *tubes* (triangles of a tessellated icosahedron)
-and drops a tube that straddles the edge of a surface. Near such edges it
-misses paths that exist, and finer tubes only shrink the affected region.
-`cases.json` therefore sets `num_tesselate` per scene to a value at which the
-reference finds every path (checked against an independent image-method
-calculation), and for `ground.ini`, whose ground strip is only 10 m wide,
-limits the comparison to the first kilometre of the receiver line: beyond
-that the tubes no longer fit on the strip at any affordable tessellation and
-the reference loses the ground reflection.
+RayTubeTracing launches ray *tubes* (triangles of a tessellated icosahedron).
+A tube can be split only at a single boundary edge of the surface it hits; a
+tube whose corner rays land on several surfaces, or whose sides cross none
+or several edges, is dropped as a "complex hit". Near surface edges and
+corners the reference therefore misses paths that exist, and finer tubes
+only shrink the affected region. `cases.json` sets `num_tesselate` per scene
+to a value at which the reference finds every path (checked against an
+independent image-method calculation), and for `ground.ini`, whose ground
+strip is only 10 m wide, limits the comparison to the first kilometre of the
+receiver line: beyond that the tubes no longer fit on the strip at any
+affordable tessellation and the reference loses the ground reflection.
 
 SBRSolver's launch has the same kind of limit (a ray instead of a tube must
 hit the surface close enough to the exact path), which is why `ground.ini`
-and `office.ini` use `tessellation = 3`.
+and `office.ini` use `tessellation = 3` and `bahen.ini` `tessellation = 4`.
+
+A reference run without any field or path at the compared receivers fails
+the comparison, so a scene cannot pass by checking zeros against zeros.

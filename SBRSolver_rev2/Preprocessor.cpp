@@ -200,6 +200,16 @@ bool Preprocessor::StlToGeometry
 
         BfsCoplanarSurface(adjacencyList, output);
 
+        // The facet normal of the file (6 decimals, not always unit length)
+        // decided the coplanar grouping above; the geometry itself uses the
+        // normal of the vertices, as the RayTubeTracing reference does, so
+        // reflections, image sources and Fresnel angles are exact.
+        for (size_t i = firstNew; i < output.size(); i++)
+        {
+            output[i]->norm = output[i]->findNormal();
+            output[i]->coordSys = output[i]->findCoordSys();
+        }
+
         std::string surfaceError;
         const bool surfacesOk = ApplySurfaceMaterials(surfaceMaterials, output, surfaceError);
 

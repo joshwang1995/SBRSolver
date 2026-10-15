@@ -8,6 +8,12 @@
 #include <map>
 #include <utility>
 
+namespace
+{
+	// Segments shorter than this (metres) carry no field: 1/L would overflow.
+	const double kMinSegmentLength = 1e-9;
+}
+
 RTSolver::RTSolver()
 {
 	Cleanup();
@@ -300,14 +306,16 @@ void RTSolver::RayCapture(PathTreeNode* rayTreeNode, const Vec3& receiver, doubl
 	{
 		rayTreeNode->ray.captured = true;
 	}
+	// RayLaunch stores the unfolded length from the transmitter to the end
+	// of every ray in pathLength, so that is the children's starting length.
 	if (rayTreeNode->childTransmit != nullptr)
 	{
-		RayCapture(rayTreeNode->childTransmit, receiver, totalPathLength + rayTreeNode->ray.pathLength);
+		RayCapture(rayTreeNode->childTransmit, receiver, rayTreeNode->ray.pathLength);
 	}
 
 	if (rayTreeNode->childReflect != nullptr)
 	{
-		RayCapture(rayTreeNode->childReflect, receiver, totalPathLength + rayTreeNode->ray.pathLength);
+		RayCapture(rayTreeNode->childReflect, receiver, rayTreeNode->ray.pathLength);
 	}
 }
 
@@ -380,9 +388,12 @@ bool RTSolver::MultiPathCorrection(std::vector<Ray>& multiPath, int receiverId, 
 	multiPath[0].pathLength = (targetPoint - txPoint).norm();
 
 	// The exact path exists only if nothing else stands in the way of any of
-	// its segments. The surfaces at a segment's ends are not obstacles.
+	// its segments. The surfaces at a segment's ends are not obstacles. A
+	// segment of zero length (receiver on the transmitter or on an
+	// interaction point) has no field and is dropped, as the reference does.
 	for (size_t i = 0; i < multiPath.size(); i++)
 	{
+		if (multiPath[i].pathLength < kMinSegmentLength) return false;
 		const int startSurface = (i == 0) ? -1 : multiPath[i - 1].hitCoplanarId;
 		const int endSurface = (i + 1 == multiPath.size()) ? -1 : multiPath[i].hitCoplanarId;
 		if (SegmentBlocked(multiPath[i].sourcePoint, multiPath[i].targetPoint, startSurface, endSurface))
@@ -398,7 +409,7 @@ bool RTSolver::DirectPathCorrection(std::vector<Ray>& directPath, int receiverId
 	if (directPath.size() != 1) { return false; }
 
 	const Vec3& receiver = _receivers->at(receiverId);
-	if (SegmentBlocked(txPoint, receiver, -1, -1))
+	if ((receiver - txPoint).norm() < kMinSegmentLength || SegmentBlocked(txPoint, receiver, -1, -1))
 	{
 		return false;
 	}

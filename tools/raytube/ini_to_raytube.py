@@ -31,6 +31,9 @@ Mapping notes
   same rule SBRSolver uses (triangles sharing an edge, with equal or opposite
   facet normals, in file order); ``--check-faces Faces.vtk`` verifies the
   result against the ``MaterialID`` field SBRSolver wrote.
+* ``use_fresnel_coefficients = false`` (every surface a perfect conductor in
+  SBRSolver) becomes a material with conductivity 1e30, the Fresnel limit of
+  a perfect conductor in the reference.
 * ``tessellation`` n (10*4^n+2 launch rays) becomes ``num_tesselate`` 2^n,
   which launches the same number of ray-tube corner rays. Both solvers
   reconstruct the exact image-method path for every captured ray, so the
@@ -77,10 +80,15 @@ class Section:
         return self.entries[key]
 
 
+REPEATABLE = ("material", "geometry")
+
+
 def read_ini(path):
+    """Same rules as SimulationConfig.cpp: comments, a leading BOM, repeatable
+    [material]/[geometry] sections only, no duplicate keys."""
     sections = []
     current = None
-    with open(path, "r", encoding="utf-8-sig") as fh:
+    with open(path, "r", encoding="utf-8-sig", errors="replace") as fh:
         for number, raw in enumerate(fh, 1):
             line = raw.strip()
             if not line or line[0] in "#;":
@@ -95,7 +103,12 @@ def read_ini(path):
             if line[0] == "[":
                 if line[-1] != "]":
                     fail("%s:%d: malformed section header '%s'" % (path, number, line))
-                current = Section(line[1:-1].strip().lower(), number)
+                name = line[1:-1].strip().lower()
+                if not name:
+                    fail("%s:%d: empty section name" % (path, number))
+                if name not in REPEATABLE and any(sec.name == name for sec in sections):
+                    fail("%s:%d: section [%s] appears more than once" % (path, number, name))
+                current = Section(name, number)
                 sections.append(current)
                 continue
             if "=" not in line:
@@ -103,7 +116,12 @@ def read_ini(path):
             if current is None:
                 fail("%s:%d: key outside of any [section]" % (path, number))
             key, value = line.split("=", 1)
-            current.entries[key.strip().lower()] = value.strip()
+            key = key.strip().lower()
+            if not key:
+                fail("%s:%d: empty key" % (path, number))
+            if key in current.entries:
+                fail("%s:%d: duplicate key '%s' in [%s]" % (path, number, key, current.name))
+            current.entries[key] = value.strip()
     return sections
 
 
@@ -172,6 +190,9 @@ def read_stl(path):
             off = 84 + 50 * i
             values = struct.unpack("<12f", data[off:off + 48])
             facets.append((tuple(values[0:3]), (tuple(values[3:6]), tuple(values[6:9]), tuple(values[9:12]))))
+    # stl_reader drops a facet whose corners are not three distinct points
+    # (after float32 rounding) and keeps the numbering of the others.
+    facets = [f for f in facets if len(set(f[1])) == 3]
     if not facets:
         fail("%s: no triangles" % path)
     return facets
@@ -194,9 +215,6 @@ def coplanar_ids(files):
                     ids[v] = len(unique)
                     unique.append(v)
                 idx.append(ids[v])
-            if len(set(idx)) != 3:
-                fail("STL file %d has a degenerate triangle (two identical corners); SBRSolver drops those and the "
-                     "face numbering would differ" % file_index)
             tris.append((file_index, tuple(idx), normal))
     edge_map = {}
     adjacency = [[] for _ in tris]
@@ -299,10 +317,12 @@ def pattern_amplitude(kind, theta):
     if kind == "hertzian_dipole":
         return math.sqrt(DIRECTIVITY[kind]) * math.sin(theta)
     if kind == "half_wave_dipole":
+        # cos(pi/2 cos t) / sin t evaluated as in FieldCompute::PatternAmplitude
         s = math.sin(theta)
-        if s < 1e-12:
+        if s == 0.0:
             return 0.0
-        return math.sqrt(DIRECTIVITY[kind]) * math.cos(0.5 * math.pi * math.cos(theta)) / s
+        h, c = math.sin(0.5 * theta), math.cos(0.5 * theta)
+        return math.sqrt(DIRECTIVITY[kind]) * math.sin(0.5 * math.pi * 2.0 * min(h * h, c * c)) / s
     fail("unknown antenna type '%s'" % kind)
 
 
@@ -324,16 +344,19 @@ def write_pattern(path, kind, step_deg):
 # ---------------------------------------------------------------------------
 # Config.xml
 # ---------------------------------------------------------------------------
-def material_xml(index, m, faces):
+PEC_CONDUCTIVITY = 1e30  # Fresnel limit of a perfect conductor: rPerp -> -1, rPar -> +1, no transmission
+
+
+def material_xml(index, m, faces, perfect_conductor):
     lines = [
         "\t<material%d>" % index,
-        "\t\t<!-- %s -->" % m["name"],
+        "\t\t<!-- %s%s -->" % (m["name"], " (use_fresnel_coefficients = false: perfect conductor)" if perfect_conductor else ""),
         "\t\t<reflection_type>1</reflection_type>",
         "\t\t<transmission_type>1</transmission_type>",
         "\t\t<epsilon_setting_mode>1</epsilon_setting_mode>",
         "\t\t<complex_permittivity> <real></real><imag></imag> </complex_permittivity>",
-        "\t\t<static_permittivity>%.17g</static_permittivity>" % m["rel_permittivity_re"],
-        "\t\t<conductivity>%.17g</conductivity>" % m["rel_conductivity"],
+        "\t\t<static_permittivity>%.17g</static_permittivity>" % (1.0 if perfect_conductor else m["rel_permittivity_re"]),
+        "\t\t<conductivity>%.17g</conductivity>" % (PEC_CONDUCTIVITY if perfect_conductor else m["rel_conductivity"]),
         "\t\t<is_impedance_boundary>false</is_impedance_boundary>",
         "\t\t<thickness>0</thickness>",
         "\t\t<is_diffuse_reflect>false</is_diffuse_reflect>",
@@ -361,7 +384,7 @@ def write_config(path, cfg):
     xml.append("\t<geometry_filename>geometry.stl</geometry_filename>")
     xml.append("\t<num_material>%d</num_material>" % len(cfg["materials"]))
     for i, m in enumerate(cfg["materials"]):
-        xml.append(material_xml(i, m, cfg["material_faces"][i]))
+        xml.append(material_xml(i, m, cfg["material_faces"][i], cfg["perfect_conductor"]))
     xml.append("")
     xml.append("\t<reflection_coef_filename></reflection_coef_filename>")
     xml.append("\t<transmission_coef_filename></transmission_coef_filename>")
@@ -451,10 +474,12 @@ def write_stl(path, files):
         fh.write("solid merged\n")
         for facets in files:
             for normal, verts in facets:
-                fh.write("facet normal %.9g %.9g %.9g\n" % normal)
+                # 17 digits: std::stod in the reference then yields exactly the
+                # float32 values SBRSolver works with (%.9g would not).
+                fh.write("facet normal %.17g %.17g %.17g\n" % normal)
                 fh.write("outer loop\n")
                 for v in verts:
-                    fh.write("vertex %.9g %.9g %.9g\n" % v)
+                    fh.write("vertex %.17g %.17g %.17g\n" % v)
                 fh.write("endloop\n")
                 fh.write("endfacet\n")
         fh.write("endsolid merged\n")
@@ -597,8 +622,10 @@ def main():
 
     cfg["max_reflections"] = int(numbers(tracing.get("max_reflections", "1"), 1, "max_reflections")[0]) if tracing else 1
     cfg["max_transmissions"] = int(numbers(tracing.get("max_transmissions", "0"), 1, "max_transmissions")[0]) if tracing else 0
-    if tracing and not boolean(tracing.get("use_fresnel_coefficients", "true"), "use_fresnel_coefficients"):
-        sys.stderr.write("ini_to_raytube: note: use_fresnel_coefficients = false has no equivalent; Fresnel coefficients are used\n")
+    # use_fresnel_coefficients = false makes SBRSolver treat every surface as
+    # a perfect conductor; the reference gets the same through the Fresnel
+    # limit of an (almost) infinitely conductive material.
+    cfg["perfect_conductor"] = bool(tracing) and not boolean(tracing.get("use_fresnel_coefficients", "true"), "use_fresnel_coefficients")
     cfg["threads"] = args.threads
     cfg["save_paths"] = args.save_paths
 

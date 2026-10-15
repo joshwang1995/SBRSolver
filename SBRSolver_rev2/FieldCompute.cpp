@@ -1,5 +1,6 @@
 #include "FieldCompute.h"
 
+#include <algorithm>
 #include <cmath>
 #include <stdexcept>
 #include <string>
@@ -77,9 +78,14 @@ double FieldCompute::PatternAmplitude(int antennaType, double theta)
 		return std::sqrt(kHertzianDirectivity) * std::sin(theta);
 	case 2: // half-wave dipole along the antenna z axis
 	{
+		// cos(pi/2 cos t) / sin t, written as sin(pi/2 (1 - |cos t|)) / sin t
+		// with 1 - |cos t| = 2 min(sin^2(t/2), cos^2(t/2)) so that the null on
+		// the axis is reached smoothly instead of through 0/0.
 		const double s = std::sin(theta);
-		if (s < 1e-12) return 0.0;
-		return std::sqrt(kHalfWaveDirectivity) * std::cos(0.5 * PI * std::cos(theta)) / s;
+		if (s == 0.0) return 0.0;
+		const double h = std::sin(0.5 * theta), c = std::cos(0.5 * theta);
+		const double oneMinusAbsCos = 2.0 * std::min(h * h, c * c);
+		return std::sqrt(kHalfWaveDirectivity) * std::sin(0.5 * PI * oneMinusAbsCos) / s;
 	}
 	default:
 		throw std::invalid_argument("unknown antenna type " + std::to_string(antennaType));

@@ -155,9 +155,10 @@ set_target_properties(sbrsolver PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "${SBR_SRC_DIR}")
 
 # ---------------------------------------------------------------------------
-# Tests (ctest): run the reference configuration (ground.ini) from the build
-# tree and, when a Python interpreter is available, compare the resulting field
-# with the reference results committed under SBRSolver_rev2/data/output.
+# Tests (ctest): run the four scenes in SBRSolver_rev2/data from the build tree
+# and, when a Python interpreter is available, compare the fields with the
+# committed self-references (data/output, data/reference) and with the
+# RayTubeTracing reference solver (tools/raytube).
 # ---------------------------------------------------------------------------
 enable_testing()
 
@@ -173,7 +174,15 @@ foreach(_scene IN LISTS _sbr_scenes)
     set_tests_properties(sbrsolver_run_${_scene} PROPERTIES TIMEOUT 600 FIXTURES_SETUP sbr_run_${_scene})
 endforeach()
 
-find_package(Python3 COMPONENTS Interpreter QUIET)
+# The comparisons need a Python interpreter. They are skipped without one,
+# unless SBR_REQUIRE_REFERENCE_TESTS is set (as CI does), which makes the
+# missing interpreter a configure error instead of a silently smaller suite.
+option(SBR_REQUIRE_REFERENCE_TESTS "Fail to configure when the reference comparison tests cannot be registered" OFF)
+if(SBR_REQUIRE_REFERENCE_TESTS)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+else()
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+endif()
 if(Python3_Interpreter_FOUND)
     add_test(NAME sbrsolver_reference_ground
              COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/compare_fields.py"
@@ -197,7 +206,10 @@ if(Python3_Interpreter_FOUND)
         "RayTubeTracing.exe to run for the raytube_* tests (empty: compare with the committed reference output)")
     set(SBR_RAYTUBE_LAUNCHER "" CACHE STRING
         "Program that runs SBR_RAYTUBE_EXE on this platform, e.g. wine64 (empty: run it directly)")
-    file(TO_CMAKE_PATH "${SBR_RAYTUBE_EXE}" SBR_RAYTUBE_EXE)
+    string(REPLACE "\\" "/" SBR_RAYTUBE_EXE "${SBR_RAYTUBE_EXE}")
+    if(SBR_RAYTUBE_EXE AND NOT EXISTS "${SBR_RAYTUBE_EXE}")
+        message(FATAL_ERROR "SBRSolver: SBR_RAYTUBE_EXE does not exist: ${SBR_RAYTUBE_EXE}")
+    endif()
     foreach(_scene IN LISTS _sbr_scenes)
         set(_args "${SBR_SRC_DIR}/data/${_scene}.ini"
                   --sbrsolver-output "${CMAKE_CURRENT_BINARY_DIR}/test_output_${_scene}"

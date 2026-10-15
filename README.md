@@ -112,9 +112,9 @@ required keys, values of the wrong type or range and missing files are reported 
 | | `save_edges`, `save_faces` | write `Edges.vtk` / `Faces.vtk` (default `true`); edge connectivity is computed per STL file, so an edge shared by two files appears once per file |
 | `[geometry]` (repeatable) | `file`, `material` | a further STL file whose triangles all get `material` |
 | `[transmitter]` | `position` | ray origin, `x y z` in metres |
-| | `coordinate_system` | three rows of the TX frame, e.g. `0 1 0; 0 0 1; 1 0 0` (default identity) |
+| | `coordinate_system` | three rows of the TX frame (its x, y and z axes in global coordinates), e.g. `0 1 0; 0 0 1; 1 0 0` (default identity); the rows must be unit length, perpendicular and right-handed |
 | | `power_watts`, `frequency_hz` | transmit power (default `1`) and frequency |
-| | `tessellation` | icosahedron subdivision level 0 to 8; launches 10·4ⁿ+2 rays (default `2`, 162 rays). A path is only found when a launched ray bounces close enough to it, so use the smallest level at which the number of paths stops changing: `ground.ini` and `office.ini` need `3` |
+| | `tessellation` | icosahedron subdivision level 0 to 8; launches 10·4ⁿ+2 rays (default `2`, 162 rays). A path is only found when a launched ray bounces close enough to it, so use the smallest level at which the number of paths stops changing: `ground.ini` and `office.ini` need `3`, `bahen.ini` `4` |
 | | `antenna_type` | `isotropic`, `hertzian_dipole` (default) or `half_wave_dipole` |
 | | `pattern_file` | optional measured pattern; read and validated, not applied yet |
 | `[receivers]` | `layout = line` | `line_start`, `line_end`, `resolution` (generated layouts are limited to 100 million receiver × ray combinations, about 3 GB) |
@@ -146,22 +146,26 @@ cd build && ctest -C Release --output-on-failure
 ```
 
 This runs the four scenes in `SBRSolver_rev2/data` (`ground`, `corner`, `office`, `bahen`) and
-checks them twice:
+checks `ground` and `office` twice and `corner` and `bahen` once:
 
 * `sbrsolver_reference_*`: the `ground` and `office` fields against the results committed in
   `SBRSolver_rev2/data/output/ElectricField.csv` and `SBRSolver_rev2/data/reference/office_ElectricField.csv`
   (the same build on another platform or compiler must reproduce them);
 * `raytube_*`: every scene against the RayTubeTracing reference solver (Takahiro Hashimoto's ray-tube
-  tracer, `tools/raytube/RayTubeTracing.exe`). The field at every receiver must agree with the
-  reference to every digit it prints, and the number of paths per receiver must be the same. On
-  Windows `ctest` runs the executable itself; elsewhere it compares with the reference output committed
-  in `SBRSolver_rev2/data/reference/raytube/`, unless configured with
+  tracer, `tools/raytube/RayTubeTracing.exe`). The field at every compared receiver must agree with
+  the reference to every digit it prints, and the number of paths per receiver must be the same. All
+  receivers are compared, except for `ground`, where only the first kilometre (receivers 0 to 1000 of
+  3000) is compared because the reference loses the ground reflection farther out on the 10 m wide
+  strip. On Windows `ctest` runs the executable itself; elsewhere it compares with the reference
+  output committed in `SBRSolver_rev2/data/reference/raytube/`, unless configured with
   `-DSBR_RAYTUBE_EXE=tools/raytube/RayTubeTracing.exe -DSBR_RAYTUBE_LAUNCHER=wine64`.
   `tools/raytube/README.md` describes the conversion of the configuration files, the tolerances and
   the limits of the reference.
 
 The same build and test matrix runs in GitHub Actions on Ubuntu (GCC and Clang), macOS and Windows
-(where the reference solver is run) for every pull request and every push to `master`.
+(where the reference solver is run) for every pull request and every pushed commit; CI configures
+with `-DSBR_REQUIRE_REFERENCE_TESTS=ON` so a runner without Python fails instead of skipping the
+comparisons.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

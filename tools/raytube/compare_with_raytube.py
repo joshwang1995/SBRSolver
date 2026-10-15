@@ -2,10 +2,14 @@
 """Compare SBRSolver's ElectricField.csv with RayTubeTracing's.
 
 SBRSolver writes ``X,Y,Z,Ex,Ey,Ez`` with complex numbers such as
-``-0.24748-4.73696i``. RayTubeTracing writes ``X[m], Y[m], Z[m], E_x, E_y, E_z``
-with ``+0.0097240028 -0.003705218I`` (ElectricField.csv) or
-``+0.0097240028-0.003705218i`` (ElectricFieldMatlab.csv). Both are accepted
-for either argument.
+``-2.52878846646+0.000900257848066i``. RayTubeTracing.exe writes only
+``E_x, E_y, E_z`` (``+0.0097240028 -0.003705218I`` in ElectricField.csv,
+``+0.0097240028-0.003705218i`` in ElectricFieldMatlab.csv) and its receiver
+positions are taken from the ReceivedPowers.csv next to it. Either layout is
+accepted for either argument.
+
+A reference without any field or path at the compared receivers fails the
+comparison (nothing would be checked) unless --allow-empty is given.
 
 Receivers are matched by row order and their positions must agree. Each
 field component must satisfy |a - b| <= atol * max|E| + rtol * |b| where the
@@ -123,6 +127,8 @@ def main():
                         help="also compare the number of paths found per receiver")
     parser.add_argument("--receivers", metavar="FIRST-LAST",
                         help="compare only this range of receiver indices (inclusive), e.g. 0-1000")
+    parser.add_argument("--allow-empty", action="store_true",
+                        help="pass even when the reference has no field at any compared receiver")
     args = parser.parse_args()
 
     _, sbr = read_field(args.sbrsolver)
@@ -147,6 +153,10 @@ def main():
         print("FAIL: the reference contains non-finite values")
         return 1
     atol = args.atol * scale
+    if scale == 0.0 and not args.allow_empty:
+        print("FAIL: the reference field is zero at every compared receiver, so nothing would be compared "
+              "(move the receivers into the transmitter's coverage, or pass --allow-empty)")
+        return 1
 
     worst = []
     bad = 0
@@ -189,6 +199,9 @@ def main():
             else:
                 sbr_counts = sbr_all[first:last + 1]
                 ref_counts = ref_all[first:last + 1]
+                if sum(ref_counts) == 0 and not args.allow_empty:
+                    print("FAIL: the reference found no path at any compared receiver")
+                    ok = False
                 differing = [i for i in range(len(ref_counts)) if sbr_counts[i] != ref_counts[i]]
                 print("paths per receiver: sbrsolver %d, raytube %d, receivers with a different count: %d%s"
                       % (sum(sbr_counts), sum(ref_counts), len(differing),
