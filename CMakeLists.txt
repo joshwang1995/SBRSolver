@@ -161,34 +161,63 @@ set_target_properties(sbrsolver PROPERTIES
 # ---------------------------------------------------------------------------
 enable_testing()
 
-set(_sbr_test_output "${CMAKE_CURRENT_BINARY_DIR}/test_output")
-add_test(NAME sbrsolver_smoke
-         COMMAND sbrsolver "${SBR_SRC_DIR}/data/ground.ini" "${_sbr_test_output}")
-set_tests_properties(sbrsolver_smoke PROPERTIES TIMEOUT 600)
-
-# A second scene exercising per-file and per-surface materials, compared with
-# its reference field as well (data/reference/office_ElectricField.csv).
-set(_sbr_test_output_office "${CMAKE_CURRENT_BINARY_DIR}/test_output_office")
-add_test(NAME sbrsolver_office_smoke
-         COMMAND sbrsolver "${SBR_SRC_DIR}/data/office.ini" "${_sbr_test_output_office}")
-set_tests_properties(sbrsolver_office_smoke PROPERTIES TIMEOUT 600 FIXTURES_SETUP sbr_office_run)
+# Every scene is run once (test_output_<scene>), then compared with its
+# committed self-reference (cross-platform determinism, tools/compare_fields.py)
+# and with the RayTubeTracing reference solver (physics, tools/raytube).
+set(_sbr_scenes ground corner office bahen)
+foreach(_scene IN LISTS _sbr_scenes)
+    add_test(NAME sbrsolver_run_${_scene}
+             COMMAND sbrsolver "${SBR_SRC_DIR}/data/${_scene}.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_${_scene}")
+    # Fixtures (not DEPENDS) so the run always precedes its comparisons, even
+    # when only a comparison test is selected with ctest -R.
+    set_tests_properties(sbrsolver_run_${_scene} PROPERTIES TIMEOUT 600 FIXTURES_SETUP sbr_run_${_scene})
+endforeach()
 
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
-    add_test(NAME sbrsolver_reference_field
+    add_test(NAME sbrsolver_reference_ground
              COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/compare_fields.py"
                      "${SBR_SRC_DIR}/data/output/ElectricField.csv"
-                     "${_sbr_test_output}/ElectricField.csv")
-    # Fixtures (not DEPENDS) so the smoke run always precedes the comparison,
-    # even when only the comparison test is selected with ctest -R.
-    set_tests_properties(sbrsolver_smoke PROPERTIES FIXTURES_SETUP sbr_default_run)
-    set_tests_properties(sbrsolver_reference_field PROPERTIES FIXTURES_REQUIRED sbr_default_run)
-
-    add_test(NAME sbrsolver_office_reference_field
+                     "${CMAKE_CURRENT_BINARY_DIR}/test_output_ground/ElectricField.csv")
+    set_tests_properties(sbrsolver_reference_ground PROPERTIES FIXTURES_REQUIRED sbr_run_ground)
+    add_test(NAME sbrsolver_reference_office
              COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/compare_fields.py"
                      "${SBR_SRC_DIR}/data/reference/office_ElectricField.csv"
-                     "${_sbr_test_output_office}/ElectricField.csv")
-    set_tests_properties(sbrsolver_office_reference_field PROPERTIES FIXTURES_REQUIRED sbr_office_run)
+                     "${CMAKE_CURRENT_BINARY_DIR}/test_output_office/ElectricField.csv")
+    set_tests_properties(sbrsolver_reference_office PROPERTIES FIXTURES_REQUIRED sbr_run_office)
+
+    # Comparison with RayTubeTracing. With SBR_RAYTUBE_EXE the reference solver
+    # is run (on Windows the committed executable is used by default); without
+    # it the committed reference output under data/reference/raytube is used.
+    set(_sbr_raytube_default "")
+    if(WIN32 AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/raytube/RayTubeTracing.exe")
+        set(_sbr_raytube_default "${CMAKE_CURRENT_SOURCE_DIR}/tools/raytube/RayTubeTracing.exe")
+    endif()
+    set(SBR_RAYTUBE_EXE "${_sbr_raytube_default}" CACHE FILEPATH
+        "RayTubeTracing.exe to run for the raytube_* tests (empty: compare with the committed reference output)")
+    set(SBR_RAYTUBE_LAUNCHER "" CACHE STRING
+        "Program that runs SBR_RAYTUBE_EXE on this platform, e.g. wine64 (empty: run it directly)")
+    file(TO_CMAKE_PATH "${SBR_RAYTUBE_EXE}" SBR_RAYTUBE_EXE)
+    foreach(_scene IN LISTS _sbr_scenes)
+        set(_args "${SBR_SRC_DIR}/data/${_scene}.ini"
+                  --sbrsolver-output "${CMAKE_CURRENT_BINARY_DIR}/test_output_${_scene}"
+                  --work "${CMAKE_CURRENT_BINARY_DIR}/raytube_${_scene}"
+                  --reference "${SBR_SRC_DIR}/data/reference/raytube/${_scene}")
+        if(SBR_RAYTUBE_EXE)
+            list(APPEND _args --exe "${SBR_RAYTUBE_EXE}")
+            if(SBR_RAYTUBE_LAUNCHER)
+                list(APPEND _args --launcher "${SBR_RAYTUBE_LAUNCHER}")
+            endif()
+        endif()
+        add_test(NAME raytube_${_scene}
+                 COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/raytube/run_comparison.py" ${_args})
+        set_tests_properties(raytube_${_scene} PROPERTIES FIXTURES_REQUIRED sbr_run_${_scene} TIMEOUT 1800)
+    endforeach()
+    if(SBR_RAYTUBE_EXE)
+        message(STATUS "SBRSolver: raytube_* tests run ${SBR_RAYTUBE_EXE}")
+    else()
+        message(STATUS "SBRSolver: raytube_* tests compare with the committed RayTubeTracing output (set SBR_RAYTUBE_EXE to run it)")
+    endif()
 else()
-    message(STATUS "SBRSolver: Python3 not found, skipping the reference field comparison test")
+    message(STATUS "SBRSolver: Python3 not found, skipping the reference comparison tests")
 endif()

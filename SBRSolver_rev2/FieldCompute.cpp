@@ -1,9 +1,49 @@
 #include "FieldCompute.h"
 
 #include <cmath>
-#include <fstream>
+#include <stdexcept>
+#include <string>
+
+namespace
+{
+	// Directivities of the analytic antennas. The half-wave value is
+	// 4 pi / integral of |cos(pi/2 cos theta) / sin theta|^2 over the sphere.
+	const double kHertzianDirectivity = 1.5;
+	const double kHalfWaveDirectivity = 1.6409223769845667;
+
+	// Unit vector perpendicular to `d` when the cross product that normally
+	// provides it vanished (normal incidence), as in the reference solver.
+	Vec3 AnyPerpendicular(const Vec3& d)
+	{
+		if (d.x() == 0.0) return Vec3(0.0, -d.z(), d.y()).normalized();
+		if (d.y() == 0.0) return Vec3(d.z(), 0.0, -d.x()).normalized();
+		return Vec3(d.z() * d.y(), d.z() * d.x(), d.x() * -2.0 * d.y()).normalized();
+	}
+
+	// Component of a complex field along a real unit vector (no conjugation).
+	cdouble Along(const Vec3c& field, const Vec3& axis)
+	{
+		return field.x() * axis.x() + field.y() * axis.y() + field.z() * axis.z();
+	}
+
+	double ClampedAcos(double c)
+	{
+		return std::acos(std::max(-1.0, std::min(1.0, c)));
+	}
+}
 
 FieldCompute::FieldCompute()
+	:
+	_rayPaths(nullptr),
+	_triangleMesh(nullptr),
+	_receivers(nullptr),
+	_pathsCount(0),
+	_materials(nullptr),
+	_txCoordSys(Mat3::Identity()),
+	_frequency(0.0),
+	_txPower(0.0),
+	_useFresnelCoeff(true),
+	_antennaType(0)
 {
 }
 
@@ -27,280 +67,134 @@ Vec3c FieldCompute::FieldAtReceiver(int receiverId)
 	return totalField;
 }
 
-void FieldCompute::RefCoeffTest(int numPts, double freq, cdouble epsilon1, cdouble epsilon2, std::string fname)
+double FieldCompute::PatternAmplitude(int antennaType, double theta)
 {
-	double lamda = SPEED_OF_LIGHT / freq;
-	Vec thetaArray = Vec::LinSpaced(numPts, 0.0, EIGEN_PI / 2);
-
-	std::ofstream ofs;
-	ofs.open(fname);
-
-	cdouble refTE, refTM, transTE, transTM, theta_t;
-	ofs << "theta_i,refTM_mag,refTM_phase,refTE_mag, refTE_phase" << std::endl;
-	for (auto theta_i : thetaArray)
+	switch (antennaType)
 	{
-		theta_t = GetTransAngle(theta_i, epsilon1, epsilon2);
-		GetTMCoeff(theta_i, theta_t, epsilon1, epsilon2, lamda, 0.0, true, refTM, transTM);
-		GetTECoeff(theta_i, theta_t, epsilon1, epsilon2, lamda, 0.0, true, refTE, transTE);
-		ofs << theta_i * (180.0/EIGEN_PI) << "," << std::abs(refTM) << "," << std::arg(refTM) << ",";
-		ofs << std::abs(refTE) << "," << std::arg(refTE) << std::endl;
+	case 0: // isotropic
+		return 1.0;
+	case 1: // Hertzian dipole along the antenna z axis
+		return std::sqrt(kHertzianDirectivity) * std::sin(theta);
+	case 2: // half-wave dipole along the antenna z axis
+	{
+		const double s = std::sin(theta);
+		if (s < 1e-12) return 0.0;
+		return std::sqrt(kHalfWaveDirectivity) * std::cos(0.5 * PI * std::cos(theta)) / s;
 	}
-
-	ofs.close();
+	default:
+		throw std::invalid_argument("unknown antenna type " + std::to_string(antennaType));
+	}
 }
 
-void FieldCompute::TransCoeffTest(int numPts, double freq, cdouble epsilon1, cdouble epsilon2, std::string fname)
+cdouble FieldCompute::RelativePermittivity(const MaterialProperties& material, double frequency)
 {
-	double lamda = SPEED_OF_LIGHT / freq;
-	Vec thetaArray = Vec::LinSpaced(numPts, 0.0, EIGEN_PI / 2);
-
-	std::ofstream ofs;
-	ofs.open(fname);
-
-	cdouble refTE, refTM, transTE, transTM, theta_t;
-	ofs << "theta_i,tranTM_mag,tranTM_phase, tranTE_mag, tranTE_phase" << std::endl;
-	for (auto theta_i : thetaArray)
-	{
-		theta_t = GetTransAngle(theta_i, epsilon1, epsilon2);
-		GetTMCoeff(theta_i, theta_t, epsilon1, epsilon2, lamda, 0.0, true, refTM, transTM);
-		GetTECoeff(theta_i, theta_t, epsilon1, epsilon2, lamda, 0.0, true, refTE, transTE);
-		ofs << theta_i * (180.0 / EIGEN_PI) << "," << std::abs(transTM) << "," << std::arg(transTM) << ",";
-		ofs << std::abs(transTE) << "," << std::arg(transTE) << std::endl;
-	}
-
-	ofs.close();
+	return cdouble(material.relPermittivityRe, -material.relConductivity / (E0 * TWOPI * frequency));
 }
 
-Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path)
+void FieldCompute::FresnelReflection(double theta, cdouble eps, cdouble& rPerp, cdouble& rPar)
 {
-	double lamda = SPEED_OF_LIGHT / _frequency;
-	double k = (2 * PI) / lamda;
+	const double s = std::sin(theta);
+	const double c = std::cos(theta);
+	const cdouble q = std::sqrt(eps - s * s);
+	rPerp = (c - q) / (c + q);
+	rPar = (eps * c - q) / (eps * c + q);
+}
 
-	Mat3 globalCoordSys = Mat3::Identity();
-	Mat3 currentCoordSys = globalCoordSys;
-	Mat3 nextCoordSys = _txCoordSys;
+void FieldCompute::FresnelTransmission(double theta, cdouble eps, cdouble& tPerp, cdouble& tPar)
+{
+	const double s = std::sin(theta);
+	const double c = std::cos(theta);
+	const cdouble q = std::sqrt(eps - s * s);
+	tPerp = (c + c) / (c + q);
+	tPar = (std::sqrt(eps) * 2.0) * c / (eps * c + q);
+}
 
-	Vec3c incidentField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
-	Vec3c totalField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
-	double totalPathLength = 0.0;
+Vec3c FieldCompute::SourceField(const Vec3& dir) const
+{
+	// Direction in the antenna frame (rows of _txCoordSys are the antenna
+	// axes in global coordinates).
+	const Vec3 local = _txCoordSys * dir;
+	const double theta = ClampedAcos(local.z());
+	const double phi = std::atan2(local.y(), local.x());
+	const double amplitude = PatternAmplitude(_antennaType, theta) * std::sqrt(_txPower * ETA0 / (4.0 * PI));
+	const Vec3 thetaHat(std::cos(theta) * std::cos(phi), std::cos(theta) * std::sin(phi), -std::sin(theta));
+	const Vec3 global = _txCoordSys.transpose() * thetaHat;
+	return Vec3c(cdouble(amplitude * global.x(), 0.0), cdouble(amplitude * global.y(), 0.0), cdouble(amplitude * global.z(), 0.0));
+}
 
-	for (int i = 0; i < int(path.size()); i++)
+Vec3c FieldCompute::Reflect(const Vec3c& field, const MaterialProperties& material, const Vec3& dirBack, const Vec3& n) const
+{
+	// TE direction (perpendicular to the plane of incidence), TM directions
+	// of the incident and of the reflected ray.
+	Vec3 perp = dirBack.cross(n);
+	perp = (perp.norm() == 0.0) ? AnyPerpendicular(dirBack) : perp.normalized();
+	const Vec3 parIn = perp.cross(dirBack).normalized();
+	const Vec3 reflected = 2.0 * dirBack.dot(n) * n - dirBack;
+	const Vec3 parOut = reflected.cross(perp).normalized();
+
+	cdouble rPerp, rPar;
+	if (_useFresnelCoeff)
 	{
-		// Extract information from current ray
+		FresnelReflection(ClampedAcos(dirBack.dot(n)), RelativePermittivity(material, _frequency), rPerp, rPar);
+	}
+	else
+	{
+		// perfect electric conductor
+		rPerp = cdouble(-1.0, 0.0);
+		rPar = cdouble(1.0, 0.0);
+	}
+	const cdouble te = rPerp * Along(field, perp);
+	const cdouble tm = rPar * Along(field, parIn);
+	return Vec3c(perp.x() * te + parOut.x() * tm, perp.y() * te + parOut.y() * tm, perp.z() * te + parOut.z() * tm);
+}
+
+Vec3c FieldCompute::Transmit(const Vec3c& field, const MaterialProperties& material, const Vec3& dirBack, const Vec3& n) const
+{
+	Vec3 perp = dirBack.cross(n);
+	perp = (perp.norm() == 0.0) ? AnyPerpendicular(dirBack) : perp.normalized();
+	const Vec3 par = perp.cross(dirBack).normalized();
+
+	cdouble tPerp(0.0, 0.0), tPar(0.0, 0.0); // a perfect conductor transmits nothing
+	if (_useFresnelCoeff)
+	{
+		FresnelTransmission(ClampedAcos(dirBack.dot(n)), RelativePermittivity(material, _frequency), tPerp, tPar);
+	}
+	const cdouble te = tPerp * Along(field, perp);
+	const cdouble tm = tPar * Along(field, par);
+	return Vec3c(perp.x() * te + par.x() * tm, perp.y() * te + par.y() * tm, perp.z() * te + par.z() * tm);
+}
+
+Vec3c FieldCompute::FieldForPath(const std::vector<Ray>& path) const
+{
+	const double k = TWOPI * _frequency / SPEED_OF_LIGHT;
+
+	// path[i] runs from sourcePoint to targetPoint; the interaction at
+	// path[i].targetPoint (on surface path[i].hitSurfaceID) is described by
+	// path[i + 1]: reflectionMaterialId or penetrationMaterialId >= 0.
+	Vec3c field = SourceField((path[0].targetPoint - path[0].sourcePoint).normalized());
+	double totalLength = 0.0;
+	for (size_t i = 0; i < path.size(); i++)
+	{
 		const Ray& ray = path[i];
-		Vec3 vecGlobal = ray.targetPoint - ray.sourcePoint;
-		Vec3 vecLocal = RotateToNewCoordSys(vecGlobal, globalCoordSys, nextCoordSys);
-		Vec3 vecSph = CartesianToSpherical(vecLocal);
+		totalLength += (ray.targetPoint - ray.sourcePoint).norm();
+		if (i + 1 == path.size()) break;
 
-		double r = vecSph(0);
-		double theta = vecSph(1);
-		double phi = vecSph(2);
-		totalPathLength += r;
-
-		/* Updating the coordinate systems*/
-		currentCoordSys = nextCoordSys;
-		if (ray.hitSurfaceID == -1)
+		const Ray& next = path[i + 1];
+		const Vec3 dirBack = (ray.sourcePoint - ray.targetPoint).normalized();
+		Vec3 n = _triangleMesh->at(ray.hitSurfaceID)->norm;
+		if (n.dot(dirBack) < 0.0) n = -n; // normal towards the side the ray comes from
+		if (next.reflectionMaterialId >= 0)
 		{
-			// The next hit is the transmitter
-			nextCoordSys = globalCoordSys;
+			field = Reflect(field, _materials[next.reflectionMaterialId], dirBack, n);
+		}
+		else if (next.penetrationMaterialId >= 0)
+		{
+			field = Transmit(field, _materials[next.penetrationMaterialId], dirBack, n);
 		}
 		else
 		{
-			// Get the surface coordinate system of the next hit surface
-			nextCoordSys = _triangleMesh->at(ray.hitSurfaceID)->coordSys;
+			throw std::logic_error("ray path segment without an interaction type");
 		}
-
-		/* Updating the incident field*/
-		if (i == 0)
-		{
-			// The first ray is always from TX to the next facet or receiver
-			// Get either the gain from the TX or an analytical pattern
-			// E(r,theta,phi) = E(0) * exp(-jkr)/r
-			// E(0) need to be calculated from the field coefficient sqrt(eta * Pr * Gain / 2Pi)
-			incidentField = GetAnalyticEfieldPattern(_antennaType, theta, phi, _txPower); // local spherical
-		}
-		else
-		{
-			incidentField = RotateToNewCoordSys(totalField, currentCoordSys, globalCoordSys);
-			incidentField = CartesianToSphericalVector(incidentField, theta, phi);
-		}
-
-		/* Updating the reflected or transmitted field*/
-		if (ray.reflectionMaterialId >= 0)
-		{
-			double incidentAngle = AngleBetween(vecGlobal, currentCoordSys(2,Eigen::indexing::all), false, true);
-			double relPerm = _materials[ray.reflectionMaterialId].relPermittivityRe;
-			double sigma = _materials[ray.reflectionMaterialId].relConductivity;
-			totalField = ComputeRefcField(incidentField, relPerm, sigma, _frequency, incidentAngle, 0, _useFresnelCoeff); // local spherical
-		}
-		else if (ray.penetrationMaterialId >= 0)
-		{
-			double incidentAngle = AngleBetween(vecGlobal, currentCoordSys(2, Eigen::indexing::all), false, true);
-			double relPerm = _materials[ray.penetrationMaterialId].relPermittivityRe;
-			double sigma = _materials[ray.penetrationMaterialId].relConductivity;
-			totalField = ComputeTransField(incidentField, relPerm, sigma, _frequency, incidentAngle, 0, _useFresnelCoeff);
-		}
-		else
-		{
-			totalField = incidentField;
-		}
-		// Need to do: add a case where receiver gain can be applied here
-		totalField = SphericalToCartesianVector(totalField, theta, phi);
-		totalField = RotateToNewCoordSys(totalField, currentCoordSys, globalCoordSys);
 	}
-	totalField = totalField * exp(-j * k * totalPathLength) / totalPathLength;
-
-	return totalField;
+	return field * (std::exp(-j * k * totalLength) / totalLength);
 }
-
-Vec3c FieldCompute::GetAnalyticEfieldPattern(int antennaType, double theta, double phi, double pt)
-{
-	Vec3c eFieldSph;
-	if (antennaType == 0)
-	{
-		// Isotropic antenna
-		eFieldSph(0) = cdouble(0, sqrt(60 * pt));
-		eFieldSph(1) = 0;
-		eFieldSph(2) = 0;
-	}
-
-	if (antennaType == 1)
-	{
-		// Field of Hertzian Dipole in TX Spherical Coordinate System
-		eFieldSph(0) = 0;
-		eFieldSph(1) = cdouble(0, sqrt(60*pt*1.5) * sin(theta));
-		eFieldSph(2) = 0;
-	}
-	else if (antennaType == 2)
-	{
-		// Field of half wave dipole in TX Spherical Coordinate System
-		eFieldSph(0) = 0;
-		eFieldSph(1) = cdouble(0, sqrt(60 * pt) * (cos(PI * cos(theta) / 2.0) / sin(theta)));
-		eFieldSph(2) = 0;
-	}
-	else if (antennaType == 3)
-	{
-		// Field of antenna array in TX Spherical Coordinate System
-	}
-	return eFieldSph;
-}
-
-Vec3c FieldCompute::ComputeRefcField(const Vec3c& efield_i_sph, double rel_perm, double sigma, double freq, double thetaIncident, double width, bool inf_wall)
-{
-	cdouble epsilonTransmit;
-	epsilonTransmit.real(rel_perm);
-	epsilonTransmit.imag(-1 * sigma / (E0 * 2 * PI * freq));
-
-	double lamda = SPEED_OF_LIGHT / freq;
-
-	// Permittivity of air
-	cdouble epsilonIncident(1, 0);
-
-	cdouble theta_t = GetTransAngle(thetaIncident, epsilonIncident, epsilonTransmit);
-
-	cdouble refTE, refTM, transTE, transTM;
-	GetTMCoeff(thetaIncident, theta_t, epsilonIncident, epsilonTransmit, lamda, width, inf_wall, refTM, transTM);
-	GetTECoeff(thetaIncident, theta_t, epsilonIncident, epsilonTransmit, lamda, width, inf_wall, refTE, transTE);
-
-	// x is r, y is theta, z is phi
-	cdouble Er = efield_i_sph[0];
-	cdouble Etheta = efield_i_sph[1];
-	cdouble Ephi = efield_i_sph[2];
-
-	Vec3c refcField (Er, Etheta * refTM, Ephi * refTE); 
-	return refcField;
-}
-
-Vec3c FieldCompute::ComputeTransField(const Vec3c& efield_i_sph, double rel_perm, double sigma, double freq, double thetaIncident, double width, bool inf_wall)
-{
-	cdouble epsilonTransmit;
-	epsilonTransmit.real(rel_perm);
-	epsilonTransmit.imag(-1 * sigma / (E0 * 2 * PI * freq));
-
-	double lamda = SPEED_OF_LIGHT / freq;
-
-	// Permittivity of air
-	cdouble epsilonIncident(1, 0);
-
-	cdouble theta_t = GetTransAngle(thetaIncident, epsilonIncident, epsilonTransmit);
-
-	cdouble refTE, refTM, transTE, transTM;
-	GetTMCoeff(thetaIncident, theta_t, epsilonIncident, epsilonTransmit, lamda, width, inf_wall, refTM, transTM);
-	GetTECoeff(thetaIncident, theta_t, epsilonIncident, epsilonTransmit, lamda, width, inf_wall, refTE, transTE);
-
-	// x is r, y is theta, z is phi
-	cdouble Er = efield_i_sph[0];
-	cdouble Etheta = efield_i_sph[1];
-	cdouble Ephi = efield_i_sph[2];
-
-	Vec3c transField(Er, Etheta * transTM, Ephi * transTE);
-	return transField;
-}
-
-void FieldCompute::GetTECoeff(cdouble theta_i, cdouble theta_t, cdouble rel_perm_i, cdouble rel_perm_t, double lamda, double width, bool inf_wall, cdouble& ref_coeff, cdouble& tran_coeff)
-{
-	cdouble n_i, n_t, eta_i, eta_t;
-	n_i = sqrt(rel_perm_i);
-	n_t = sqrt(rel_perm_t);
-	eta_i = ETA0 / n_i;
-	eta_t = ETA0 / n_t;
-	cdouble cos_i = cos(theta_i);
-	cdouble cos_t = cos(theta_t);
-	cdouble sin_i = sin(theta_i);
-
-	//  cdouble gamma_te = ((n_i * cos_i) - (n_t * cos_t)) / ((n_i * cos_i) + (n_t * cos_t));
-	cdouble gamma_te = -((eta_t / cos_t) - (eta_i / cos_i)) / ((eta_t / cos_t) + (eta_i / cos_i));
-	if (inf_wall)
-	{
-		ref_coeff = gamma_te;
-		tran_coeff = 0;
-	}
-	else
-	{
-		cdouble q = (TWOPI * width / lamda) * sqrt(n_t - (sin_i * sin_i));
-		cdouble phi_factor = exp(-j * 2.0 * q);
-		cdouble denom = 1.0 - (gamma_te * gamma_te * phi_factor);
-		ref_coeff = (gamma_te * (1.0 - phi_factor)) / denom;
-		tran_coeff = ((1.0 - gamma_te * gamma_te) * phi_factor) / denom;
-	}
-}
-
-void FieldCompute::GetTMCoeff(cdouble theta_i, cdouble theta_t, cdouble rel_perm_i, cdouble rel_perm_t, double lamda, double width, bool inf_wall, cdouble& ref_coeff, cdouble& tran_coeff)
-{
-	cdouble n_i, n_t, eta_i, eta_t;
-	n_i = sqrt(rel_perm_i);
-	n_t = sqrt(rel_perm_t);
-	eta_i = ETA0 / n_i;
-	eta_t = ETA0 / n_t;
-	cdouble cos_i = cos(theta_i);
-	cdouble cos_t = cos(theta_t);
-	cdouble sin_i = sin(theta_i);
-
-	// cdouble gamma_tm = (n_t * cos_i - n_i * cos_t) / (n_i * cos_t + n_t * cos_i);
-	cdouble gamma_tm = (-eta_t * cos_t + eta_i * cos_i) / (eta_t * cos_t + eta_i * cos_i);
-
-	if (inf_wall)
-	{
-		ref_coeff = gamma_tm;
-		tran_coeff = 0;
-	}
-	else
-	{
-		cdouble q = (TWOPI * width / lamda) * sqrt(n_t - (sin_i * sin_i));
-		cdouble phi_factor = exp(-j * 2.0 * q);
-		cdouble denom = 1.0 - (gamma_tm * gamma_tm * phi_factor);
-		ref_coeff = (gamma_tm * (1.0 - phi_factor)) / denom;
-		tran_coeff = ((1.0 - gamma_tm * gamma_tm) * phi_factor) / denom;
-	}
-}
-
-inline cdouble FieldCompute::GetTransAngle(double thetaIncident, cdouble epsilonIncident, cdouble epsilonTransmit)
-{
-	// Snell's Law
-	cdouble theta_i(thetaIncident, 0);
-	cdouble n_i = sqrt(epsilonIncident);
-	cdouble n_t = sqrt(epsilonTransmit);
-	cdouble theta_t = asin((n_i/n_t) * sin(theta_i));
-	return theta_t;
-}
-

@@ -26,6 +26,9 @@ jobs:
             os: macos-latest
           - name: Windows (MSVC)
             os: windows-latest
+            # CMake defaults SBR_RAYTUBE_EXE to tools/raytube/RayTubeTracing.exe
+            # here, so the raytube_* tests run the reference solver itself; on
+            # the other platforms they compare with its committed output.
 
     steps:
       - name: Check out sources and Eigen submodule
@@ -42,6 +45,6 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel
 
-      - name: Run the default scene and compare with the reference field
+      - name: Run the scenes and compare with the reference solver
         working-directory: build
         run: ctest -C Release --output-on-failure

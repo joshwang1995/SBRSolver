@@ -1,0 +1,17 @@
+{
+  "_comment": [
+    "Settings of the RayTubeTracing comparison per scene (keyed by INI file name).",
+    "tesselate: num_tesselate of the reference. Its ray tubes must be fine enough to",
+    "  fit inside every surface a path bounces off; a tube that straddles the edge of",
+    "  a surface is dropped by the reference, so coarse tubes miss paths that exist.",
+    "receivers: FIRST-LAST, the receiver indices compared (default: all). For",
+    "  ground.ini the ground strip is only 10 m wide: beyond 1 km the reference's",
+    "  tubes no longer fit on it at any affordable tessellation and it loses the",
+    "  ground reflection, so the comparison covers the first kilometre.",
+    "threads: num_openmp_cpus of the reference (0 = all CPUs)."
+  ],
+  "ground": {"tesselate": 128, "receivers": "0-1000"},
+  "corner": {"tesselate": 16},
+  "office": {"tesselate": 128},
+  "bahen": {"tesselate": 16}
+}

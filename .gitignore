@@ -21,6 +21,8 @@ Testing/
 *.dylib
 *.dll
 *.exe
+# except the reference solver the raytube_* tests run (see tools/raytube/README.md)
+!tools/raytube/RayTubeTracing.exe
 *.pdb
 *.ilk
 
@@ -49,3 +51,7 @@ CMakeSettings.json
 # OS files
 .DS_Store
 Thumbs.db
+
+# Python byte-code of the tools
+__pycache__/
+*.pyc

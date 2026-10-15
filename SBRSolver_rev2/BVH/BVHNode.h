@@ -18,7 +18,7 @@ public:
 	std::vector<T*> objects; // objects in leaf box
 
 	VecVec3 CornerPoints() const;
-	bool IntersectsAABB(const Vec3& rayOrigin, const Vec3& rayVector);
+	bool IntersectsAABB(const Vec3& rayOrigin, const Vec3& rayVector) const;
 
 	static void EmptyAABB(Mat23& bbox);
 
@@ -66,7 +66,7 @@ bool BVHNode<T>::IntersectsAABB
 (
 	const Vec3& rayOrigin,
 	const Vec3& rayVector
-)
+) const
 {
 	double t_max = INF;
 	double t_min = -INF;

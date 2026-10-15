@@ -2,6 +2,7 @@
 #include "common/ParallelFor.h"
 
 #include <algorithm>
+#include <iomanip>
 #include <cassert>
 #include <cmath>
 #include <map>
@@ -81,6 +82,14 @@ int RTSolver::ExecuteRayTracing
 	_receiverCount = int(receivers.size());
 	_pathsCount = int(_shootRayList->size());
 	_efield = new std::vector<Vec3c>;
+
+	_coplanarGroups.clear();
+	for (Triangle* t : triangleMesh)
+	{
+		if (t->coplanarId < 0) continue;
+		if (int(_coplanarGroups.size()) <= t->coplanarId) _coplanarGroups.resize(size_t(t->coplanarId) + 1);
+		_coplanarGroups[t->coplanarId].push_back(t);
+	}
 
 	InitRayPaths();
 
@@ -245,10 +254,12 @@ void RTSolver::RayLaunch
 	{
 		if (reflectionCnt > 0 || transmissionCnt > 0)
 		{
+			// A ray that leaves the scene keeps going (as far as the direct
+			// ray) so that receivers far away can still capture it.
 			PathTreeNode* newNode = newPathTreeNode
 			(
 				sourcePoint, 
-				sourcePoint + (directionPoint * 1E2), 
+				sourcePoint + (directionPoint * 1E10), 
 				transMaterialID,
 				refMaterialID,
 				-1,
@@ -278,31 +289,17 @@ void RTSolver::RayLaunch
 
 void RTSolver::RayCapture(PathTreeNode* rayTreeNode, const Vec3& receiver, double totalPathLength)
 {
+	// Marks every ray whose segment passes through the receiver's reception
+	// sphere. The children of a captured ray are still visited: a ray that
+	// passes the receiver and then bounces back to it carries two paths
+	// (the direct one and the reflected one), and dropping the subtree lost
+	// the second. Paths::Paths turns the marks into candidate paths, which
+	// ImagePathCorrection then verifies.
 	Vec3 capturePoint;
-	bool captured = HitReceptionSphere
-	(
-		rayTreeNode->ray.sourcePoint, 
-		rayTreeNode->ray.targetPoint, 
-		receiver,
-		totalPathLength, 
-		_txTesslation, 
-		capturePoint
-	);
-
-	if (rayTreeNode->childTransmit == nullptr && rayTreeNode->childReflect == nullptr && !captured)
-	{
-		return;
-	}
-
-	if (captured)
+	if (HitReceptionSphere(rayTreeNode->ray.sourcePoint, rayTreeNode->ray.targetPoint, receiver, totalPathLength, _txTesslation, capturePoint))
 	{
 		rayTreeNode->ray.captured = true;
-		rayTreeNode->ray.hitSurfaceID = -1;
-		rayTreeNode->ray.hitCoplanarId = -1;
-		rayTreeNode->childTransmit = DeleteChildNodes(rayTreeNode->childTransmit);
-		rayTreeNode->childReflect = DeleteChildNodes(rayTreeNode->childReflect);
 	}
-
 	if (rayTreeNode->childTransmit != nullptr)
 	{
 		RayCapture(rayTreeNode->childTransmit, receiver, totalPathLength + rayTreeNode->ray.pathLength);
@@ -312,8 +309,6 @@ void RTSolver::RayCapture(PathTreeNode* rayTreeNode, const Vec3& receiver, doubl
 	{
 		RayCapture(rayTreeNode->childReflect, receiver, totalPathLength + rayTreeNode->ray.pathLength);
 	}
-
-	
 }
 
 void RTSolver::ImagePathCorrection(int receiverId, const Vec3& txPoint, const std::vector<Triangle*>& triangleMesh)
@@ -349,44 +344,50 @@ void RTSolver::ImagePathCorrection(int receiverId, const Vec3& txPoint, const st
 
 bool RTSolver::MultiPathCorrection(std::vector<Ray>& multiPath, int receiverId, const Vec3& txPoint, const std::vector<Triangle*>& triangleMesh)
 {
+	// imgSources[i] is the surface at which segment i starts (-1 for the
+	// transmitter) and the image of the transmitter that segment i appears
+	// to come from.
 	std::vector<std::pair<int, Vec3>> imgSources = GetImageSources(multiPath, txPoint, triangleMesh);
-	if(imgSources.size() != multiPath.size()) 
-	{ 
-		assert("The GetImageSources function returned a list that is smaller than the path size");
+	if (imgSources.size() != multiPath.size())
+	{
+		return false;
 	}
 
-	HitInfo result;
+	// Walk back from the receiver: each interaction point is where the line
+	// from the segment's image source to the next point crosses the whole
+	// coplanar surface (the launched ray may have hit another triangle of it).
 	Vec3 targetPoint = _receivers->at(receiverId);
-
-	for (int i = (multiPath.size() - 1); i >= 0; i--)
+	for (int i = int(multiPath.size()) - 1; i >= 1; i--)
 	{
-		int hitSurfId = imgSources.at(i).first;
-		Vec3 imgSrc = imgSources.at(i).second;
-		Vec3 imgRayDir = targetPoint - imgSrc;
-		
-		if (hitSurfId < 0)
-		{
-			multiPath.at(i).sourcePoint = imgSrc;
-			multiPath.at(i).targetPoint = targetPoint;
-			multiPath.at(i).pathLength = (targetPoint - result.pointIntersect).norm();
-			multiPath.at(i).angleFromSurfaceNormal = INF;
-		}
-		else
-		{
-			bool hasHit = triangleMesh[hitSurfId]->RayIntersects(imgSrc, imgRayDir, result);
+		const int surfaceId = imgSources[i].first;
+		if (surfaceId < 0 || surfaceId >= int(triangleMesh.size())) return false;
+		Vec3 point;
+		Triangle* hit = IntersectSurface(triangleMesh[surfaceId]->coplanarId, imgSources[i].second, targetPoint, point);
+		if (hit == nullptr) return false;
 
-			if (hasHit)
-			{
-				multiPath.at(i).sourcePoint = result.pointIntersect;
-				multiPath.at(i).targetPoint = targetPoint;
-				multiPath.at(i).pathLength = (targetPoint - result.pointIntersect).norm();
-				multiPath.at(i).angleFromSurfaceNormal = AngleBetween(triangleMesh[hitSurfId]->norm, targetPoint - result.pointIntersect);
-				targetPoint = result.pointIntersect;
-			}
-			else
-			{
-				return false;
-			}
+		Ray& ray = multiPath[i];
+		ray.sourcePoint = point;
+		ray.targetPoint = targetPoint;
+		ray.pathLength = (targetPoint - point).norm();
+		Ray& previous = multiPath[i - 1];
+		previous.hitSurfaceID = hit->triangleId;
+		previous.hitCoplanarId = hit->coplanarId;
+		previous.angleFromSurfaceNormal = AngleBetween(hit->norm, targetPoint - point);
+		targetPoint = point;
+	}
+	multiPath[0].sourcePoint = txPoint;
+	multiPath[0].targetPoint = targetPoint;
+	multiPath[0].pathLength = (targetPoint - txPoint).norm();
+
+	// The exact path exists only if nothing else stands in the way of any of
+	// its segments. The surfaces at a segment's ends are not obstacles.
+	for (size_t i = 0; i < multiPath.size(); i++)
+	{
+		const int startSurface = (i == 0) ? -1 : multiPath[i - 1].hitCoplanarId;
+		const int endSurface = (i + 1 == multiPath.size()) ? -1 : multiPath[i].hitCoplanarId;
+		if (SegmentBlocked(multiPath[i].sourcePoint, multiPath[i].targetPoint, startSurface, endSurface))
+		{
+			return false;
 		}
 	}
 	return true;
@@ -396,21 +397,43 @@ bool RTSolver::DirectPathCorrection(std::vector<Ray>& directPath, int receiverId
 {
 	if (directPath.size() != 1) { return false; }
 
-	// Direct path correction
-	HitInfo result;
-	Vec3 directRayDirection = _receivers->at(receiverId) - txPoint;
-	bool hasHit = _bvh->RayIntersects(0, txPoint, directRayDirection, result);
-	if (!hasHit || directRayDirection.norm() < result.distance)
-	{
-		directPath.at(0).sourcePoint = txPoint;
-		directPath.at(0).targetPoint = _receivers->at(receiverId);
-		directPath.at(0).pathLength = (directPath.at(0).targetPoint - directPath.at(0).sourcePoint).norm();
-		return true;
-	}
-	else
+	const Vec3& receiver = _receivers->at(receiverId);
+	if (SegmentBlocked(txPoint, receiver, -1, -1))
 	{
 		return false;
 	}
+	directPath[0].sourcePoint = txPoint;
+	directPath[0].targetPoint = receiver;
+	directPath[0].pathLength = (receiver - txPoint).norm();
+	return true;
+}
+
+bool RTSolver::SegmentBlocked(const Vec3& from, const Vec3& to, int skipCoplanarA, int skipCoplanarB) const
+{
+	const Vec3 segment = to - from;
+	const double length = segment.norm();
+	if (length <= 0.0) return false;
+	// Hits closer than a hair's breadth to either end are the end surfaces
+	// themselves (or the receiver sitting on a surface), not obstacles.
+	const double margin = std::max(1e-9 * length, 1e-9);
+	return _bvh->RayOccluded(0, from, segment, length - margin, margin, skipCoplanarA, skipCoplanarB);
+}
+
+Triangle* RTSolver::IntersectSurface(int coplanarId, const Vec3& origin, const Vec3& target, Vec3& point) const
+{
+	if (coplanarId < 0 || coplanarId >= int(_coplanarGroups.size())) return nullptr;
+	const Vec3 direction = target - origin;
+	const double length = direction.norm();
+	for (Triangle* t : _coplanarGroups[coplanarId])
+	{
+		HitInfo info;
+		if (t->RayIntersects(origin, direction, info) && info.distance < length)
+		{
+			point = info.pointIntersect;
+			return t;
+		}
+	}
+	return nullptr;
 }
 
 std::vector<std::pair<int, Vec3>> GetImageSources(const std::vector<Ray>& path, const Vec3& txPoint, const std::vector<Triangle*>& triangleMesh)
@@ -705,6 +728,9 @@ bool RTSolver::SaveFieldAsCsv(std::string fname)
 
 	// write header
 	ofs << "X,Y,Z,Ex,Ey,Ez" << endl;
+	// 12 significant digits: enough to compare with the reference solver's 8
+	// without the printing itself adding a visible difference.
+	ofs << std::setprecision(12);
 	for (int i = 0; i < _receiverCount; i++)
 	{
 		ofs << _receivers->at(i).x() << ","
@@ -841,9 +867,10 @@ bool HitReceptionSphere
 	// Note: the unfolded path length is the path length from previous ray segments plus the distance
 	//  the point of intersection and the receiver
 
-	// Takahiro's method
+	// Takahiro's method: the sphere grows with the unfolded path length from
+	// the transmitter to the closest point of this segment.
 	double beta = 1.0 / (3.0 * txTesslation) * acos(-1.0 / sqrt(5.0));
-	double unfoldedLength = pathLength + (sourcePoint + t0 * rayDir).norm();
+	double unfoldedLength = pathLength + (t0 * rayDir).norm();
 	double sphereRadius = unfoldedLength * tan(beta);
 
 	// Rappaport's approximation
