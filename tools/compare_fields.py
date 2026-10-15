@@ -2,11 +2,11 @@
 """Compare two ElectricField.csv files produced by sbrsolver.
 
 Each row holds X,Y,Z followed by the complex Ex,Ey,Ez components written
-with C++ stream formatting (e.g. "-0.24748-4.73696i"). The comparison is
-tolerance based so that results produced on different platforms or compilers
-(which differ in the last bits of libm functions) still count as equal, while
-real regressions are caught. The solver prints 6 significant digits, so the
-default relative tolerance of 2e-5 absorbs a flip of the last printed digit.
+with 12 significant digits (e.g. "-2.52878846646+0.000900257848066i"). The
+comparison is tolerance based so that results produced on different platforms
+or compilers (which differ in the last bits of libm functions) still count as
+equal, while real regressions are caught: the default relative tolerance of
+2e-5 is far above the printing granularity and absorbs that noise.
 Non-finite values (nan, inf) in either file always count as a mismatch.
 
 Usage: compare_fields.py <reference.csv> <candidate.csv> [--rtol R] [--atol A]
@@ -51,7 +51,7 @@ def main():
     parser.add_argument("reference")
     parser.add_argument("candidate")
     parser.add_argument("--rtol", type=float, default=2e-5,
-                        help="relative tolerance per component (default absorbs one unit in the 6th significant digit)")
+                        help="relative tolerance per component (default 2e-5, platform and compiler noise)")
     parser.add_argument("--atol", type=float, default=1e-9,
                         help="absolute tolerance, scaled by the largest field magnitude in the reference")
     args = parser.parse_args()

@@ -28,6 +28,10 @@ public:
 	void ConstructBVH(const std::vector<T*>& objects);
 	void SaveAsVtk(const std::string& fname) const; // for visualization
 	bool RayIntersects(int index, const Vec3& rayOrg, const Vec3& rayDir, HitInfo& info);
+	// True when any object closer than `maxDistance` (and farther than
+	// `minDistance`) along the ray is hit, ignoring the objects whose
+	// coplanarId is skipA or skipB. Stops at the first such hit.
+	bool RayOccluded(int index, const Vec3& rayOrg, const Vec3& rayDir, double maxDistance, double minDistance, int skipA, int skipB) const;
 
 private:
 	void ConstructBVHInternal(std::vector<T*>& objects, const int nodeIdx);
@@ -329,6 +333,28 @@ bool BVH<T>::RayIntersects
 	else
 	{
 		// No intersection, no need to do anything
+	}
+	return false;
+}
+
+template <typename T>
+bool BVH<T>::RayOccluded(int index, const Vec3& rayOrg, const Vec3& rayDir, double maxDistance, double minDistance, int skipA, int skipB) const
+{
+	const BVHNode<T>& node = nodes[index];
+	if (!node.IntersectsAABB(rayOrg, rayDir)) return false;
+	if (node.children[0] != -1)
+	{
+		return RayOccluded(node.children[0], rayOrg, rayDir, maxDistance, minDistance, skipA, skipB)
+			|| RayOccluded(node.children[1], rayOrg, rayDir, maxDistance, minDistance, skipA, skipB);
+	}
+	for (T* object : node.objects)
+	{
+		if (object->coplanarId == skipA || object->coplanarId == skipB) continue;
+		HitInfo info;
+		if (object->RayIntersects(rayOrg, rayDir, info) && info.distance > minDistance && info.distance < maxDistance)
+		{
+			return true;
+		}
 	}
 	return false;
 }

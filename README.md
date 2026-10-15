@@ -85,6 +85,17 @@ the output directory defaults to `output/` next to the configuration file and is
 `SBRSolver_rev2/data/output` holds the committed reference results that `ctest` compares against, so run
 scenes other than `ground.ini` with an explicit output directory.
 
+### Results
+
+`ElectricField.csv` lists the complex field `Ex, Ey, Ez` (V/m) at every receiver, written with
+12 significant digits. The conventions are those of the RayTubeTracing reference solver (see
+[Test](#test)): the source radiates `sqrt(P η₀ / 4π) · sqrt(gain(θ)) · θ̂` at unit distance, so
+`|E|² / η₀` is the power density; every path contributes `exp(-j k L) / L` over its unfolded length
+`L`; reflections and transmissions act on the TE and TM components of the field in the plane of
+incidence with the Fresnel coefficients of the surface material. `RayPath.vtk` holds every path that
+was found (exact image-method paths, one per receiver and interaction sequence) and `RxLocations.vtk`
+the receivers with `|E|` and the field in dB(µV/m).
+
 ### Configuration file
 
 All simulation settings live in an INI-style text file. `SBRSolver_rev2/data/ground.ini` is the
@@ -101,18 +112,18 @@ required keys, values of the wrong type or range and missing files are reported 
 | | `save_edges`, `save_faces` | write `Edges.vtk` / `Faces.vtk` (default `true`); edge connectivity is computed per STL file, so an edge shared by two files appears once per file |
 | `[geometry]` (repeatable) | `file`, `material` | a further STL file whose triangles all get `material` |
 | `[transmitter]` | `position` | ray origin, `x y z` in metres |
-| | `coordinate_system` | three rows of the TX frame, e.g. `0 1 0; 0 0 1; 1 0 0` (default identity) |
+| | `coordinate_system` | three rows of the TX frame (its x, y and z axes in global coordinates), e.g. `0 1 0; 0 0 1; 1 0 0` (default identity); the rows must be unit length, perpendicular and right-handed |
 | | `power_watts`, `frequency_hz` | transmit power (default `1`) and frequency |
-| | `tessellation` | icosahedron subdivision level 0 to 8; launches 10·4ⁿ+2 rays (default `2`, 162 rays) |
+| | `tessellation` | icosahedron subdivision level 0 to 8; launches 10·4ⁿ+2 rays (default `2`, 162 rays). A path is only found when a launched ray bounces close enough to it, so use the smallest level at which the number of paths stops changing: `ground.ini` and `office.ini` need `3`, `bahen.ini` `4` |
 | | `antenna_type` | `isotropic`, `hertzian_dipole` (default) or `half_wave_dipole` |
 | | `pattern_file` | optional measured pattern; read and validated, not applied yet |
 | `[receivers]` | `layout = line` | `line_start`, `line_end`, `resolution` (generated layouts are limited to 100 million receiver × ray combinations, about 3 GB) |
 | | `layout = plane` | `x_min`, `y_min`, `x_max`, `y_max`, `height`, `resolution` |
 | | `layout = file` | `file`, an `RX_*.dat` location file |
 | `[ray_tracing]` | `max_reflections`, `max_transmissions` | bounce limits (default `1` and `0`) |
-| | `use_fresnel_coefficients` | default `true` |
+| | `use_fresnel_coefficients` | `true` (default): Fresnel reflection and transmission coefficients of a half space with the material's permittivity and conductivity; `false`: every surface is a perfect electric conductor (total reflection, no transmission) |
 | | `threads` | worker threads for ray launching and field computation; `0` (default) uses every hardware thread |
-| `[material]` (repeatable) | `name`, `reflection_loss`, `transmission_loss`, `rel_conductivity`, `rel_permittivity_re`, `rel_permittivity_im`, `frequency_hz` | one section per material with a unique name; the first is the default for `stl_file`. `frequency_hz` defaults to the transmitter frequency |
+| `[material]` (repeatable) | `name`, `reflection_loss`, `transmission_loss`, `rel_conductivity`, `rel_permittivity_re`, `rel_permittivity_im`, `frequency_hz` | one section per material with a unique name; the first is the default for `stl_file`. The field computation uses the complex permittivity `rel_permittivity_re - j rel_conductivity / (2π f ε₀)` at the transmitter frequency; the other values are read but not applied. `frequency_hz` defaults to the transmitter frequency |
 | `[surface_materials]` | `<surface id> = <material name>` | override whole coplanar surfaces; ids are the `CoplanarID` field of `Faces.vtk`, written as plain decimal numbers, each at most once |
 | `[outputs]` | `ray_paths`, `receivers`, `field_csv`, `icosahedron` | which result files to write (defaults `true`, `true`, `true`, `false`) |
 
@@ -134,10 +145,27 @@ material received. `SBRSolver_rev2/data/office.ini` shows both mechanisms.
 cd build && ctest -C Release --output-on-failure
 ```
 
-This runs `ground.ini` and compares the resulting electric field with the reference results
-committed in `SBRSolver_rev2/data/output/ElectricField.csv`, and runs the multi-material `office.ini`
-against `SBRSolver_rev2/data/reference/office_ElectricField.csv`. The same build and test matrix runs in
-GitHub Actions on Ubuntu (GCC and Clang), macOS and Windows for every pull request and every push to `master`.
+This runs the four scenes in `SBRSolver_rev2/data` (`ground`, `corner`, `office`, `bahen`) and
+checks `ground` and `office` twice and `corner` and `bahen` once:
+
+* `sbrsolver_reference_*`: the `ground` and `office` fields against the results committed in
+  `SBRSolver_rev2/data/output/ElectricField.csv` and `SBRSolver_rev2/data/reference/office_ElectricField.csv`
+  (the same build on another platform or compiler must reproduce them);
+* `raytube_*`: every scene against the RayTubeTracing reference solver (Takahiro Hashimoto's ray-tube
+  tracer, `tools/raytube/RayTubeTracing.exe`). The field at every compared receiver must agree with
+  the reference to every digit it prints, and the number of paths per receiver must be the same. All
+  receivers are compared, except for `ground`, where only the first kilometre (receivers 0 to 1000 of
+  3000) is compared because the reference loses the ground reflection farther out on the 10 m wide
+  strip. On Windows `ctest` runs the executable itself; elsewhere it compares with the reference
+  output committed in `SBRSolver_rev2/data/reference/raytube/`, unless configured with
+  `-DSBR_RAYTUBE_EXE=tools/raytube/RayTubeTracing.exe -DSBR_RAYTUBE_LAUNCHER=wine64`.
+  `tools/raytube/README.md` describes the conversion of the configuration files, the tolerances and
+  the limits of the reference.
+
+The same build and test matrix runs in GitHub Actions on Ubuntu (GCC and Clang), macOS and Windows
+(where the reference solver is run) for every pull request and every pushed commit; CI configures
+with `-DSBR_REQUIRE_REFERENCE_TESTS=ON` so a runner without Python fails instead of skipping the
+comparisons.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -169,6 +197,10 @@ Any Git client (command line, Visual Studio, VS Code, GitKraken, ...) works for 
 * **`Error: invalid configuration`** at start-up. The message lists each offending line of the
   configuration file (unknown key, bad value, missing file). File names inside the configuration are
   relative to the configuration file, not to the current directory.
+* **A path is missing, or the field changes with `tessellation`.** A launched ray has to bounce
+  close enough to the exact path for the reception sphere to capture it; raise `tessellation` until
+  the number of paths in `RayPath.vtk` stops changing. The `raytube_*` tests show which receivers lost
+  a path.
 * **Parallelism.** The solver runs the ray launches and the per-receiver field computation on all
   hardware threads by default, with results identical to a single-threaded run. Set `threads = 1` in
   `[ray_tracing]` to run serially (for example when timing or debugging), or a specific count to leave
