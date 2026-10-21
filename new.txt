@@ -1,2 +1,0 @@
-/bin/bash: line 1: ./idcheck_new: No such file or directory
-new exit 127

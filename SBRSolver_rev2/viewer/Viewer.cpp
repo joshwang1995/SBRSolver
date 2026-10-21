@@ -523,6 +523,7 @@ namespace
 		if (_paths != nullptr)
 		{
 			_showPaths = _paths->isEnabled();
+			_pathQuantity.clear();   // stays empty when the user switched every quantity off
 			for (const char* name : pathQuantities)
 			{
 				polyscope::Quantity* quantity = _paths->getQuantity(name);
@@ -597,9 +598,12 @@ namespace
 		_paths->addNodeScalarQuantity("Path |E| [V/m]", magnitude);
 		_paths->addNodeScalarQuantity("Path |E| [dBuV/m]", magnitudeDb);
 		_paths->addNodeScalarQuantity("Node type (0 Tx, 1 refl, 2 trans, 3 Rx)", nodeType, polyscope::DataType::CATEGORICAL);
-		if (polyscope::Quantity* quantity = _paths->getQuantity(_pathQuantity))
+		if (!_pathQuantity.empty())
 		{
-			quantity->setEnabled(true);
+			if (polyscope::Quantity* quantity = _paths->getQuantity(_pathQuantity))
+			{
+				quantity->setEnabled(true);
+			}
 		}
 		_paths->setRadius(0.0025f);
 		_paths->setEnabled(_showPaths);

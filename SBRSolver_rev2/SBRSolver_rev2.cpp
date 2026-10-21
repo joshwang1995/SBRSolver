@@ -108,6 +108,14 @@ static bool ParseCommandLine(int argc, char* argv[], CommandLine& cl, std::strin
 		else if (arg == "--viewer-backend")
 		{
 			if (!value(cl.viewerBackend)) return false;
+			// Polyscope's backend names; a typo must not cost a whole run.
+			if (cl.viewerBackend != "auto" && cl.viewerBackend != "openGL3_glfw" && cl.viewerBackend != "openGL3_egl"
+				&& cl.viewerBackend != "openGL_mock")
+			{
+				error = "--viewer-backend must be openGL3_glfw, openGL3_egl, openGL_mock or auto, got '" + cl.viewerBackend + "'";
+				return false;
+			}
+			if (cl.viewerBackend == "auto") cl.viewerBackend.clear();
 			cl.view = true;
 		}
 		else if (arg.size() > 1 && arg[0] == '-' && arg != "-")

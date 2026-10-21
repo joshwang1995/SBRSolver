@@ -233,8 +233,9 @@ The viewer has tests of its own: `viewer_unit_tests` (the scene data model and t
 interpolation, no display needed), `viewer_smoke_mock` and `viewer_smoke_mock_volume` (a synthetic
 run through every overlay, with flat and with layered receivers, using the rendering-free mock
 backend), `viewer_mock_office` (the whole viewer on the office scene with the mock backend, every
-platform), `viewer_cli_rejects_frames` and `viewer_cli_rejects_screenshot_type` (malformed viewer
-options are refused before the run) and, where `xvfb-run` exists, `viewer_screenshot_office` (a real
+platform), `viewer_cli_rejects_frames`, `viewer_cli_rejects_screenshot_type` and
+`viewer_cli_rejects_backend` (malformed viewer options are refused before the run) and, where
+`xvfb-run` exists, `viewer_screenshot_office` (a real
 rendering into a PNG, which fails when no file is written).
 
 The same build and test matrix runs in GitHub Actions on Ubuntu (GCC and Clang), macOS and Windows
@@ -286,8 +287,10 @@ Any Git client (command line, Visual Studio, VS Code, GitKraken, ...) works for 
 * **The Tracy GUI shows no client.** The solver must be built with `-DSBR_ENABLE_TRACY=ON`; the
   GUI and the bundled client must be the same version (0.14.1);
   a firewall may block the discovery broadcast (UDP 8086) or the connection (TCP 8086), in which case
-  enter the machine's address in the GUI; and the solver must be running while you connect, so start a
-  long run or add `--view` to keep it open.
+  enter the machine's address in the GUI; and the solver must be running while you connect: start a
+  long run, or for a short one build with `-DSBR_TRACY_ON_DEMAND=OFF` and run with `TRACY_NO_EXIT=1`
+  (see *Profiling with Tracy*); `--view` keeps the process alive, but in the on-demand build only the
+  viewer's frames are then recorded.
 * **Parallelism.** The solver runs the ray launches and the per-receiver field computation on all
   hardware threads by default, with results identical to a single-threaded run. Set `threads = 1` in
   `[ray_tracing]` to run serially (for example when timing or debugging), or a specific count to leave

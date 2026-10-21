@@ -113,16 +113,22 @@ if(SBR_ENABLE_TRACY)
             "    git submodule update --init --recursive\n"
             "or configure with -DSBR_ENABLE_TRACY=OFF.")
     endif()
-    # The client records once the Tracy GUI connects (on demand). Until then
-    # the zones cost nothing measurable, but the client itself adds about
-    # 0.2 s of start-up (timer calibration), a few threads and a listening
-    # socket (TCP 8086) to every run, which is why the option is off by
-    # default and CI builds with it on.
+    # By default the client records once the Tracy GUI connects (on demand);
+    # with SBR_TRACY_ON_DEMAND=OFF it records from start-up (and waits for
+    # the GUI at exit when TRACY_NO_EXIT=1 is set), which suits short runs.
+    # Until the GUI connects the zones cost nothing measurable, but the
+    # client itself adds about 0.2 s of start-up (timer calibration), a few
+    # threads and a listening socket (TCP 8086) to every run, which is why
+    # SBR_ENABLE_TRACY is off by default and CI builds with it on.
     set(TRACY_ENABLE ON CACHE BOOL "" FORCE)
     set(TRACY_ON_DEMAND ${SBR_TRACY_ON_DEMAND} CACHE BOOL "" FORCE)
     set(TRACY_STATIC ON CACHE BOOL "" FORCE)
     add_subdirectory("${_sbr_third_party}/tracy" EXCLUDE_FROM_ALL)
-    message(STATUS "SBRSolver: Tracy profiling enabled (on demand)")
+    if(SBR_TRACY_ON_DEMAND)
+        message(STATUS "SBRSolver: Tracy profiling enabled (on demand)")
+    else()
+        message(STATUS "SBRSolver: Tracy profiling enabled (recording from start-up; run with TRACY_NO_EXIT=1 to wait for the GUI at exit)")
+    endif()
 endif()
 
 # ---------------------------------------------------------------------------
@@ -300,7 +306,11 @@ if(SBR_BUILD_VIEWER)
     add_test(NAME viewer_cli_rejects_screenshot_type
              COMMAND sbrsolver "${SBR_SRC_DIR}/data/office.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_viewer"
                      --viewer-backend openGL_mock --screenshot "${CMAKE_CURRENT_BINARY_DIR}/test_output_viewer/office.txt")
-    set_tests_properties(viewer_cli_rejects_frames viewer_cli_rejects_screenshot_type PROPERTIES WILL_FAIL TRUE TIMEOUT 60)
+    add_test(NAME viewer_cli_rejects_backend
+             COMMAND sbrsolver "${SBR_SRC_DIR}/data/office.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_viewer"
+                     --viewer-backend openGL_bogus --viewer-frames 1)
+    set_tests_properties(viewer_cli_rejects_frames viewer_cli_rejects_screenshot_type viewer_cli_rejects_backend
+                         PROPERTIES WILL_FAIL TRUE TIMEOUT 60)
     # A real rendering into a PNG where a display (or Xvfb) is available.
     find_program(SBR_XVFB_RUN xvfb-run)
     if(SBR_XVFB_RUN)
