@@ -9,6 +9,8 @@ project(SBRSolver
 # Options
 # ---------------------------------------------------------------------------
 option(SBR_WARNINGS "Enable the compiler's standard warning set" ON)
+option(SBR_BUILD_VIEWER "Build the built-in 3D viewer (Polyscope, --view / [outputs] viewer = true)" ON)
+option(SBR_ENABLE_TRACY "Instrument the solver for the Tracy profiler (connect the Tracy GUI while it runs)" ON)
 
 # Default to a Release build for single-config generators (Makefiles, Ninja).
 # Multi-config generators (Visual Studio, Xcode) pick the config at build time.
@@ -72,6 +74,46 @@ if(NOT SBR_HAS_STD_THREAD)
 endif()
 
 # ---------------------------------------------------------------------------
+# Third-party libraries (git submodules under third_party/)
+# ---------------------------------------------------------------------------
+set(_sbr_third_party "${CMAKE_CURRENT_SOURCE_DIR}/third_party")
+
+if(SBR_BUILD_VIEWER)
+    if(NOT EXISTS "${_sbr_third_party}/polyscope/CMakeLists.txt" OR NOT EXISTS "${_sbr_third_party}/polyscope/deps/glfw/CMakeLists.txt")
+        message(FATAL_ERROR
+            "SBRSolver: the viewer needs the Polyscope submodule and its own submodules. Run\n"
+            "    git submodule update --init --recursive\n"
+            "or configure with -DSBR_BUILD_VIEWER=OFF.")
+    endif()
+    # Polyscope bundles GLFW, Dear ImGui, glm and stb. The mock backend lets the
+    # viewer run without a display (used by the tests); EGL is picked up on Linux
+    # when available for headless rendering.
+    set(POLYSCOPE_BACKEND_OPENGL3_GLFW ON CACHE BOOL "" FORCE)
+    set(POLYSCOPE_BACKEND_OPENGL_MOCK ON CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    add_subdirectory("${_sbr_third_party}/polyscope" EXCLUDE_FROM_ALL)
+    message(STATUS "SBRSolver: viewer enabled (Polyscope)")
+endif()
+
+if(SBR_ENABLE_TRACY)
+    if(NOT EXISTS "${_sbr_third_party}/tracy/CMakeLists.txt")
+        message(FATAL_ERROR
+            "SBRSolver: the Tracy submodule is missing. Run\n"
+            "    git submodule update --init --recursive\n"
+            "or configure with -DSBR_ENABLE_TRACY=OFF.")
+    endif()
+    # The client only records once the Tracy GUI connects (on demand), so the
+    # instrumented solver costs nothing measurable when nobody is profiling.
+    set(TRACY_ENABLE ON CACHE BOOL "" FORCE)
+    set(TRACY_ON_DEMAND ON CACHE BOOL "" FORCE)
+    set(TRACY_STATIC ON CACHE BOOL "" FORCE)
+    add_subdirectory("${_sbr_third_party}/tracy" EXCLUDE_FROM_ALL)
+    message(STATUS "SBRSolver: Tracy profiling enabled (on demand)")
+endif()
+
+# ---------------------------------------------------------------------------
 # Executable
 # ---------------------------------------------------------------------------
 set(SBR_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/SBRSolver_rev2")
@@ -86,7 +128,13 @@ add_executable(sbrsolver
     ${SBR_SRC_DIR}/SimulationConfig.cpp
     ${SBR_SRC_DIR}/Triangle.cpp
     ${SBR_SRC_DIR}/timer/Timer.cpp
+    ${SBR_SRC_DIR}/viewer/SceneData.cpp
+    ${SBR_SRC_DIR}/viewer/FieldGrid.cpp
     # headers listed so IDE generators show them
+    ${SBR_SRC_DIR}/viewer/SceneData.h
+    ${SBR_SRC_DIR}/viewer/FieldGrid.h
+    ${SBR_SRC_DIR}/viewer/Viewer.h
+    ${SBR_SRC_DIR}/common/Profiling.h
     ${SBR_SRC_DIR}/FieldCompute.h
     ${SBR_SRC_DIR}/Icosahedron.h
     ${SBR_SRC_DIR}/Preprocessor.h
@@ -106,6 +154,16 @@ add_executable(sbrsolver
 
 target_include_directories(sbrsolver PRIVATE "${SBR_SRC_DIR}")
 target_link_libraries(sbrsolver PRIVATE sbr_eigen Threads::Threads)
+
+if(SBR_BUILD_VIEWER)
+    target_sources(sbrsolver PRIVATE ${SBR_SRC_DIR}/viewer/Viewer.cpp)
+    target_link_libraries(sbrsolver PRIVATE polyscope)
+    target_compile_definitions(sbrsolver PRIVATE SBR_HAS_VIEWER=1)
+endif()
+if(SBR_ENABLE_TRACY)
+    target_link_libraries(sbrsolver PRIVATE Tracy::TracyClient)
+    target_compile_definitions(sbrsolver PRIVATE SBR_HAS_TRACY=1)
+endif()
 
 # Where the shipped configuration files, scenes and receiver files live, so the
 # binary can be run from any working directory. The configuration file to use
@@ -173,6 +231,19 @@ foreach(_scene IN LISTS _sbr_scenes)
     # when only a comparison test is selected with ctest -R.
     set_tests_properties(sbrsolver_run_${_scene} PROPERTIES TIMEOUT 600 FIXTURES_SETUP sbr_run_${_scene})
 endforeach()
+
+# Unit tests of the viewer's data model and field interpolation (no display).
+add_executable(sbr_viewer_tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/viewer_tests.cpp
+    ${SBR_SRC_DIR}/viewer/SceneData.cpp
+    ${SBR_SRC_DIR}/viewer/FieldGrid.cpp
+    ${SBR_SRC_DIR}/Triangle.cpp)
+target_include_directories(sbr_viewer_tests PRIVATE "${SBR_SRC_DIR}")
+target_link_libraries(sbr_viewer_tests PRIVATE sbr_eigen)
+if(MSVC)
+    target_compile_definitions(sbr_viewer_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
+endif()
+add_test(NAME viewer_unit_tests COMMAND sbr_viewer_tests)
 
 # The comparisons need a Python interpreter. They are skipped without one,
 # unless SBR_REQUIRE_REFERENCE_TESTS is set (as CI does), which makes the
