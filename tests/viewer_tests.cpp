@@ -290,6 +290,18 @@ namespace
 		CHECK(nonManifold == 1);
 
 		CHECK(BuildSceneEdges(SceneMesh()).empty());
+
+		// A zero-area face has no normal, so its edges are never wedges.
+		std::vector<Triangle> sliver;
+		sliver.push_back(Triangle(Vec3(0, 0, 0), Vec3(1, 0, 0), Vec3(1, 1, 0), 0));
+		sliver.push_back(Triangle(Vec3(0, 0, 0), Vec3(0.5, 0, 0), Vec3(1, 0, 0), 1));   // collinear corners
+		std::vector<Triangle*> sliverPointers = { &sliver[0], &sliver[1] };
+		const SceneMesh sliverMesh = BuildSceneMesh(sliverPointers, std::vector<std::string>());
+		for (const SceneEdge& e : BuildSceneEdges(sliverMesh))
+		{
+			CHECK(!e.wedge);
+			CHECK(std::isfinite(e.dihedralAngleDeg));
+		}
 	}
 
 	void TestFieldQuantities()

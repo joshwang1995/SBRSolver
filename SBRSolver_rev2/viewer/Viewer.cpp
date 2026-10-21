@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdio>
 #include <exception>
+#include <fstream>
 #include <iostream>
 #include <limits>
 #include <string>
@@ -55,6 +56,16 @@ namespace
 	const int kCullBack = 1;
 	const int kCullFront = 2;
 	const char* const kFaceCullingNames[] = { "None (both sides drawn)", "Back faces", "Front faces (look into a room)" };
+	// Upper limits of the grid resolutions: about a million nodes each, which
+	// interpolates in seconds and fits in memory comfortably.
+	const int kMaxPlaneResolution = 1000;
+	const int kMaxVolumeResolution = 100;
+
+	bool FileHasContent(const std::string& path)
+	{
+		std::ifstream file(path, std::ios::binary | std::ios::ate);
+		return file.good() && file.tellg() > 0;
+	}
 	// EvaluateQuantity's value of the dB quantities for a zero field
 	// (SceneData.h); kept out of the colour range so it does not flatten it.
 	const double kZeroFieldDb = -300.0;
@@ -184,6 +195,7 @@ namespace
 		void RegisterPlaneView();
 		void RegisterVolumeView();
 		void RegisterSlicePlane();
+		void SyncSliceInspection();
 		void ApplySliceIgnores();
 		void SelectQuantity(int quantityIndex);
 		void SetSlicePose();
@@ -261,8 +273,8 @@ namespace
 	ViewerSession::ViewerSession(const SceneData& scene, const ViewerOptions& options)
 		: _scene(scene), _options(options)
 	{
-		_planeResolution = std::max(2, options.planeResolution);
-		_volumeResolution = std::max(2, options.volumeResolution);
+		_planeResolution = std::max(2, std::min(kMaxPlaneResolution, options.planeResolution));
+		_volumeResolution = std::max(2, std::min(kMaxVolumeResolution, options.volumeResolution));
 
 		_receiverFields = scene.fields;
 		_receiverFields.resize(scene.receivers.size(), Vec3c::Zero());
@@ -327,11 +339,15 @@ namespace
 		{
 			return;
 		}
-		// Re-registration (a culling change) keeps the face quantity in use.
+		// Re-registration (a culling change) keeps the live state: the
+		// visibility and transparency may have been changed in Polyscope's own
+		// panel, and the face quantity in use stays selected.
 		const char* const faceQuantities[] = { "Face ID", "Material ID", "Surface ID" };
 		const char* enabledQuantity = "Material ID";
 		if (_sceneMesh != nullptr)
 		{
+			_showSceneMesh = _sceneMesh->isEnabled();
+			_sceneTransparency = _sceneMesh->getTransparency();
 			for (const char* name : faceQuantities)
 			{
 				polyscope::Quantity* quantity = _sceneMesh->getQuantity(name);
@@ -383,11 +399,22 @@ namespace
 		{
 			return;
 		}
-		const std::vector<glm::vec3> nodes = ToGlm(_scene.mesh.vertices);
-
 		auto registerSubset = [&](const char* name, bool (*select)(const SceneEdge&), float radius, glm::vec3 colour,
 		                          bool shown) -> polyscope::CurveNetwork*
 		{
+			// Only the vertices of the selected edges become nodes: a curve
+			// network draws a sphere at every node, used by an edge or not.
+			std::vector<glm::vec3> nodes;
+			std::vector<int> localIndex(_scene.mesh.vertices.size(), -1);
+			auto local = [&](int v)
+			{
+				if (localIndex[v] < 0)
+				{
+					localIndex[v] = static_cast<int>(nodes.size());
+					nodes.push_back(ToGlm(_scene.mesh.vertices[v]));
+				}
+				return size_t(localIndex[v]);
+			};
 			std::vector<std::array<size_t, 2>> edges;
 			std::vector<double> dihedral;
 			std::vector<int> faceCount;
@@ -395,7 +422,7 @@ namespace
 			{
 				if (select(e))
 				{
-					edges.push_back({ size_t(e.v0), size_t(e.v1) });
+					edges.push_back({ local(e.v0), local(e.v1) });
 					dihedral.push_back(e.dihedralAngleDeg);
 					faceCount.push_back(e.faceCount);
 				}
@@ -490,6 +517,24 @@ namespace
 		std::vector<int> nodeType;   // 0 transmitter, 1 reflection, 2 transmission, 3 receiver
 		_pathsShown = 0;
 
+		// Re-registration (a filter change) keeps the visibility and the
+		// quantity in use.
+		const char* const pathQuantities[] = { "Receiver", "Interactions", "Launch ID", "Segment length [m]", "Path |E| [V/m]",
+		                                       "Path |E| [dBuV/m]", "Node type (0 Tx, 1 refl, 2 trans, 3 Rx)" };
+		const char* enabledQuantity = "Path |E| [dBuV/m]";
+		if (_paths != nullptr)
+		{
+			_showPaths = _paths->isEnabled();
+			for (const char* name : pathQuantities)
+			{
+				polyscope::Quantity* quantity = _paths->getQuantity(name);
+				if (quantity != nullptr && quantity->isEnabled())
+				{
+					enabledQuantity = name;
+				}
+			}
+		}
+
 		for (const ScenePath& path : _scene.paths)
 		{
 			if (path.points.size() < 2)
@@ -545,16 +590,16 @@ namespace
 			return;
 		}
 
-		// Re-registering under the same name replaces the network and keeps
-		// its panel settings (visibility, chosen quantity).
+		// Re-registering under the same name replaces the network.
 		_paths = polyscope::registerCurveNetwork(kPathsName, nodes, edges);
 		_paths->addEdgeScalarQuantity("Receiver", receiverId, polyscope::DataType::CATEGORICAL);
 		_paths->addEdgeScalarQuantity("Interactions", interactions, polyscope::DataType::CATEGORICAL);
 		_paths->addEdgeScalarQuantity("Launch ID", launchId, polyscope::DataType::CATEGORICAL);
 		_paths->addEdgeScalarQuantity("Segment length [m]", edgeLength);
 		_paths->addNodeScalarQuantity("Path |E| [V/m]", magnitude);
-		_paths->addNodeScalarQuantity("Path |E| [dBuV/m]", magnitudeDb)->setEnabled(true);
+		_paths->addNodeScalarQuantity("Path |E| [dBuV/m]", magnitudeDb);
 		_paths->addNodeScalarQuantity("Node type (0 Tx, 1 refl, 2 trans, 3 Rx)", nodeType, polyscope::DataType::CATEGORICAL);
+		_paths->getQuantity(enabledQuantity)->setEnabled(true);
 		_paths->setRadius(0.0025f);
 		_paths->setEnabled(_showPaths);
 		ApplySliceIgnores();
@@ -563,6 +608,10 @@ namespace
 	// 5. Interpolated field on the receivers' plane
 	void ViewerSession::RegisterPlaneView()
 	{
+		if (_planeView != nullptr)
+		{
+			_showPlaneView = _planeView->isEnabled();
+		}
 		_planeView = nullptr;
 		_planeNu = 0;
 		_planeNv = 0;
@@ -617,6 +666,11 @@ namespace
 	// 6. Interpolated field in the receivers' bounding box, cut by a slice plane
 	void ViewerSession::RegisterVolumeView()
 	{
+		if (_volumeView != nullptr)
+		{
+			_showVolumeView = _volumeView->isEnabled();
+			_volumeTransparency = _volumeView->getTransparency();
+		}
 		_volumeView = nullptr;
 		if (_scene.receivers.empty())
 		{
@@ -636,6 +690,7 @@ namespace
 				_slicePlane->setVolumeMeshToInspect("");   // before the mesh it may refer to goes
 			}
 			polyscope::removeVolumeMesh(kVolumeViewName);
+			SyncSliceInspection();
 			return;
 		}
 
@@ -673,10 +728,7 @@ namespace
 			_showSlicePlane = true;
 		}
 		_volumeView->setEnabled(_showVolumeView);
-		if (_slicePlane != nullptr)
-		{
-			_slicePlane->setVolumeMeshToInspect(kVolumeViewName);
-		}
+		SyncSliceInspection();
 		char buffer[160];
 		std::snprintf(buffer, sizeof(buffer), "%d x %d x %d nodes, %zu cells", grid.nx, grid.ny, grid.nz, hexes.size());
 		_volumeStatus = buffer;
@@ -685,8 +737,6 @@ namespace
 	void ViewerSession::RegisterSlicePlane()
 	{
 		_slicePlane = polyscope::addSceneSlicePlane(false);
-		_slicePlane->setDrawPlane(_sliceDrawPlane);
-		_slicePlane->setDrawWidget(_sliceDrawWidget);
 		Vec3 centre = 0.5 * (_boundMin + _boundMax);
 		if (!_scene.receivers.empty())
 		{
@@ -701,12 +751,29 @@ namespace
 		_sliceAxis = 2;
 		_sliceNormal = glm::vec3(0.0f, 0.0f, 1.0f);
 		SetSlicePose();
-		if (_volumeView != nullptr)
-		{
-			_slicePlane->setVolumeMeshToInspect(kVolumeViewName);
-		}
 		_slicePlane->setEnabled(_showSlicePlane);
+		SyncSliceInspection();
 		ApplySliceIgnores();
+	}
+
+	// The slice shows the field volume's cross-section only while the volume
+	// is shown (Polyscope draws the section whether the mesh is enabled or
+	// not), and inspecting a mesh resets the plane drawing, so that is
+	// re-applied.
+	void ViewerSession::SyncSliceInspection()
+	{
+		if (_slicePlane == nullptr)
+		{
+			return;
+		}
+		const bool wanted = _volumeView != nullptr && _volumeView->isEnabled();
+		const bool inspecting = !_slicePlane->getVolumeMeshToInspect().empty();
+		if (wanted != inspecting)
+		{
+			_slicePlane->setVolumeMeshToInspect(wanted ? kVolumeViewName : "");
+			_slicePlane->setDrawPlane(_sliceDrawPlane);
+			_slicePlane->setDrawWidget(_sliceDrawWidget);
+		}
 	}
 
 	// Only the field volume is cut unless the user asks for the whole scene.
@@ -729,10 +796,22 @@ namespace
 
 	void ViewerSession::SetSlicePose()
 	{
-		if (_slicePlane != nullptr)
+		if (_slicePlane == nullptr)
 		{
-			_slicePlane->setPose(_sliceCentre, _sliceNormal);
+			return;
 		}
+		// Never hand Polyscope a non-finite pose (a disabled plane reports an
+		// infinite centre).
+		if (!std::isfinite(_sliceCentre.x) || !std::isfinite(_sliceCentre.y) || !std::isfinite(_sliceCentre.z))
+		{
+			_sliceCentre = ToGlm(0.5 * (_boundMin + _boundMax));
+		}
+		const float length = glm::length(_sliceNormal);
+		if (!std::isfinite(length) || length < 1e-6f)
+		{
+			_sliceNormal = glm::vec3(0.0f, 0.0f, 1.0f);
+		}
+		_slicePlane->setPose(_sliceCentre, _sliceNormal);
 	}
 
 	// A three-quarter view from the front-right and above (z up) that frames
@@ -767,6 +846,7 @@ namespace
 	// 7. Control panel (inside Polyscope's user window)
 	void ViewerSession::BuildGui()
 	{
+		SyncSliceInspection();   // the volume may have been hidden in Polyscope's own panel
 		ImGui::PushItemWidth(150.0f);
 		ImGui::TextUnformatted("SBRSolver viewer");
 		ImGui::Separator();
@@ -849,6 +929,9 @@ namespace
 
 	void ViewerSession::GuiOverlays()
 	{
+		// Some labels repeat the section headers' names; the id scope keeps
+		// the checkboxes apart from them.
+		ImGui::PushID("overlays");
 		OverlayCheckbox("Scene mesh", _sceneMesh, _showSceneMesh);
 		OverlayCheckbox("Edges", _edges, _showEdges);
 		OverlayCheckbox("Wedge edges", _wedgeEdges, _showWedgeEdges);
@@ -865,8 +948,13 @@ namespace
 			if (ImGui::Checkbox("Slice plane", &_showSlicePlane))
 			{
 				_slicePlane->setEnabled(_showSlicePlane);
+				if (_showSlicePlane)
+				{
+					SetSlicePose();   // back where it was, not where a disabled plane sits
+				}
 			}
 		}
+		ImGui::PopID();
 	}
 
 	void ViewerSession::GuiScene()
@@ -954,7 +1042,7 @@ namespace
 	{
 		if (ImGui::InputInt("Resolution (2D)", &_planeResolution))
 		{
-			_planeResolution = std::max(2, std::min(2000, _planeResolution));
+			_planeResolution = std::max(2, std::min(kMaxPlaneResolution, _planeResolution));
 		}
 		if (ImGui::Button("Recompute 2D view"))
 		{
@@ -971,7 +1059,7 @@ namespace
 	{
 		if (ImGui::InputInt("Resolution (3D)", &_volumeResolution))
 		{
-			_volumeResolution = std::max(2, std::min(300, _volumeResolution));
+			_volumeResolution = std::max(2, std::min(kMaxVolumeResolution, _volumeResolution));
 		}
 		if (ImGui::Button("Recompute 3D view"))
 		{
@@ -987,6 +1075,8 @@ namespace
 			return;
 		}
 		ImGui::SeparatorText("Slice plane");
+		_sliceDrawPlane = _slicePlane->getDrawPlane();   // may be changed in Polyscope's own panel
+		_sliceDrawWidget = _slicePlane->getDrawWidget();
 		if (ImGui::Checkbox("Draw plane", &_sliceDrawPlane))
 		{
 			_slicePlane->setDrawPlane(_sliceDrawPlane);
@@ -1000,6 +1090,19 @@ namespace
 		{
 			ApplySliceIgnores();
 		}
+		// The pose is the viewer's own state; it follows the gizmo while the
+		// plane is enabled (a disabled plane reports a pose at infinity).
+		const bool sliceEnabled = _slicePlane->getEnabled();
+		if (sliceEnabled)
+		{
+			_sliceCentre = _slicePlane->getCenter();
+			_sliceNormal = _slicePlane->getNormal();
+		}
+		else
+		{
+			ImGui::TextDisabled("Enable the slice plane (Overlays) to move it");
+		}
+		ImGui::BeginDisabled(!sliceEnabled);
 		ImGui::TextUnformatted("Normal:");
 		const char* axisLabels[3] = { "X", "Y", "Z" };
 		for (int axis = 0; axis < 3; ++axis)
@@ -1020,8 +1123,6 @@ namespace
 			_sliceNormal = -_sliceNormal;
 			SetSlicePose();
 		}
-		// Follow the gizmo, so the sliders show where the plane really is.
-		_sliceCentre = _slicePlane->getCenter();
 		bool moved = false;
 		const Vec3 margin = 0.05 * (_boundMax - _boundMin) + Vec3::Constant(0.01);
 		const Vec3 low = _boundMin - margin;
@@ -1035,8 +1136,8 @@ namespace
 		{
 			SetSlicePose();
 		}
-		const glm::vec3 normal = _slicePlane->getNormal();
-		ImGui::Text("Normal (%.2f, %.2f, %.2f); the side it points away from is cut", normal.x, normal.y, normal.z);
+		ImGui::EndDisabled();
+		ImGui::Text("Normal (%.2f, %.2f, %.2f); the side it points away from is cut", _sliceNormal.x, _sliceNormal.y, _sliceNormal.z);
 		ImGui::TextDisabled("Volume bounds: (%.2f, %.2f, %.2f) - (%.2f, %.2f, %.2f)", _volumeGrid.boundMin.x(), _volumeGrid.boundMin.y(),
 		                    _volumeGrid.boundMin.z(), _volumeGrid.boundMax.x(), _volumeGrid.boundMax.y(), _volumeGrid.boundMax.z());
 	}
@@ -1048,8 +1149,14 @@ namespace
 		polyscope::options::verbosity = 0;
 		polyscope::options::groundPlaneMode = polyscope::GroundPlaneMode::None;   // the scenes have their own floors
 		polyscope::options::automaticallyComputeSceneExtents = true;
-		polyscope::options::allowHeadlessBackends = true;   // automatic choice may fall back to EGL without a display
+		// Without a display the automatic backend choice may fall back to
+		// EGL (headless): fine for a screenshot or a fixed number of frames,
+		// but an interactive viewer would then run forever with no window, so
+		// it fails instead. Errors in the non-interactive modes throw (and end
+		// the run) rather than wait for a click in a popup nobody can see.
+		polyscope::options::allowHeadlessBackends = !interactive;
 		polyscope::options::errorsThrowExceptions = !interactive;
+		polyscope::options::displayMessagePopups = interactive;
 	}
 } // namespace
 
@@ -1061,6 +1168,15 @@ int RunViewer(const SceneData& scene, const ViewerOptions& options)
 	{
 		ConfigurePolyscope(interactive);
 		polyscope::init(options.backend);
+		if (interactive && polyscope::isHeadless())
+		{
+			// An explicitly requested headless backend (EGL, mock) has no
+			// window to close.
+			std::cerr << "Viewer: no display is available (backend " << polyscope::state::backend
+			          << " opens no window); use --screenshot FILE or --viewer-frames N to run without one" << std::endl;
+			polyscope::shutdown();
+			return 1;
+		}
 		polyscope::view::setUpDir(polyscope::UpDir::ZUp);   // z is up in the scenes
 
 		ViewerSession session(scene, options);
@@ -1083,9 +1199,17 @@ int RunViewer(const SceneData& scene, const ViewerOptions& options)
 			}
 			else
 			{
+				std::remove(options.screenshotFile.c_str());   // a stale file must not pass for a new one
 				polyscope::ScreenshotOptions screenshotOptions;
 				screenshotOptions.transparentBackground = false;
 				polyscope::screenshot(options.screenshotFile, screenshotOptions);
+				if (!FileHasContent(options.screenshotFile))
+				{
+					std::cerr << "Viewer: could not write the screenshot " << options.screenshotFile << std::endl;
+					polyscope::state::userCallback = nullptr;
+					polyscope::shutdown();
+					return 1;
+				}
 				std::cout << "Viewer: screenshot written to " << options.screenshotFile << std::endl;
 			}
 		}
@@ -1105,6 +1229,11 @@ int RunViewer(const SceneData& scene, const ViewerOptions& options)
 	catch (const std::exception& e)
 	{
 		std::cerr << "Viewer: " << e.what() << std::endl;
+		if (interactive)
+		{
+			std::cerr << "Viewer: a window could not be opened; without a display use --screenshot FILE or --viewer-frames N"
+			          << std::endl;
+		}
 		try
 		{
 			polyscope::state::userCallback = nullptr;

@@ -150,6 +150,7 @@ int RTSolver::ExecuteRayTracing
 	// Each receiver only touches its own column of _rayPaths and its own
 	// entry of _efield, so the receivers run independently as well.
 	_efield->assign(_receiverCount, Vec3c{ cdouble(0,0), cdouble(0,0), cdouble(0,0) });
+	_pathFields.assign(_receiverCount, std::vector<Vec3c>());
 	timer.restart();
 	ParallelFor(_receiverCount, threads, [&](int k)
 	{
@@ -160,16 +161,15 @@ int RTSolver::ExecuteRayTracing
 			RemoveDuplicatePath(k);
 		}
 		// The field of every path is kept (the viewer shows it) and summed.
+		std::vector<Vec3c>& fields = _pathFields[k];
+		fields.clear();
 		Vec3c total{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
 		for (int i = 0; i < _pathsCount; i++)
 		{
-			Paths& paths = _rayPaths[i][k];
-			paths.fields.clear();
-			paths.fields.reserve(paths.rayPaths.size());
-			for (const std::vector<Ray>& path : paths.rayPaths)
+			for (const std::vector<Ray>& path : _rayPaths[i][k].rayPaths)
 			{
 				const Vec3c field = fieldCore->FieldForPath(path);
-				paths.fields.push_back(field);
+				fields.push_back(field);
 				total += field;
 			}
 		}
@@ -193,6 +193,9 @@ std::vector<sbr::viewer::ScenePath> RTSolver::CollectPaths() const
 	using sbr::viewer::ScenePath;
 	std::vector<ScenePath> result;
 	if (_rayPaths == nullptr) return result;
+	// _pathFields[j] holds the fields in (launch, path) order: the order of
+	// the loops below for a fixed receiver j.
+	std::vector<size_t> nextField(_receiverCount, 0);
 	for (int i = 0; i < _pathsCount; i++)
 	{
 		for (int j = 0; j < _receiverCount; j++)
@@ -201,6 +204,7 @@ std::vector<sbr::viewer::ScenePath> RTSolver::CollectPaths() const
 			for (size_t p = 0; p < paths.rayPaths.size(); p++)
 			{
 				const std::vector<Ray>& rays = paths.rayPaths[p];
+				const size_t fieldIndex = nextField[j]++;
 				if (rays.empty()) continue;
 				ScenePath sp;
 				sp.receiverId = j;
@@ -216,7 +220,7 @@ std::vector<sbr::viewer::ScenePath> RTSolver::CollectPaths() const
 						sp.interactions.push_back(rays[r].reflectionMaterialId >= 0 ? InteractionType::Reflection : InteractionType::Transmission);
 					}
 				}
-				if (p < paths.fields.size()) sp.field = paths.fields[p];
+				if (j < int(_pathFields.size()) && fieldIndex < _pathFields[j].size()) sp.field = _pathFields[j][fieldIndex];
 				result.push_back(sp);
 			}
 		}

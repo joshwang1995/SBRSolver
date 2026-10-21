@@ -164,7 +164,8 @@ std::vector<SceneEdge> BuildSceneEdges(const SceneMesh& mesh, double coplanarTol
 	for (std::map<std::pair<int, int>, SceneEdge>::value_type& kv : edges)
 	{
 		SceneEdge& e = kv.second;
-		if (e.faceCount >= 2)
+		// A zero-area face has no normal: its edges are not wedges.
+		if (e.faceCount >= 2 && normals[e.face0].norm() > 0.0 && normals[e.face1].norm() > 0.0)
 		{
 			const double c = std::max(-1.0, std::min(1.0, normals[e.face0].dot(normals[e.face1])));
 			e.dihedralAngleDeg = std::acos(c) * 180.0 / PI;

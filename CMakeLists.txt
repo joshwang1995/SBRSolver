@@ -10,7 +10,7 @@ project(SBRSolver
 # ---------------------------------------------------------------------------
 option(SBR_WARNINGS "Enable the compiler's standard warning set" ON)
 option(SBR_BUILD_VIEWER "Build the built-in 3D viewer (Polyscope, --view / [outputs] viewer = true)" ON)
-option(SBR_ENABLE_TRACY "Instrument the solver for the Tracy profiler (connect the Tracy GUI while it runs)" ON)
+option(SBR_ENABLE_TRACY "Instrument the solver for the Tracy profiler (connect the Tracy GUI while it runs)" OFF)
 
 # Default to a Release build for single-config generators (Makefiles, Ninja).
 # Multi-config generators (Visual Studio, Xcode) pick the config at build time.
@@ -112,8 +112,11 @@ if(SBR_ENABLE_TRACY)
             "    git submodule update --init --recursive\n"
             "or configure with -DSBR_ENABLE_TRACY=OFF.")
     endif()
-    # The client only records once the Tracy GUI connects (on demand), so the
-    # instrumented solver costs nothing measurable when nobody is profiling.
+    # The client records once the Tracy GUI connects (on demand). Until then
+    # the zones cost nothing measurable, but the client itself adds about
+    # 0.2 s of start-up (timer calibration), a few threads and a listening
+    # socket (TCP 8086) to every run, which is why the option is off by
+    # default and CI builds with it on.
     set(TRACY_ENABLE ON CACHE BOOL "" FORCE)
     set(TRACY_ON_DEMAND ON CACHE BOOL "" FORCE)
     set(TRACY_STATIC ON CACHE BOOL "" FORCE)
@@ -288,6 +291,14 @@ if(SBR_BUILD_VIEWER)
              COMMAND sbrsolver "${SBR_SRC_DIR}/data/office.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_viewer"
                      --viewer-backend openGL_mock --viewer-frames 2)
     set_tests_properties(viewer_mock_office PROPERTIES TIMEOUT 600)
+    # Malformed viewer options are rejected before the run starts.
+    add_test(NAME viewer_cli_rejects_frames
+             COMMAND sbrsolver "${SBR_SRC_DIR}/data/office.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_viewer"
+                     --viewer-backend openGL_mock --viewer-frames 2x)
+    add_test(NAME viewer_cli_rejects_screenshot_type
+             COMMAND sbrsolver "${SBR_SRC_DIR}/data/office.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_viewer"
+                     --viewer-backend openGL_mock --screenshot "${CMAKE_CURRENT_BINARY_DIR}/test_output_viewer/office.txt")
+    set_tests_properties(viewer_cli_rejects_frames viewer_cli_rejects_screenshot_type PROPERTIES WILL_FAIL TRUE TIMEOUT 60)
     # A real rendering into a PNG where a display (or Xvfb) is available.
     find_program(SBR_XVFB_RUN xvfb-run)
     if(SBR_XVFB_RUN)
@@ -295,10 +306,8 @@ if(SBR_BUILD_VIEWER)
                  COMMAND "${SBR_XVFB_RUN}" -a "$<TARGET_FILE:sbrsolver>" "${SBR_SRC_DIR}/data/office.ini"
                          "${CMAKE_CURRENT_BINARY_DIR}/test_output_viewer_shot"
                          --screenshot "${CMAKE_CURRENT_BINARY_DIR}/test_output_viewer_shot/office.png")
+        # The viewer removes a stale PNG first and fails when none was written.
         set_tests_properties(viewer_screenshot_office PROPERTIES TIMEOUT 600)
-        add_test(NAME viewer_screenshot_office_exists
-                 COMMAND "${CMAKE_COMMAND}" -E cat "${CMAKE_CURRENT_BINARY_DIR}/test_output_viewer_shot/office.png")
-        set_tests_properties(viewer_screenshot_office_exists PROPERTIES DEPENDS viewer_screenshot_office)
     endif()
 endif()
 

@@ -47,7 +47,9 @@ jobs:
           CXX: ${{ matrix.cxx }}
         # SBR_REQUIRE_REFERENCE_TESTS: a runner without Python must fail here
         # rather than pass a test suite without the comparisons.
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSBR_REQUIRE_REFERENCE_TESTS=ON ${{ matrix.cmake_args }}
+        # SBR_ENABLE_TRACY: the profiler client is off by default; CI builds
+        # and tests the instrumented solver on every platform.
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSBR_REQUIRE_REFERENCE_TESTS=ON -DSBR_ENABLE_TRACY=ON ${{ matrix.cmake_args }}
 
       - name: Build
         run: cmake --build build --config Release --parallel

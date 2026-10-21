@@ -51,6 +51,9 @@ protected:
 	std::vector<Vec3>* _shootRayList = nullptr;
 	VecVec3* _receivers = nullptr;
 	std::vector<Vec3c>* _efield = nullptr;
+	// Field of every captured path, per receiver, in the order CollectPaths
+	// visits them (launch, then path). Grows with the captured paths only.
+	std::vector<std::vector<Vec3c>> _pathFields;
 
 	bool _isSceneInitialized = false;
 	int _txTesslation = 0;

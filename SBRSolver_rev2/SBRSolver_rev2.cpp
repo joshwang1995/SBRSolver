@@ -2,6 +2,7 @@
 //
 
 #include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <iostream>
 #include <new>
@@ -75,14 +76,33 @@ static bool ParseCommandLine(int argc, char* argv[], CommandLine& cl, std::strin
 		else if (arg == "--screenshot")
 		{
 			if (!value(cl.screenshotFile)) return false;
+			// The viewer writes PNG or JPEG; anything else would only fail
+			// once the window is open.
+			std::string extension = fs::path(cl.screenshotFile).extension().string();
+			std::transform(extension.begin(), extension.end(), extension.begin(),
+			               [](unsigned char c) { return char(std::tolower(c)); });
+			if (extension != ".png" && extension != ".jpg" && extension != ".jpeg")
+			{
+				error = "--screenshot needs a .png, .jpg or .jpeg file name, got '" + cl.screenshotFile + "'";
+				return false;
+			}
 			cl.view = true;
 		}
 		else if (arg == "--viewer-frames")
 		{
 			std::string text;
 			if (!value(text)) return false;
-			try { cl.viewerFrames = std::stol(text); }
-			catch (const std::exception&) { error = "--viewer-frames needs an integer, got '" + text + "'"; return false; }
+			// The whole value must be a non-negative integer.
+			size_t parsed = 0;
+			long frames = -1;
+			try { frames = std::stol(text, &parsed); }
+			catch (const std::exception&) { parsed = 0; }
+			if (parsed == 0 || parsed != text.size() || frames < 0)
+			{
+				error = "--viewer-frames needs a non-negative integer, got '" + text + "'";
+				return false;
+			}
+			cl.viewerFrames = frames;
 			cl.view = true;
 		}
 		else if (arg == "--viewer-backend")
@@ -140,7 +160,6 @@ static bool GenerateReceivers(const ReceiverConfig& rx, VecVec3& output)
 
 int main(int argc, char* argv[])
 {
-	SBR_ZONE_NAMED("main");
 	for (int i = 1; i < argc; i++)
 	{
 		const std::string arg = argv[i];
@@ -181,8 +200,9 @@ int main(int argc, char* argv[])
 
 	// config.configFile is already absolute and normalised.
 	const fs::path outputDir = (cl.positional.size() > 1) ? fs::path(cl.positional[1]) : fs::path(config.configFile).parent_path() / "output";
+#if defined(SBR_HAS_VIEWER)
 	const bool openViewer = cl.view || config.viewer;
-#if !defined(SBR_HAS_VIEWER)
+#else
 	if (cl.view)
 	{
 		std::cerr << "Error: this build has no viewer (configure with -DSBR_BUILD_VIEWER=ON)" << std::endl;
@@ -216,12 +236,13 @@ int main(int argc, char* argv[])
 
 	std::cout << "[Entering] Preprocessor" << std::endl;
 	// Preprocessor Begin
-	SBR_ZONE_NAMED("Preprocessor");
 	VecVec3 rxLocation;
 	std::vector<Triangle*> triangle_mesh;
 	BVH<Triangle> bvh;
 
 	timer.start();
+	{
+	SBR_ZONE_NAMED("Preprocessor");
 	if (!config.patternFile.empty())
 	{
 		// The measured pattern is validated here but the field computation still
@@ -261,6 +282,7 @@ int main(int argc, char* argv[])
 			std::cerr << "Error: internal error, triangle list is not in id order after BVH construction" << std::endl;
 			return 1;
 		}
+	}
 	}
 	// Preprocessor End
 
@@ -336,6 +358,7 @@ int main(int argc, char* argv[])
 		if (config.writeFieldCsv) rayTracer->SaveFieldAsCsv(csvFieldFileName);
 	}
 
+#if defined(SBR_HAS_VIEWER)
 	// Everything the viewer needs is copied out before the solver's memory is
 	// released, so a large run does not hold both at once.
 	sbr::viewer::SceneData scene;
@@ -357,6 +380,7 @@ int main(int argc, char* argv[])
 		scene.fields = rayTracer->Fields();
 		scene.paths = rayTracer->CollectPaths();
 	}
+#endif
 
 	delete rayTracer;
 

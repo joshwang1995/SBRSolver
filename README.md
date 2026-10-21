@@ -36,7 +36,9 @@ Features
 
 SBRSolver is a plain C++17 program built with [CMake](https://cmake.org). It compiles and runs
 on Windows, Linux and macOS with any recent compiler (MSVC 2019+, GCC 8+, Clang 9+, Xcode 11+ on macOS 10.15 or newer).
-The only dependency, [Eigen](https://eigen.tuxfamily.org), is bundled as a git submodule.
+Its dependencies are bundled as git submodules: [Eigen](https://eigen.tuxfamily.org), and
+[Polyscope](https://polyscope.run) and [Tracy](https://github.com/wolfpld/tracy) for the built-in
+viewer and the optional profiling.
 
 ### Prerequisites
 
@@ -70,7 +72,8 @@ listed above are needed to build the viewer). Eigen alone can also come from a s
 (`apt install libeigen3-dev`, `brew install eigen`, `vcpkg install eigen3`).
 
 Two CMake options control the extras: `-DSBR_BUILD_VIEWER=OFF` builds the solver without the viewer
-(no OpenGL needed at all), `-DSBR_ENABLE_TRACY=OFF` builds it without the profiler instrumentation.
+(no OpenGL needed at all), `-DSBR_ENABLE_TRACY=ON` adds the profiler instrumentation (off by default,
+see *Profiling with Tracy*).
 
 The executable is written to `build/sbrsolver` on Linux/macOS. On Windows the Visual Studio generator
 (CMake's default when Visual Studio is installed) puts it in `build\Release\sbrsolver.exe`; single-config
@@ -84,7 +87,7 @@ with `cmake -S . -B build -G "Visual Studio 17 2022"`; both use the same `CMakeL
 ./build/sbrsolver                                                # runs SBRSolver_rev2/data/ground.ini
 ./build/sbrsolver SBRSolver_rev2/data/office.ini results/office  # another scene, into its own output directory
 ./build/sbrsolver my_case.ini                                    # custom config, results in output/ next to it
-./build/sbrsolver SBRSolver_rev2/data/office.ini --view          # ... and open the built-in 3D viewer afterwards
+./build/sbrsolver SBRSolver_rev2/data/office.ini results/office --view   # ... and open the built-in 3D viewer afterwards
 ./build/sbrsolver --help
 ```
 
@@ -142,15 +145,17 @@ selects `openGL3_glfw` (a window), `openGL3_egl` (headless rendering on Linux) o
 
 ### Profiling with Tracy
 
-The solver is instrumented for the [Tracy](https://github.com/wolfpld/tracy) profiler: the
-preprocessing, every ray launch, the capture per receiver, the image-path correction, the field
-computation per receiver, the outputs and each viewer frame are zones, and the worker threads are
-named. Recording is *on demand*: the instrumentation costs nothing measurable until the Tracy GUI
-connects. To watch a run, start the Tracy profiler (release 0.14.1 to match the bundled client),
+The solver is instrumented for the [Tracy](https://github.com/wolfpld/tracy) profiler. Configure
+with `-DSBR_ENABLE_TRACY=ON` to build the instrumented solver: the preprocessing, every ray launch,
+each receiver's image-path correction and field computation, the outputs and each viewer frame are
+zones, and the worker threads are named. Recording is *on demand*: the zones cost nothing measurable
+until the Tracy GUI connects, but the client itself adds about 0.2 s of start-up (timer calibration),
+a few threads and a listening socket (TCP 8086) to every run, which is why the option is off by
+default. To watch a run, start the Tracy profiler (release 0.14.1 to match the bundled client),
 press *Connect* (the solver appears in the list of clients on the local network, or enter its address),
 then start `sbrsolver`; for runs shorter than the connection time, start the solver with the viewer
-(`--view`) so it stays alive, or connect to a long run. `-DSBR_ENABLE_TRACY=OFF` removes the client
-and the zones entirely; `TRACY_NO_BROADCAST` and `TRACY_ONLY_LOCALHOST` (Tracy's own CMake options)
+(`--view`) so it stays alive, or connect to a long run. `TRACY_NO_BROADCAST` and
+`TRACY_ONLY_LOCALHOST` (Tracy's own CMake options)
 restrict the client to local connections.
 
 ### Configuration file
@@ -220,10 +225,12 @@ checks `ground` and `office` twice and `corner` and `bahen` once:
   `tools/raytube/README.md` describes the conversion of the configuration files, the tolerances and
   the limits of the reference.
 
-The viewer has tests of its own: `viewer_unit_tests` (the field interpolation and the scene data
-model, no display needed), `viewer_mock_office` (the whole viewer on the office scene with the
-rendering-free mock backend, every platform) and, where `xvfb-run` exists, `viewer_screenshot_office`
-(a real rendering into a PNG).
+The viewer has tests of its own: `viewer_unit_tests` (the scene data model and the field
+interpolation, no display needed), `viewer_smoke_mock` and `viewer_smoke_mock_volume` (a synthetic
+run through every overlay, with flat and with layered receivers, using the rendering-free mock
+backend), `viewer_mock_office` (the whole viewer on the office scene with the mock backend, every
+platform) and, where `xvfb-run` exists, `viewer_screenshot_office` (a real rendering into a PNG,
+which fails when no file is written).
 
 The same build and test matrix runs in GitHub Actions on Ubuntu (GCC and Clang), macOS and Windows
 (where the reference solver is run) for every pull request and every pushed commit; CI configures
@@ -264,11 +271,14 @@ Any Git client (command line, Visual Studio, VS Code, GitKraken, ...) works for 
   close enough to the exact path for the reception sphere to capture it; raise `tessellation` until
   the number of paths in `RayPath.vtk` stops changing. The `raytube_*` tests show which receivers lost
   a path.
-* **`--view` fails to open a window.** There is no display (a remote shell, a container, CI). Use
-  `xvfb-run -a ./build/sbrsolver ... --screenshot view.png` or `--viewer-backend openGL3_egl` on
-  Linux to render without a display, or `--viewer-backend openGL_mock` to run the viewer code without
-  rendering. On a desktop, the graphics driver must provide OpenGL 3.3.
-* **The Tracy GUI shows no client.** The GUI and the bundled client must be the same version (0.14.1);
+* **`--view` ends with "no display is available" or "no Polyscope backends could be initialized".**
+  There is no display (a remote shell, a container, CI), so the interactive viewer refuses to start
+  rather than run without a window. Use `xvfb-run -a ./build/sbrsolver ... --screenshot view.png`,
+  or `--screenshot` / `--viewer-frames N` with `--viewer-backend openGL3_egl` on Linux, to render
+  without a display, or `--viewer-backend openGL_mock --viewer-frames N` to run the viewer code
+  without rendering. On a desktop, the graphics driver must provide OpenGL 3.3.
+* **The Tracy GUI shows no client.** The solver must be built with `-DSBR_ENABLE_TRACY=ON`; the
+  GUI and the bundled client must be the same version (0.14.1);
   a firewall may block the discovery broadcast (UDP 8086) or the connection (TCP 8086), in which case
   enter the machine's address in the GUI; and the solver must be running while you connect, so start a
   long run or add `--view` to keep it open.

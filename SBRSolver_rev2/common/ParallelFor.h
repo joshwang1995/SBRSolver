@@ -46,7 +46,6 @@ inline void ParallelFor(int count, int threads, const std::function<void(int)>& 
 
 	auto worker = [&]()
 	{
-		SBR_THREAD_NAME("sbr worker");
 		try
 		{
 			for (long long i = next++; i < count && !failed; i = next++)
@@ -68,7 +67,11 @@ inline void ParallelFor(int count, int threads, const std::function<void(int)>& 
 	{
 		try
 		{
-			pool.emplace_back(worker);
+			pool.emplace_back([&worker]()
+			{
+				SBR_THREAD_NAME("sbr worker");   // the calling thread keeps its name
+				worker();
+			});
 		}
 		catch (...)
 		{
