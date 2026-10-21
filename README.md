@@ -111,8 +111,8 @@ never on a surface, and away from the transmitter.
 |---|---|---|
 | `fine/ground.ini` | 9,981 | one every 0.1 m along the strip's centre line, y = 1 … 999 m, 3 m high (the whole line lies above the plane; the fringes of the two-ray interference are sub-metre near the transmitter) |
 | `fine/corner.ini` | 6,320 | 0.25 m grid at 1.5 m over the whole 20 m × 20 m floor, 0.25 m clear of the wall |
-| `fine/office.ini` | 1,728 | 0.25 m grid at 1.5 m over every room, offset so no receiver lies on a partition; the room closed by the glass panel and the rooms without a line of sight show no field with `max_reflections = 1` and `max_transmissions = 0` |
-| `fine/bahen.ini` | 3,608 | 1 m grid at 1.5 m over the whole floor area reachable from the transmitter without passing through a wall, 0.3 m clear of every wall and pillar |
+| `fine/office.ini` | 1,728 | 0.25 m grid at 1.5 m over every room, offset so no receiver lies on a partition; 658 receivers (the room closed by the glass panel and the rooms without a line of sight) get no field with `max_reflections = 1` and `max_transmissions = 0`; tessellation 4, because 642 rays miss a grazing reflection at a few receivers next to a partition |
+| `fine/bahen.ini` | 6,858 | 0.5 m grid at 1.5 m over the floor area the transmitter can reach without passing through a wall (the hall and the corridors around it; the parts of the floor that walls seal off are left out), 0.3 m clear of every wall and pillar; 7 receivers in door recesses get no field with one reflection |
 
 Run them like any other scene, with an explicit output directory:
 
@@ -125,9 +125,10 @@ either the area reachable from the transmitter (`--region reachable`), everythin
 walls (`--region enclosure`) or a plain box (`--region bbox`), then drops candidates closer than
 `--margin` to a wall or `--tx-clearance` to the transmitter. `--spacing`, `--height`, `--bbox` and
 `--line` shape the grid; `--plot` writes a top-down PNG of walls, transmitter and receivers (needs
-Pillow). The first line of each `RX_*_fine.dat` records the parameters it was made with. A denser
-layout costs memory: the solver keeps a path list per launched ray and receiver, so a 0.5 m grid of
-the whole Bahen floor (14,589 receivers at tessellation 4) needs about 0.9 GB.
+Pillow). The first line of each `RX_*_fine.dat` records the command line it was made with. A denser
+layout costs memory: the solver keeps a path list per launched ray and receiver (24 bytes each), so
+the Bahen grid is 2562 × 6858 × 24 bytes, about 0.4 GB, and a 0.25 m grid would need four times
+that.
 
 ### Results
 
@@ -244,8 +245,9 @@ cd build && ctest -C Release --output-on-failure
 ```
 
 This runs the four scenes in `SBRSolver_rev2/data` (`ground`, `corner`, `office`, `bahen`), their dense
-receiver layouts in `data/fine` (`sbrsolver_run_<scene>_fine`, which also check that every receiver
-got a finite field), and
+receiver layouts in `data/fine` (`sbrsolver_run_<scene>_fine`; with a Python interpreter,
+`sbrsolver_fields_<scene>_fine` then checks with `tools/check_fields.py` that every receiver got one
+finite field at its own position, non-zero everywhere on the ground line and the corner floor), and
 checks `ground` and `office` twice and `corner` and `bahen` once:
 
 * `sbrsolver_reference_*`: the `ground` and `office` fields against the results committed in

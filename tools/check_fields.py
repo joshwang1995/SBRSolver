@@ -25,8 +25,12 @@ def read_receivers(path):
 
 
 def parse_complex(text):
-    # SBRSolver writes "+1.23-0.45i" (no space, 'i' suffix)
-    return complex(text.strip().replace('i', 'j'))
+    # SBRSolver writes "+1.23-0.45i" (no space, 'i' suffix); only the suffix
+    # is rewritten, so "inf" stays parseable as a non-finite value.
+    text = text.strip()
+    if text.endswith('i'):
+        text = text[:-1] + 'j'
+    return complex(text)
 
 
 def main(argv):
@@ -58,7 +62,12 @@ def main(argv):
             if errors > 10:
                 return 1
             continue
-        field = [parse_complex(c) for c in row[3:6]]
+        try:
+            field = [parse_complex(c) for c in row[3:6]]
+        except ValueError:
+            print('FAIL: unparsable field at receiver %d: %s' % (i, row[3:6]))
+            errors += 1
+            continue
         magnitude = math.sqrt(sum(abs(c) ** 2 for c in field))
         if not math.isfinite(magnitude):
             print('FAIL: non-finite field at receiver %d %s' % (i, rx))

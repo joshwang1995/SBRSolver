@@ -7,7 +7,9 @@ keeps only the points that make sense for a coverage map:
 * inside the region asked for (``--region``):
   ``reachable`` (default)  the area the transmitter's rays can reach without
                             passing through a surface: a flood fill on a raster
-                            of the walls, seeded at the transmitter;
+                            of the walls, seeded at the transmitter; the space
+                            outside the scene's extents is a barrier, so a wall
+                            that ends on the edge of the floor is not bypassed;
   ``enclosure``            everything inside the outermost walls, enclosed
                             rooms included (a flood fill seeded outside the
                             scene marks the exterior);
@@ -22,8 +24,9 @@ wall on a round coordinate (x = 2.0, y = 3.0 ...) never coincides with a
 receiver. ``--line`` places receivers along a segment instead of a grid.
 
 Output: an SBRSolver receiver file (title line, count, then ``x y z`` per
-line) for ``[receivers] layout = file``. ``--plot`` also writes a top-down PNG
-of the walls, the transmitter and the receivers (needs Pillow).
+line) for ``[receivers] layout = file``; the title line records the command
+line that produced it. ``--plot`` also writes a top-down PNG of the walls, the
+transmitter and the receivers (needs Pillow).
 
 Examples (run from the repository root):
 
@@ -66,25 +69,47 @@ def read_stl(path):
 
 
 def wall_segments(tris, height):
-    """2D segments (x0, y0, x1, y1) of the vertical faces that span `height`.
+    """2D segments (x0, y0, x1, y1) where the surfaces cross `height`.
 
-    Every edge of a vertical triangle is projected to the plane; horizontal
-    edges give the wall's footprint, the vertical ones degenerate to points.
-    Faces entirely below or above the receiver height are ignored (a desk, a
-    half-height wall under the receivers), faces crossing it count.
+    Every triangle that spans the receiver height is cut by the horizontal
+    plane z = height; the cut is a segment, the obstacle a receiver at that
+    height sees. This needs no notion of 'vertical', so slightly tilted walls
+    of an exported mesh count like exact ones, and a sloped surface counts
+    where it crosses the height. Faces entirely below or above the height (a
+    desk, a half-height wall under the receivers, floor and ceiling) are
+    ignored; a face lying exactly in the plane is ignored as well.
     """
-    n = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
-    norm = np.linalg.norm(n, axis=1)
-    ok = norm > 0
-    vertical = ok & (np.abs(n[:, 2]) <= 1e-6 * np.maximum(norm, 1e-300))
-    zmin = tris[:, :, 2].min(axis=1)
-    zmax = tris[:, :, 2].max(axis=1)
-    spans = vertical & (zmin <= height + 1e-9) & (zmax >= height - 1e-9)
     segs = []
-    for t in tris[spans]:
+    eps = 1e-9
+    for t in tris:
+        z = t[:, 2]
+        if z.min() > height + eps or z.max() < height - eps:
+            continue
+        if abs(z.max() - z.min()) <= eps:
+            continue                       # horizontal face in the plane itself
+        points = []
         for a, b in ((0, 1), (1, 2), (2, 0)):
             p, q = t[a], t[b]
-            if abs(p[0] - q[0]) > 1e-9 or abs(p[1] - q[1]) > 1e-9:
+            dp, dq = p[2] - height, q[2] - height
+            if abs(dp) <= eps:
+                points.append(p[:2])
+            if abs(dq) <= eps:
+                continue                   # the vertex is added when its own turn comes
+            if abs(dp) > eps and (dp < 0) != (dq < 0):
+                s = dp / (dp - dq)
+                points.append(p[:2] + s * (q[:2] - p[:2]))
+        # drop duplicates (a vertex in the plane is reached twice)
+        unique = []
+        for pt in points:
+            if not any(np.hypot(*(pt - u)) <= 1e-9 for u in unique):
+                unique.append(pt)
+        if len(unique) >= 2:
+            # the cut of a triangle by a plane is one segment; take the longest
+            # pair in case of three in-plane vertices along an edge
+            far = max(((i, j) for i in range(len(unique)) for j in range(i + 1, len(unique))),
+                      key=lambda ij: np.hypot(*(unique[ij[0]] - unique[ij[1]])))
+            p, q = unique[far[0]], unique[far[1]]
+            if np.hypot(*(p - q)) > 1e-9:
                 segs.append((p[0], p[1], q[0], q[1]))
     return np.array(segs, dtype=float).reshape(-1, 4)
 
@@ -138,15 +163,30 @@ class Raster:
                 if 0 <= i < self.nx and 0 <= j < self.ny:
                     self.wall[j, i] = True
 
+    def block_outside(self, bounds):
+        """Marks every cell outside `bounds` as a wall: the space beyond the
+        floor is not a way around a wall that ends on its edge."""
+        i0, j0 = self.index(bounds[0], bounds[1])
+        i1, j1 = self.index(bounds[2], bounds[3])
+        self.wall[:max(j0, 0), :] = True
+        self.wall[j1 + 1:, :] = True
+        self.wall[:, :max(i0, 0)] = True
+        self.wall[:, i1 + 1:] = True
+
     def flood(self, seeds):
+        """Cells reachable from the seeds (world coordinates, or raster
+        indices as ('cell', i, j)) without crossing a wall."""
         reached = np.zeros_like(self.wall)
         queue = deque()
-        for x, y in seeds:
-            i, j = self.index(x, y)
+        for seed in seeds:
+            if seed[0] == 'cell':
+                i, j = seed[1], seed[2]
+            else:
+                i, j = self.index(seed[0], seed[1])
             if not (0 <= i < self.nx and 0 <= j < self.ny):
-                raise SystemExit(f'seed ({x}, {y}) lies outside the scene')
+                raise SystemExit(f'seed {seed} lies outside the scene')
             if self.wall[j, i]:
-                raise SystemExit(f'seed ({x}, {y}) lies on a wall; move it or lower --cell')
+                raise SystemExit(f'seed {seed} lies on a wall; move it or lower --cell')
             reached[j, i] = True
             queue.append((i, j))
         while queue:
@@ -265,14 +305,20 @@ def main():
 
     # 1. region
     if args.region != 'bbox':
-        raster = Raster(extents, args.cell)
+        # The raster covers the scene and every candidate, so a candidate
+        # beyond the scene is classified like any other (outside), not
+        # silently accepted or rejected because it falls off the raster.
+        span = (min(extents[0], candidates[:, 0].min()), min(extents[1], candidates[:, 1].min()),
+                max(extents[2], candidates[:, 0].max()), max(extents[3], candidates[:, 1].max()))
+        raster = Raster(span, args.cell)
         raster.rasterise(segs)
         if args.region == 'reachable':
+            raster.block_outside(extents)
             reached = raster.flood([(tx[0], tx[1])])
             inside = raster.lookup(reached, candidates[:, :2])
         else:
-            outside = raster.flood([(extents[0] - args.cell, extents[1] - args.cell)])
-            inside = ~raster.lookup(outside, candidates[:, :2])
+            outside = raster.flood([('cell', 0, 0)])
+            inside = ~raster.lookup(outside, candidates[:, :2]) & raster.lookup(~raster.wall, candidates[:, :2])
         reasons['outside the %s region' % args.region] = int((~inside & keep).sum())
         keep &= inside
     # 2. margin from walls
@@ -288,8 +334,7 @@ def main():
     points = candidates[keep]
     if len(points) == 0:
         raise SystemExit('no receiver survived the filters')
-    title = args.title or ('receiver positions (%s, spacing %g m, height %g m, margin %g m, %s)'
-                           % (args.region, args.spacing, height, args.margin, ' + '.join(args.stl)))
+    title = args.title or ('receiver positions: generate_receivers.py ' + ' '.join(sys.argv[1:]))
     write_receivers(args.out, points, title)
     print('%s: %d receivers kept of %d candidates (%d x %d)' % (args.out, len(points), len(candidates), shape[0], shape[1]))
     for reason, count in reasons.items():

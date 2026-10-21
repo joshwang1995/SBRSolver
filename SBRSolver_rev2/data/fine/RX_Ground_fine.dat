@@ -1,4 +1,4 @@
-receiver positions (bbox, spacing 0.1 m, height 3 m, margin 0.25 m, SBRSolver_rev2/data/stl_files/ground.stl)
+receiver positions: generate_receivers.py --stl SBRSolver_rev2/data/stl_files/ground.stl --tx 0 0 5 --line 0 1 3 0 999 3 --spacing 0.1 --region bbox --out SBRSolver_rev2/data/fine/RX_Ground_fine.dat
 9981
 0 1 3
 0 1.1 3

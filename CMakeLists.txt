@@ -353,9 +353,10 @@ if(Python3_Interpreter_FOUND)
                      "${CMAKE_CURRENT_BINARY_DIR}/test_output_office/ElectricField.csv")
     set_tests_properties(sbrsolver_reference_office PROPERTIES FIXTURES_REQUIRED sbr_run_office)
     # Dense layouts: one finite field per receiver. Every receiver of the
-    # ground line and the corner floor sees the transmitter; in the office
-    # the rooms without a line of sight and in Bahen the far corridors get
-    # no field with one reflection and no transmission, so those allow zeros.
+    # ground line and the corner floor sees the transmitter. In the office
+    # the room closed by the glass panel and the rooms without a line of
+    # sight (658 receivers) and in Bahen a few door recesses (7) get no field
+    # with one reflection and no transmission, so those allow zeros.
     set(_sbr_fine_rx_ground RX_Ground_fine.dat)
     set(_sbr_fine_rx_corner RX_Corner_fine.dat)
     set(_sbr_fine_rx_office RX_Office_fine.dat)
@@ -363,7 +364,7 @@ if(Python3_Interpreter_FOUND)
     set(_sbr_fine_check_ground --all-nonzero)
     set(_sbr_fine_check_corner --all-nonzero)
     set(_sbr_fine_check_office --max-zero 700)
-    set(_sbr_fine_check_bahen --max-zero 2000)
+    set(_sbr_fine_check_bahen --max-zero 10)
     foreach(_scene IN LISTS _sbr_scenes)
         add_test(NAME sbrsolver_fields_${_scene}_fine
                  COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_fields.py"

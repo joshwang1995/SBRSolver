@@ -1,4 +1,4 @@
-receiver positions (enclosure, spacing 0.25 m, height 1.5 m, margin 0.1 m, SBRSolver_rev2/data/stl_files/office.stl + SBRSolver_rev2/data/stl_files/office_glass_panel.stl)
+receiver positions: generate_receivers.py --stl SBRSolver_rev2/data/stl_files/office.stl --stl SBRSolver_rev2/data/stl_files/office_glass_panel.stl --tx 0.835938 4.53906 2.5 --height 1.5 --spacing 0.25 --margin 0.1 --region enclosure --out SBRSolver_rev2/data/fine/RX_Office_fine.dat
 1728
 0.125 0.125 1.5
 0.375 0.125 1.5

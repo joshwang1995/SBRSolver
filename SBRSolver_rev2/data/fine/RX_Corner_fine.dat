@@ -1,4 +1,4 @@
-receiver positions (bbox, spacing 0.25 m, height 1.5 m, margin 0.25 m, SBRSolver_rev2/data/stl_files/corner.stl)
+receiver positions: generate_receivers.py --stl SBRSolver_rev2/data/stl_files/corner.stl --tx 0 0 2.5 --height 1.5 --spacing 0.25 --region bbox --out SBRSolver_rev2/data/fine/RX_Corner_fine.dat
 6320
 -9.875 -9.875 1.5
 -9.625 -9.875 1.5
