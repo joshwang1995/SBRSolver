@@ -1,5 +1,5 @@
-// Unit tests of the viewer's field interpolation (viewer/FieldGrid.h), with a
-// self-contained harness: CHECK counts failures and main returns non-zero when
+// Unit tests of the viewer's scene data (viewer/SceneData.h) and field
+// interpolation (viewer/FieldGrid.h), with a self-contained harness: CHECK counts failures and main returns non-zero when
 // any test failed.
 #include <algorithm>
 #include <chrono>
@@ -7,9 +7,13 @@
 #include <complex>
 #include <cstdio>
 #include <random>
+#include <string>
 #include <vector>
 
+#include "Triangle.h"
+#include "common/Constants.h"
 #include "viewer/FieldGrid.h"
+#include "viewer/SceneData.h"
 
 using namespace sbr::viewer;
 
@@ -145,7 +149,197 @@ namespace
 		return best;
 	}
 
+
 	// ---------------------------------------------------------------------
+	// SceneData
+
+	// A floor square (z = 0) and a wall square (y = 0) sharing the edge from
+	// (0,0,0) to (1,0,0): 4 triangles, 6 distinct corners, one 90 degree wedge.
+	struct FloorAndWall
+	{
+		std::vector<Triangle> triangles;
+		std::vector<Triangle*> pointers;
+		FloorAndWall()
+		{
+			triangles.push_back(Triangle(Vec3(0, 0, 0), Vec3(1, 0, 0), Vec3(1, 1, 0), 0));
+			triangles.push_back(Triangle(Vec3(0, 0, 0), Vec3(1, 1, 0), Vec3(0, 1, 0), 1));
+			triangles.push_back(Triangle(Vec3(0, 0, 0), Vec3(1, 0, 1), Vec3(1, 0, 0), 2));
+			triangles.push_back(Triangle(Vec3(0, 0, 0), Vec3(0, 0, 1), Vec3(1, 0, 1), 3));
+			for (size_t i = 0; i < triangles.size(); i++)
+			{
+				triangles[i].coplanarId = i < 2 ? 0 : 1;
+				triangles[i].materialId = i < 2 ? 0 : 1;
+				pointers.push_back(&triangles[i]);
+			}
+		}
+	};
+
+	void TestBuildSceneMesh()
+	{
+		FloorAndWall scene;
+		const std::vector<std::string> names = { "concrete", "glass" };
+		const SceneMesh mesh = BuildSceneMesh(scene.pointers, names);
+		CHECK(mesh.vertices.size() == 6);   // welded by exact coordinates
+		CHECK(mesh.faces.size() == 4);
+		CHECK(mesh.coplanarId.size() == 4);
+		CHECK(mesh.materialId.size() == 4);
+		CHECK(mesh.materialNames == names);
+		for (size_t f = 0; f < mesh.faces.size(); f++)
+		{
+			const Triangle& t = scene.triangles[f];
+			// Face f is triangle f with its corners in the triangle's order.
+			CHECK(mesh.vertices[mesh.faces[f][0]] == t.v1);
+			CHECK(mesh.vertices[mesh.faces[f][1]] == t.v2);
+			CHECK(mesh.vertices[mesh.faces[f][2]] == t.v3);
+			CHECK(mesh.coplanarId[f] == t.coplanarId);
+			CHECK(mesh.materialId[f] == t.materialId);
+		}
+		// The shared corners are the same vertex in both squares.
+		CHECK(mesh.faces[0][0] == mesh.faces[2][0]);   // (0,0,0)
+		CHECK(mesh.faces[0][1] == mesh.faces[2][2]);   // (1,0,0)
+		// The first corner seen gets index 0, later corners follow in order.
+		CHECK(mesh.faces[0][0] == 0);
+		CHECK(mesh.faces[0][1] == 1);
+		CHECK(mesh.faces[0][2] == 2);
+		CHECK(mesh.faces[1][2] == 3);
+
+		const SceneMesh empty = BuildSceneMesh(std::vector<Triangle*>(), names);
+		CHECK(empty.vertices.empty());
+		CHECK(empty.faces.empty());
+		CHECK(empty.materialNames == names);
+	}
+
+	void TestBuildSceneEdges()
+	{
+		FloorAndWall scene;
+		const SceneMesh mesh = BuildSceneMesh(scene.pointers, std::vector<std::string>());
+		const std::vector<SceneEdge> edges = BuildSceneEdges(mesh);
+		CHECK(edges.size() == 9);   // 5 per square, the bottom edge of the wall shared
+		int boundary = 0;
+		int flat = 0;
+		int wedges = 0;
+		for (const SceneEdge& e : edges)
+		{
+			CHECK(e.v0 < e.v1);
+			CHECK(e.v0 >= 0 && e.v1 < int(mesh.vertices.size()));
+			CHECK(!e.diffracting);   // nothing marks edges yet
+			if (e.faceCount == 1)
+			{
+				boundary++;
+				CHECK(e.face0 >= 0 && e.face1 == -1);
+				CHECK(!e.wedge);
+			}
+			else
+			{
+				CHECK(e.faceCount == 2);
+				CHECK(e.face0 >= 0 && e.face1 >= 0 && e.face0 != e.face1);
+				if (e.wedge)
+				{
+					wedges++;
+					CHECK_NEAR(e.dihedralAngleDeg, 90.0, 1e-9);
+					CHECK(mesh.vertices[e.v0] == Vec3(0, 0, 0));
+					CHECK(mesh.vertices[e.v1] == Vec3(1, 0, 0));
+					CHECK((e.face0 < 2) != (e.face1 < 2));   // one floor face, one wall face
+				}
+				else
+				{
+					flat++;
+					// A square's diagonal: both faces lie in one plane.
+					CHECK(std::abs(e.dihedralAngleDeg) < 1e-9 || std::abs(e.dihedralAngleDeg - 180.0) < 1e-9);
+					CHECK((e.face0 < 2) == (e.face1 < 2));
+				}
+			}
+		}
+		CHECK(boundary == 6);
+		CHECK(flat == 2);
+		CHECK(wedges == 1);
+
+		// A fold of 0.005 degrees is coplanar at the default tolerance of
+		// 0.01 degrees and a wedge below it.
+		const double angle = 0.005 * PI / 180.0;
+		std::vector<Triangle> fold;
+		fold.push_back(Triangle(Vec3(0, 0, 0), Vec3(1, 0, 0), Vec3(1, 1, 0), 0));
+		fold.push_back(Triangle(Vec3(0, 0, 0), Vec3(1, -std::cos(angle), -std::sin(angle)), Vec3(1, 0, 0), 1));   // same winding sense as the first
+		std::vector<Triangle*> foldPointers = { &fold[0], &fold[1] };
+		const SceneMesh foldMesh = BuildSceneMesh(foldPointers, std::vector<std::string>());
+		int foldWedges = 0;
+		for (const SceneEdge& e : BuildSceneEdges(foldMesh))
+		{
+			if (e.faceCount == 2) CHECK_NEAR(e.dihedralAngleDeg, 0.005, 1e-6);
+			foldWedges += e.wedge ? 1 : 0;
+		}
+		CHECK(foldWedges == 0);
+		foldWedges = 0;
+		for (const SceneEdge& e : BuildSceneEdges(foldMesh, 0.001)) foldWedges += e.wedge ? 1 : 0;
+		CHECK(foldWedges == 1);
+
+		// Three faces on one edge (a T junction) are non-manifold, not a wedge.
+		std::vector<Triangle> junction = fold;
+		junction.push_back(Triangle(Vec3(0, 0, 0), Vec3(1, 0, 0), Vec3(1, 0, 1), 2));
+		std::vector<Triangle*> junctionPointers = { &junction[0], &junction[1], &junction[2] };
+		const SceneMesh junctionMesh = BuildSceneMesh(junctionPointers, std::vector<std::string>());
+		int nonManifold = 0;
+		for (const SceneEdge& e : BuildSceneEdges(junctionMesh, 0.001))
+		{
+			if (e.faceCount == 3)
+			{
+				nonManifold++;
+				CHECK(!e.wedge);
+			}
+		}
+		CHECK(nonManifold == 1);
+
+		CHECK(BuildSceneEdges(SceneMesh()).empty());
+	}
+
+	void TestFieldQuantities()
+	{
+		const double frequency = 1.0e9;
+		const double lambda = SPEED_OF_LIGHT / frequency;
+		const Vec3c field(Complex(3.0, 4.0), Complex(0.0, 0.0), Complex(-1.0, 0.0));
+		CHECK_NEAR(EvaluateQuantity(field, FieldQuantity::Magnitude, frequency), std::sqrt(26.0), 1e-12);
+		CHECK_NEAR(EvaluateQuantity(field, FieldQuantity::MagnitudeDb, frequency), 20.0 * std::log10(std::sqrt(26.0) * 1e6), 1e-9);
+		CHECK_NEAR(ReceivedPowerWatts(field, frequency), 26.0 * lambda * lambda / (4.0 * PI * ETA0), 1e-20);
+		CHECK_NEAR(EvaluateQuantity(field, FieldQuantity::PowerDbm, frequency),
+		           10.0 * std::log10(ReceivedPowerWatts(field, frequency) * 1e3), 1e-9);
+		CHECK_NEAR(EvaluateQuantity(field, FieldQuantity::PhaseX, frequency), std::atan2(4.0, 3.0) * 180.0 / PI, 1e-9);
+		CHECK_NEAR(EvaluateQuantity(field, FieldQuantity::PhaseY, frequency), 0.0, 0.0);   // zero component
+		CHECK_NEAR(EvaluateQuantity(field, FieldQuantity::PhaseZ, frequency), 180.0, 1e-9);
+		CHECK_NEAR(EvaluateQuantity(field, FieldQuantity::MagnitudeX, frequency), 5.0, 1e-12);
+		CHECK_NEAR(EvaluateQuantity(field, FieldQuantity::MagnitudeY, frequency), 0.0, 0.0);
+		CHECK_NEAR(EvaluateQuantity(field, FieldQuantity::MagnitudeZ, frequency), 1.0, 1e-12);
+		CHECK_NEAR(ReceivedPowerWatts(field, 0.0), 0.0, 0.0);
+
+		// A zero field stays finite: -300 dB and zero phase.
+		const Vec3c zero = Vec3c::Zero();
+		for (int q = 0; q < int(FieldQuantity::Count); q++)
+		{
+			const FieldQuantity quantity = FieldQuantity(q);
+			const double value = EvaluateQuantity(zero, quantity, frequency);
+			CHECK(std::isfinite(value));
+			if (quantity == FieldQuantity::MagnitudeDb || quantity == FieldQuantity::PowerDbm)
+			{
+				CHECK_NEAR(value, -300.0, 0.0);
+			}
+			else
+			{
+				CHECK_NEAR(value, 0.0, 0.0);
+			}
+			CHECK(FieldQuantityName(quantity) != nullptr && std::string(FieldQuantityName(quantity)) != "?");
+			CHECK(FieldQuantityIsPhase(quantity)
+			      == (quantity == FieldQuantity::PhaseX || quantity == FieldQuantity::PhaseY || quantity == FieldQuantity::PhaseZ));
+		}
+
+		const std::vector<Vec3c> fields = { field, zero, 2.0 * field };
+		const std::vector<double> magnitudes = EvaluateQuantity(fields, FieldQuantity::Magnitude, frequency);
+		CHECK(magnitudes.size() == 3);
+		CHECK_NEAR(magnitudes[0], std::sqrt(26.0), 1e-12);
+		CHECK_NEAR(magnitudes[1], 0.0, 0.0);
+		CHECK_NEAR(magnitudes[2], 2.0 * std::sqrt(26.0), 1e-12);
+	}
+
+	// ---------------------------------------------------------------------
+	// FieldGrid
 
 	void TestSampleSpacing()
 	{
@@ -603,6 +797,9 @@ namespace
 
 int main()
 {
+	Run("BuildSceneMesh", TestBuildSceneMesh);
+	Run("BuildSceneEdges", TestBuildSceneEdges);
+	Run("FieldQuantities", TestFieldQuantities);
 	Run("SampleSpacing", TestSampleSpacing);
 	Run("FitPlane", TestFitPlane);
 	Run("Interpolate", TestInterpolate);

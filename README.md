@@ -129,8 +129,11 @@ overlay that can be switched on and off, in the *SBRSolver* panel or in Polyscop
   a movable slice plane (buttons set the plane along x, y or z; the plane's own widget moves it freely).
   A flat receiver layout has no volume, so the 2D view covers it.
 
-Mouse: left-drag rotates, right-drag pans, wheel zooms; clicking a receiver, face or path shows its
-values in the selection panel. Options for scripts and tests: `--screenshot FILE` renders the view into
+The scene is drawn half transparent by default so that the inside of a closed room is visible from
+outside; the *Scene* section of the panel sets the transparency and can hide the faces that face the
+camera (or those facing away) instead, which removes the near walls of a room whose normals point
+outward (inward). Mouse: left-drag rotates, right-drag pans, wheel zooms; clicking a receiver, face
+or path shows its values in the selection panel. Options for scripts and tests: `--screenshot FILE` renders the view into
 a PNG and exits, `--viewer-frames N` closes the viewer after N frames, and `--viewer-backend NAME`
 selects `openGL3_glfw` (a window), `openGL3_egl` (headless rendering on Linux) or `openGL_mock`
 (no rendering, used by the tests). Without a display, run with `xvfb-run` or the EGL backend.

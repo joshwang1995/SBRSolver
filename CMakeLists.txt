@@ -94,6 +94,14 @@ if(SBR_BUILD_VIEWER)
     set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
     add_subdirectory("${_sbr_third_party}/polyscope" EXCLUDE_FROM_ALL)
+    # Polyscope's headers are not warning-clean under -Wextra; treat them as
+    # system headers so our own warnings stay visible.
+    foreach(_sbr_dep polyscope imgui glm glfw)
+        if(TARGET ${_sbr_dep})
+            set_target_properties(${_sbr_dep} PROPERTIES
+                INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "$<TARGET_PROPERTY:${_sbr_dep},INTERFACE_INCLUDE_DIRECTORIES>")
+        endif()
+    endforeach()
     message(STATUS "SBRSolver: viewer enabled (Polyscope)")
 endif()
 

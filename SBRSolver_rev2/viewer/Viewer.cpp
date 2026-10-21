@@ -47,6 +47,14 @@ namespace
 	const char* const kMockBackend = "openGL_mock";
 
 	const int kQuantityCount = static_cast<int>(FieldQuantity::Count);
+	// Which side of the scene faces is hidden. Front faces are culled by
+	// registering the mesh with reversed winding, which turns them into back
+	// faces for the renderer; with the outward-facing normals of a modelled
+	// room that removes the walls between the camera and the interior.
+	const int kCullNone = 0;
+	const int kCullBack = 1;
+	const int kCullFront = 2;
+	const char* const kFaceCullingNames[] = { "None (both sides drawn)", "Back faces", "Front faces (look into a room)" };
 	// EvaluateQuantity's value of the dB quantities for a zero field
 	// (SceneData.h); kept out of the colour range so it does not flatten it.
 	const double kZeroFieldDb = -300.0;
@@ -196,7 +204,6 @@ namespace
 		Vec3 _boundMin = Vec3::Zero();         // everything shown: mesh, receivers, transmitter
 		Vec3 _boundMax = Vec3::Zero();
 		double _boundDiagonal = 1.0;
-		double _signedVolume = 0.0;            // of the scene mesh; negative: normals point inward
 
 		// Structures (null when not registered)
 		polyscope::SurfaceMesh* _sceneMesh = nullptr;
@@ -226,8 +233,10 @@ namespace
 
 		// Panel state
 		int _selectedQuantity = static_cast<int>(FieldQuantity::MagnitudeDb);
-		float _sceneTransparency = 1.0f;
-		bool _cullBackFaces = false;
+		// Half transparent by default so that the inside of a closed room (the
+		// receivers, the paths and the field views) shows from outside.
+		float _sceneTransparency = 0.5f;
+		int _faceCulling = kCullNone;
 		int _pathReceiverFilter = -1;
 		size_t _pathsShown = 0;
 		InterpolationSettings _interpolation;
@@ -296,18 +305,6 @@ namespace
 		}
 		extend(_scene.txPosition);
 		_boundDiagonal = std::max((_boundMax - _boundMin).norm(), 1e-3);
-
-		_signedVolume = 0.0;
-		for (const std::array<int, 3>& f : _scene.mesh.faces)
-		{
-			const Vec3& a = _scene.mesh.vertices[f[0]];
-			const Vec3& b = _scene.mesh.vertices[f[1]];
-			const Vec3& c = _scene.mesh.vertices[f[2]];
-			_signedVolume += a.dot(b.cross(c)) / 6.0;
-		}
-		// A closed room whose normals point inward (the usual indoor scene) is
-		// best seen from outside with its near walls culled.
-		_cullBackFaces = _signedVolume < 0.0;
 	}
 
 	void ViewerSession::RegisterAll()
@@ -330,11 +327,32 @@ namespace
 		{
 			return;
 		}
+		// Re-registration (a culling change) keeps the face quantity in use.
+		const char* const faceQuantities[] = { "Face ID", "Material ID", "Surface ID" };
+		const char* enabledQuantity = "Material ID";
+		if (_sceneMesh != nullptr)
+		{
+			for (const char* name : faceQuantities)
+			{
+				polyscope::Quantity* quantity = _sceneMesh->getQuantity(name);
+				if (quantity != nullptr && quantity->isEnabled())
+				{
+					enabledQuantity = name;
+				}
+			}
+		}
 		std::vector<std::array<size_t, 3>> faces;
 		faces.reserve(mesh.faces.size());
 		for (const std::array<int, 3>& f : mesh.faces)
 		{
-			faces.push_back({ size_t(f[0]), size_t(f[1]), size_t(f[2]) });
+			if (_faceCulling == kCullFront)
+			{
+				faces.push_back({ size_t(f[0]), size_t(f[2]), size_t(f[1]) });
+			}
+			else
+			{
+				faces.push_back({ size_t(f[0]), size_t(f[1]), size_t(f[2]) });
+			}
 		}
 		_sceneMesh = polyscope::registerSurfaceMesh(kSceneMeshName, ToGlm(mesh.vertices), faces);
 
@@ -349,11 +367,13 @@ namespace
 		surfaceId.resize(mesh.faces.size(), 0);
 
 		_sceneMesh->addFaceScalarQuantity("Face ID", faceId, polyscope::DataType::CATEGORICAL);
-		_sceneMesh->addFaceScalarQuantity("Material ID", materialId, polyscope::DataType::CATEGORICAL)->setEnabled(true);
+		_sceneMesh->addFaceScalarQuantity("Material ID", materialId, polyscope::DataType::CATEGORICAL);
 		_sceneMesh->addFaceScalarQuantity("Surface ID", surfaceId, polyscope::DataType::CATEGORICAL);
-		_sceneMesh->setBackFacePolicy(_cullBackFaces ? polyscope::BackFacePolicy::Cull : polyscope::BackFacePolicy::Different);
+		_sceneMesh->getQuantity(enabledQuantity)->setEnabled(true);
+		_sceneMesh->setBackFacePolicy(_faceCulling == kCullNone ? polyscope::BackFacePolicy::Different : polyscope::BackFacePolicy::Cull);
 		_sceneMesh->setTransparency(_sceneTransparency);
 		_sceneMesh->setEnabled(_showSceneMesh);
+		ApplySliceIgnores();
 	}
 
 	// 2. Edges, wedge edges (diffraction candidates) and diffracting edges
@@ -857,9 +877,9 @@ namespace
 			{
 				_sceneMesh->setTransparency(_sceneTransparency);
 			}
-			if (ImGui::Checkbox("Cull back faces (look into a room)", &_cullBackFaces))
+			if (ImGui::Combo("Hidden faces", &_faceCulling, kFaceCullingNames, 3))
 			{
-				_sceneMesh->setBackFacePolicy(_cullBackFaces ? polyscope::BackFacePolicy::Cull : polyscope::BackFacePolicy::Different);
+				RegisterSceneMesh();
 			}
 		}
 		ImGui::TextUnformatted("Materials (id: name, faces)");
