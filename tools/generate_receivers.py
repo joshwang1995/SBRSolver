@@ -41,6 +41,7 @@ Examples (run from the repository root):
 """
 import argparse
 import re
+import shlex
 import struct
 import sys
 from collections import deque
@@ -303,14 +304,11 @@ def main():
     reasons = {}
     keep = np.ones(len(candidates), dtype=bool)
 
-    # 1. region
+    # 1. region. The raster covers the scene; a candidate beyond it is
+    # outside both regions (lookup is False off the raster, and only positive
+    # lookups are used).
     if args.region != 'bbox':
-        # The raster covers the scene and every candidate, so a candidate
-        # beyond the scene is classified like any other (outside), not
-        # silently accepted or rejected because it falls off the raster.
-        span = (min(extents[0], candidates[:, 0].min()), min(extents[1], candidates[:, 1].min()),
-                max(extents[2], candidates[:, 0].max()), max(extents[3], candidates[:, 1].max()))
-        raster = Raster(span, args.cell)
+        raster = Raster(extents, args.cell)
         raster.rasterise(segs)
         if args.region == 'reachable':
             raster.block_outside(extents)
@@ -318,7 +316,7 @@ def main():
             inside = raster.lookup(reached, candidates[:, :2])
         else:
             outside = raster.flood([('cell', 0, 0)])
-            inside = ~raster.lookup(outside, candidates[:, :2]) & raster.lookup(~raster.wall, candidates[:, :2])
+            inside = raster.lookup(~outside & ~raster.wall, candidates[:, :2])
         reasons['outside the %s region' % args.region] = int((~inside & keep).sum())
         keep &= inside
     # 2. margin from walls
@@ -334,7 +332,7 @@ def main():
     points = candidates[keep]
     if len(points) == 0:
         raise SystemExit('no receiver survived the filters')
-    title = args.title or ('receiver positions: generate_receivers.py ' + ' '.join(sys.argv[1:]))
+    title = args.title or ('receiver positions: generate_receivers.py ' + shlex.join(sys.argv[1:]))
     write_receivers(args.out, points, title)
     print('%s: %d receivers kept of %d candidates (%d x %d)' % (args.out, len(points), len(candidates), shape[0], shape[1]))
     for reason, count in reasons.items():
