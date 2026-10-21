@@ -108,6 +108,8 @@ the receivers with `|E|` and the field in dB(µV/m).
 
 ### Viewer
 
+![The office scene in the viewer: the room, the ray paths and the 2D field view](docs/viewer_office.png)
+
 `--view` (or `viewer = true` in `[outputs]`) opens the built-in 3D viewer on the results once the run
 has finished; the VTK/CSV files are still written, so ParaView and scripts keep working. The viewer
 is built on [Polyscope](https://polyscope.run) and runs on Windows, Linux and macOS. Every item is an
