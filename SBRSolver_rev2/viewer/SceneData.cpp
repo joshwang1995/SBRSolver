@@ -137,6 +137,9 @@ std::vector<SceneEdge> BuildSceneEdges(const SceneMesh& mesh, double coplanarTol
 	std::map<std::pair<int, int>, SceneEdge> edges;
 	for (size_t f = 0; f < mesh.faces.size(); f++)
 	{
+		// A zero-area face has no normal and no extent: it contributes no
+		// edge, so a sliver on a real corner does not hide the wedge there.
+		if (normals[f].squaredNorm() == 0.0) continue;
 		const std::array<int, 3>& face = mesh.faces[f];
 		for (int k = 0; k < 3; k++)
 		{
@@ -164,8 +167,7 @@ std::vector<SceneEdge> BuildSceneEdges(const SceneMesh& mesh, double coplanarTol
 	for (std::map<std::pair<int, int>, SceneEdge>::value_type& kv : edges)
 	{
 		SceneEdge& e = kv.second;
-		// A zero-area face has no normal: its edges are not wedges.
-		if (e.faceCount >= 2 && normals[e.face0].norm() > 0.0 && normals[e.face1].norm() > 0.0)
+		if (e.faceCount >= 2)
 		{
 			const double c = std::max(-1.0, std::min(1.0, normals[e.face0].dot(normals[e.face1])));
 			e.dihedralAngleDeg = std::acos(c) * 180.0 / PI;

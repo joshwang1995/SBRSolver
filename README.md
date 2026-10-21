@@ -129,7 +129,7 @@ overlay that can be switched on and off, in the *SBRSolver* panel or in Polyscop
   number of interactions;
 * a **2D interpolated view**: the field interpolated onto a regular grid in the receivers' plane
   (inverse-distance or nearest-neighbour interpolation of the complex components, then the chosen
-  quantity), with isolines;
+  quantity);
 * a **3D slice view**: the field interpolated onto a grid over the receivers' bounding box and drawn on
   a movable slice plane (buttons set the plane along x, y or z; the plane's own widget moves it freely).
   A flat receiver layout has no volume, so the 2D view covers it.
@@ -138,23 +138,27 @@ The scene is drawn half transparent by default so that the inside of a closed ro
 outside; the *Scene* section of the panel sets the transparency and can hide the faces that face the
 camera (or those facing away) instead, which removes the near walls of a room whose normals point
 outward (inward). Mouse: left-drag rotates, right-drag pans, wheel zooms; clicking a receiver, face
-or path shows its values in the selection panel. Options for scripts and tests: `--screenshot FILE` renders the view into
-a PNG and exits, `--viewer-frames N` closes the viewer after N frames, and `--viewer-backend NAME`
-selects `openGL3_glfw` (a window), `openGL3_egl` (headless rendering on Linux) or `openGL_mock`
-(no rendering, used by the tests). Without a display, run with `xvfb-run` or the EGL backend.
+or path shows its values in the selection panel. Options for scripts and tests: `--screenshot FILE`
+renders the view into a PNG (or JPEG) file and exits, `--viewer-frames N` closes the viewer after N
+frames (N ≥ 1), and `--viewer-backend NAME` selects `openGL3_glfw` (a window), `openGL3_egl`
+(headless rendering on Linux) or `openGL_mock` (no rendering, used by the tests). Without a display,
+run with `xvfb-run`, or use the EGL backend together with `--screenshot` or `--viewer-frames`; an
+interactive `--view` needs a window and fails without one.
 
 ### Profiling with Tracy
 
 The solver is instrumented for the [Tracy](https://github.com/wolfpld/tracy) profiler. Configure
 with `-DSBR_ENABLE_TRACY=ON` to build the instrumented solver: the preprocessing, every ray launch,
-each receiver's image-path correction and field computation, the outputs and each viewer frame are
-zones, and the worker threads are named. Recording is *on demand*: the zones cost nothing measurable
-until the Tracy GUI connects, but the client itself adds about 0.2 s of start-up (timer calibration),
+each receiver's image-path correction and field computation and the outputs are zones, the worker
+threads are named, and each rendered viewer frame is a frame mark. Recording is *on demand* by
+default: the zones cost nothing measurable until the Tracy GUI connects, and only what runs after
+the connection is recorded, but the client itself adds about 0.2 s of start-up (timer calibration),
 a few threads and a listening socket (TCP 8086) to every run, which is why the option is off by
-default. To watch a run, start the Tracy profiler (release 0.14.1 to match the bundled client),
-press *Connect* (the solver appears in the list of clients on the local network, or enter its address),
-then start `sbrsolver`; for runs shorter than the connection time, start the solver with the viewer
-(`--view`) so it stays alive, or connect to a long run. `TRACY_NO_BROADCAST` and
+default. To watch a long run, start the Tracy profiler (release 0.14.1 to match the bundled client),
+press *Connect* (the solver appears in the list of clients on the local network, or enter its
+address) and then start `sbrsolver`. For a short run, build with `-DSBR_TRACY_ON_DEMAND=OFF` and
+run with the environment variable `TRACY_NO_EXIT=1`: the solver then records from start-up and waits
+at exit until the GUI has connected and fetched the data. `TRACY_NO_BROADCAST` and
 `TRACY_ONLY_LOCALHOST` (Tracy's own CMake options)
 restrict the client to local connections.
 
@@ -229,13 +233,15 @@ The viewer has tests of its own: `viewer_unit_tests` (the scene data model and t
 interpolation, no display needed), `viewer_smoke_mock` and `viewer_smoke_mock_volume` (a synthetic
 run through every overlay, with flat and with layered receivers, using the rendering-free mock
 backend), `viewer_mock_office` (the whole viewer on the office scene with the mock backend, every
-platform) and, where `xvfb-run` exists, `viewer_screenshot_office` (a real rendering into a PNG,
-which fails when no file is written).
+platform), `viewer_cli_rejects_frames` and `viewer_cli_rejects_screenshot_type` (malformed viewer
+options are refused before the run) and, where `xvfb-run` exists, `viewer_screenshot_office` (a real
+rendering into a PNG, which fails when no file is written).
 
 The same build and test matrix runs in GitHub Actions on Ubuntu (GCC and Clang), macOS and Windows
 (where the reference solver is run) for every pull request and every pushed commit; CI configures
 with `-DSBR_REQUIRE_REFERENCE_TESTS=ON` so a runner without Python fails instead of skipping the
-comparisons.
+comparisons, and with `-DSBR_ENABLE_TRACY=ON` so the instrumented solver is built and tested on
+every platform.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

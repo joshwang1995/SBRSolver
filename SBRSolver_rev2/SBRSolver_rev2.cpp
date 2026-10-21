@@ -44,8 +44,8 @@ static void PrintUsage(const char* program)
 		<< "Options:\n"
 		<< "  --view                 open the built-in 3D viewer on the results\n"
 		<< "                         (same as viewer = true in [outputs])\n"
-		<< "  --screenshot FILE      render the viewer once into FILE (PNG) and exit\n"
-		<< "  --viewer-frames N      close the viewer after N frames (tests)\n"
+		<< "  --screenshot FILE      render the viewer once into FILE (.png, .jpg or .jpeg) and exit\n"
+		<< "  --viewer-frames N      close the viewer after N frames, N >= 1 (tests)\n"
 		<< "  --viewer-backend NAME  openGL3_glfw (window), openGL3_egl (headless, Linux)\n"
 		<< "                         or openGL_mock (no rendering); default: automatic\n"
 		<< "File names inside the configuration are relative to the configuration file.\n";
@@ -92,14 +92,14 @@ static bool ParseCommandLine(int argc, char* argv[], CommandLine& cl, std::strin
 		{
 			std::string text;
 			if (!value(text)) return false;
-			// The whole value must be a non-negative integer.
+			// The whole value must be a positive integer.
 			size_t parsed = 0;
 			long frames = -1;
 			try { frames = std::stol(text, &parsed); }
 			catch (const std::exception&) { parsed = 0; }
-			if (parsed == 0 || parsed != text.size() || frames < 0)
+			if (parsed == 0 || parsed != text.size() || frames < 1)
 			{
-				error = "--viewer-frames needs a non-negative integer, got '" + text + "'";
+				error = "--viewer-frames needs a positive integer, got '" + text + "'";
 				return false;
 			}
 			cl.viewerFrames = frames;

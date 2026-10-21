@@ -11,6 +11,7 @@ project(SBRSolver
 option(SBR_WARNINGS "Enable the compiler's standard warning set" ON)
 option(SBR_BUILD_VIEWER "Build the built-in 3D viewer (Polyscope, --view / [outputs] viewer = true)" ON)
 option(SBR_ENABLE_TRACY "Instrument the solver for the Tracy profiler (connect the Tracy GUI while it runs)" OFF)
+option(SBR_TRACY_ON_DEMAND "Tracy records only once the GUI connects; OFF records from start-up (run with TRACY_NO_EXIT=1 to wait for the GUI at exit)" ON)
 
 # Default to a Release build for single-config generators (Makefiles, Ninja).
 # Multi-config generators (Visual Studio, Xcode) pick the config at build time.
@@ -118,7 +119,7 @@ if(SBR_ENABLE_TRACY)
     # socket (TCP 8086) to every run, which is why the option is off by
     # default and CI builds with it on.
     set(TRACY_ENABLE ON CACHE BOOL "" FORCE)
-    set(TRACY_ON_DEMAND ON CACHE BOOL "" FORCE)
+    set(TRACY_ON_DEMAND ${SBR_TRACY_ON_DEMAND} CACHE BOOL "" FORCE)
     set(TRACY_STATIC ON CACHE BOOL "" FORCE)
     add_subdirectory("${_sbr_third_party}/tracy" EXCLUDE_FROM_ALL)
     message(STATUS "SBRSolver: Tracy profiling enabled (on demand)")
@@ -208,15 +209,16 @@ if(NOT SBR_FILESYSTEM_BUILTIN)
     check_cxx_source_compiles("${_sbr_fs_src}" SBR_FILESYSTEM_NEEDS_CXXFS)
     unset(CMAKE_REQUIRED_LIBRARIES)
     if(SBR_FILESYSTEM_NEEDS_STDCXXFS)
-        target_link_libraries(sbrsolver PRIVATE stdc++fs)
+        set(_sbr_fs_lib stdc++fs)
     elseif(SBR_FILESYSTEM_NEEDS_CXXFS)
-        target_link_libraries(sbrsolver PRIVATE c++fs)
+        set(_sbr_fs_lib c++fs)
     else()
         message(FATAL_ERROR
             "SBRSolver: this compiler/standard library has no usable std::filesystem. "
             "Needs GCC 8+, Clang 7+ with libstdc++ 8+ or libc++ 7+, MSVC 2017 15.7+, "
             "or Xcode 11+ targeting macOS 10.15 or newer.")
     endif()
+    target_link_libraries(sbrsolver PRIVATE ${_sbr_fs_lib})
 endif()
 
 # Visual Studio: start the debugger in the source tree like the old project did.
@@ -272,7 +274,7 @@ if(SBR_BUILD_VIEWER)
         ${SBR_SRC_DIR}/viewer/FieldGrid.cpp
         ${SBR_SRC_DIR}/Triangle.cpp)
     target_include_directories(sbr_viewer_smoke PRIVATE "${SBR_SRC_DIR}")
-    target_link_libraries(sbr_viewer_smoke PRIVATE sbr_eigen polyscope)
+    target_link_libraries(sbr_viewer_smoke PRIVATE sbr_eigen polyscope ${_sbr_fs_lib})   # Viewer.cpp uses std::filesystem
     if(MSVC)
         target_compile_definitions(sbr_viewer_smoke PRIVATE _CRT_SECURE_NO_WARNINGS)
     elseif(SBR_WARNINGS)

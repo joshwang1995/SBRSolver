@@ -291,17 +291,32 @@ namespace
 
 		CHECK(BuildSceneEdges(SceneMesh()).empty());
 
-		// A zero-area face has no normal, so its edges are never wedges.
+		// A zero-area face has no normal and contributes no edge: alone it
+		// makes no wedge, and on a real corner it does not hide the wedge.
 		std::vector<Triangle> sliver;
 		sliver.push_back(Triangle(Vec3(0, 0, 0), Vec3(1, 0, 0), Vec3(1, 1, 0), 0));
 		sliver.push_back(Triangle(Vec3(0, 0, 0), Vec3(0.5, 0, 0), Vec3(1, 0, 0), 1));   // collinear corners
 		std::vector<Triangle*> sliverPointers = { &sliver[0], &sliver[1] };
 		const SceneMesh sliverMesh = BuildSceneMesh(sliverPointers, std::vector<std::string>());
-		for (const SceneEdge& e : BuildSceneEdges(sliverMesh))
+		const std::vector<SceneEdge> sliverEdges = BuildSceneEdges(sliverMesh);
+		CHECK(sliverEdges.size() == 3);   // the real triangle's edges only
+		for (const SceneEdge& e : sliverEdges)
 		{
 			CHECK(!e.wedge);
+			CHECK(e.faceCount == 1);
 			CHECK(std::isfinite(e.dihedralAngleDeg));
 		}
+		FloorAndWall corner;
+		std::vector<Triangle> cornerSliver = corner.triangles;
+		cornerSliver.push_back(Triangle(Vec3(0, 0, 0), Vec3(0.5, 0, 0), Vec3(1, 0, 0), 4));   // along the corner edge
+		std::vector<Triangle*> cornerPointers;
+		for (Triangle& t : cornerSliver) cornerPointers.push_back(&t);
+		int cornerWedges = 0;
+		for (const SceneEdge& e : BuildSceneEdges(BuildSceneMesh(cornerPointers, std::vector<std::string>())))
+		{
+			cornerWedges += e.wedge ? 1 : 0;
+		}
+		CHECK(cornerWedges == 1);
 	}
 
 	void TestFieldQuantities()
