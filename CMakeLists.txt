@@ -245,6 +245,29 @@ if(MSVC)
 endif()
 add_test(NAME viewer_unit_tests COMMAND sbr_viewer_tests)
 
+# Smoke test of the viewer itself: a synthetic run goes through every overlay
+# with Polyscope's mock backend, so it needs no display. With a display (or
+# xvfb-run) `sbr_viewer_smoke --screenshot shot.png` renders it for real.
+if(SBR_BUILD_VIEWER)
+    add_executable(sbr_viewer_smoke
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/viewer_smoke.cpp
+        ${SBR_SRC_DIR}/viewer/Viewer.cpp
+        ${SBR_SRC_DIR}/viewer/SceneData.cpp
+        ${SBR_SRC_DIR}/viewer/FieldGrid.cpp
+        ${SBR_SRC_DIR}/Triangle.cpp)
+    target_include_directories(sbr_viewer_smoke PRIVATE "${SBR_SRC_DIR}")
+    target_link_libraries(sbr_viewer_smoke PRIVATE sbr_eigen polyscope)
+    if(MSVC)
+        target_compile_definitions(sbr_viewer_smoke PRIVATE _CRT_SECURE_NO_WARNINGS)
+    elseif(SBR_WARNINGS)
+        target_compile_options(sbr_viewer_smoke PRIVATE -Wall -Wextra)
+    endif()
+    add_test(NAME viewer_smoke_mock COMMAND sbr_viewer_smoke --backend openGL_mock --frames 2 --runs 2)
+    # Three receiver layers: the field volume (hex mesh) and the slice plane exist.
+    add_test(NAME viewer_smoke_mock_volume COMMAND sbr_viewer_smoke --backend openGL_mock --frames 2 --receiver-layers 3)
+    set_tests_properties(viewer_smoke_mock viewer_smoke_mock_volume PROPERTIES TIMEOUT 300)
+endif()
+
 if(SBR_BUILD_VIEWER)
     # The viewer on a finished run without any rendering (mock backend): every
     # overlay is registered and two frames are ticked. Runs on every platform.

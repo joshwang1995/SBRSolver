@@ -120,7 +120,6 @@ int RTSolver::ExecuteRayTracing
 		RayLaunch(&rootNode, origin, _shootRayList->at(i), -1, -1, 0, 0, 0, true, INF);
 		for (int j = 0; j < _receiverCount; j++)
 		{
-			SBR_ZONE_NAMED("RayCapture");
 			PathTreeNode* cloneRoot = CloneNode(&rootNode);
 			CloneTree(&rootNode, cloneRoot);
 			RayCapture(cloneRoot, receivers[j], 0.0);
