@@ -58,3 +58,6 @@ __pycache__/
 
 # Claude Code agent worktrees
 .claude/
+
+# Outputs of the dense receiver layouts
+SBRSolver_rev2/data/fine/output/
