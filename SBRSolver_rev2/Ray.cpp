@@ -135,48 +135,36 @@ Paths::Paths(TreeNode* rootNode)
 
 Paths::Paths(PathTreeNode* rootNode)
 {
-	// This function traverses through the pathtreenode and pushes each node's 
-	// ray into newVect. 
-	// if (rootNode == nullptr || (rootNode->childTransmit == nullptr && rootNode->childReflect == nullptr))
+	// Collects one candidate path per captured node: the rays from the root
+	// down to that node, the last one ending at the receiver. A captured node
+	// keeps its children, so a ray that passes a receiver, bounces and passes
+	// it again yields both the shorter and the longer path. The last ray's
+	// surface ids are cleared because it now ends at the receiver, not at the
+	// surface it hit; the tree itself is left untouched for the other paths.
 	if (rootNode == nullptr)
 	{
 		return;
 	}
 
-	std::queue<std::pair<std::pair<std::vector<Ray>, bool>, PathTreeNode*>> q;
-	std::vector<Ray> newVect;
-	newVect.push_back(rootNode->ray);
-	q.push(std::make_pair(std::make_pair(newVect, false), rootNode));
+	std::queue<std::pair<std::vector<Ray>, PathTreeNode*>> q;
+	q.push(std::make_pair(std::vector<Ray>{ rootNode->ray }, rootNode));
 	while (!q.empty())
 	{
-		auto p = q.front();
+		std::pair<std::vector<Ray>, PathTreeNode*> p = q.front();
 		q.pop();
-		if (p.second->childTransmit != nullptr || p.second->childReflect != nullptr)
+		if (p.second->ray.captured)
 		{
-			if (p.second->childTransmit != nullptr)
-			{
-				//bool terminate = p.first.second || p.second->childTransmit->ray.reflectionMaterialId >= 0 || p.second->childTransmit->ray.penetrationMaterialId >= 0;
-				bool terminate = p.first.second || p.second->childTransmit->ray.captured;
-				std::vector<Ray> newVect(p.first.first);
-				newVect.push_back(p.second->childTransmit->ray);
-				q.push(std::make_pair(std::make_pair(newVect, terminate), p.second->childTransmit));
-			}
-
-			if (p.second->childReflect != nullptr)
-			{
-				//bool terminate = p.first.second || p.second->childReflect->ray.reflectionMaterialId >= 0 || p.second->childReflect->ray.penetrationMaterialId >= 0;
-				bool terminate = p.first.second || p.second->childReflect->ray.captured;
-				std::vector<Ray> newVect(p.first.first);
-				newVect.push_back(p.second->childReflect->ray);
-				q.push(std::make_pair(std::make_pair(newVect, terminate), p.second->childReflect));
-			}
+			std::vector<Ray> captured(p.first);
+			captured.back().hitSurfaceID = -1;
+			captured.back().hitCoplanarId = -1;
+			rayPaths.push_back(captured);
 		}
-		else
+		for (PathTreeNode* child : { p.second->childTransmit, p.second->childReflect })
 		{
-			if (p.first.second || p.second->ray.captured)
-			{
-				rayPaths.push_back(p.first.first);
-			}
+			if (child == nullptr) continue;
+			std::vector<Ray> extended(p.first);
+			extended.push_back(child->ray);
+			q.push(std::make_pair(extended, child));
 		}
 	}
 }

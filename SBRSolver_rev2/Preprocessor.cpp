@@ -37,6 +37,18 @@ namespace
     }
 }
 
+// Two facets of one planar surface have parallel or antiparallel normals.
+// The STL file writes them with six decimals, so they are compared with the
+// angular tolerance the RayTubeTracing reference uses (0.01 degrees) instead
+// of bit for bit; otherwise one wall could fall into several surfaces.
+static bool SameOrientation(const Vec3& a, const Vec3& b)
+{
+    static const double kCosTolerance = std::cos(0.01 * EIGEN_PI / 180.0);
+    const double la = a.norm(), lb = b.norm();
+    if (la == 0.0 || lb == 0.0) return false;
+    return std::abs(a.dot(b)) / (la * lb) >= kCosTolerance;
+}
+
 bool Preprocessor::ReadPatternFile(std::string fileName, GainMap& output)
 {
     std::string line;
@@ -200,6 +212,16 @@ bool Preprocessor::StlToGeometry
 
         BfsCoplanarSurface(adjacencyList, output);
 
+        // The facet normal of the file (6 decimals, not always unit length)
+        // decided the coplanar grouping above; the geometry itself uses the
+        // normal of the vertices, as the RayTubeTracing reference does, so
+        // reflections, image sources and Fresnel angles are exact.
+        for (size_t i = firstNew; i < output.size(); i++)
+        {
+            output[i]->norm = output[i]->findNormal();
+            output[i]->coordSys = output[i]->findCoordSys();
+        }
+
         std::string surfaceError;
         const bool surfacesOk = ApplySurfaceMaterials(surfaceMaterials, output, surfaceError);
 
@@ -291,7 +313,7 @@ void Preprocessor::InsertEdgeIntoMap
     {
         for (const int& i : it->second)
         {
-            if ((triangles[i]->norm == triangles[triId]->norm) || (triangles[i]->norm == -triangles[triId]->norm))
+            if (SameOrientation(triangles[i]->norm, triangles[triId]->norm))
             {
                 adjacencyList[i].push_back(triId);
                 adjacencyList[triId].push_back(i);
@@ -310,7 +332,7 @@ void Preprocessor::InsertEdgeIntoMap
     {
         for (const int& i : it->second)
         {
-            if ((triangles[i]->norm == triangles[triId]->norm) || (triangles[i]->norm == -triangles[triId]->norm))
+            if (SameOrientation(triangles[i]->norm, triangles[triId]->norm))
             {
                 adjacencyList[i].push_back(triId);
                 adjacencyList[triId].push_back(i);
@@ -329,7 +351,7 @@ void Preprocessor::InsertEdgeIntoMap
     {
         for (const int& i : it->second)
         {
-            if ((triangles[i]->norm == triangles[triId]->norm) || (triangles[i]->norm == -triangles[triId]->norm))
+            if (SameOrientation(triangles[i]->norm, triangles[triId]->norm))
             {
                 adjacencyList[i].push_back(triId);
                 adjacencyList[triId].push_back(i);

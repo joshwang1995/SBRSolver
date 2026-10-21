@@ -12,3 +12,6 @@
 *.vtk text
 *.csv text
 *.m   text
+
+# The reference solver is a Windows executable
+*.exe binary

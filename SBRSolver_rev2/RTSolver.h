@@ -54,6 +54,8 @@ protected:
 	int _pathsCount = 0;
 	int _receiverCount = 0;
 	int _threadCount = 0;
+	// Triangles of every coplanar surface, indexed by Triangle::coplanarId.
+	std::vector<std::vector<Triangle*>> _coplanarGroups;
 private:
 	void RayLaunch
 	(
@@ -74,9 +76,19 @@ private:
 		const Vec3& receiver, 
 		double totalPathLength
 	);
+	// Replaces every captured path of a receiver by the exact path with the
+	// same interaction sequence (image method) and drops the ones that do not
+	// exist: no intersection with the surface, or a segment blocked by another
+	// surface.
 	void ImagePathCorrection(int receiverId, const Vec3& txPoint, const std::vector<Triangle*>& triangleMesh);
 	bool MultiPathCorrection(std::vector<Ray>& multiPath, int receiverId, const Vec3& txPoint, const std::vector<Triangle*>& triangleMesh);
 	bool DirectPathCorrection(std::vector<Ray>& directPath, int receiverId, const Vec3& txPoint);
+	// True when the open segment from `from` to `to` crosses a triangle that
+	// belongs to neither of the two coplanar surfaces (-1: none) at its ends.
+	bool SegmentBlocked(const Vec3& from, const Vec3& to, int skipCoplanarA, int skipCoplanarB) const;
+	// Intersection of the ray from `origin` towards `target` with a coplanar
+	// surface; returns the triangle hit (or nullptr) and the point.
+	Triangle* IntersectSurface(int coplanarId, const Vec3& origin, const Vec3& target, Vec3& point) const;
 	void RemoveDuplicatePath(int receiverId);
 	void InitRayPaths();
 	void DeleteRayPaths();
