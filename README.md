@@ -112,7 +112,7 @@ never on a surface, and away from the transmitter.
 | `fine/ground.ini` | 9,981 | one every 0.1 m along the strip's centre line, y = 1 … 999 m, 3 m high (the whole line lies above the plane; the fringes of the two-ray interference are sub-metre near the transmitter) |
 | `fine/corner.ini` | 6,320 | 0.25 m grid at 1.5 m over the whole 20 m × 20 m floor, 0.25 m clear of the wall |
 | `fine/office.ini` | 1,728 | 0.25 m grid at 1.5 m over every room, offset so no receiver lies on a partition; 658 receivers (the room closed by the glass panel and the rooms without a line of sight) get no field with `max_reflections = 1` and `max_transmissions = 0`; tessellation 4, because 642 rays miss a grazing reflection at a few receivers next to a partition |
-| `fine/bahen.ini` | 6,858 | 0.5 m grid at 1.5 m over the floor area the transmitter can reach without passing through a wall (the hall and the corridors around it; the parts of the floor that walls seal off are left out), 0.3 m clear of every wall and pillar; 7 receivers in door recesses get no field with one reflection |
+| `fine/bahen.ini` | 6,858 | 0.5 m grid at 1.5 m over the floor area the transmitter can reach without passing through a wall (the hall around the transmitter; the parts of the floor that walls seal off are left out), 0.3 m clear of every wall and pillar; 7 receivers in door recesses get no field with one reflection, and at tessellation 4 the launch misses 78 of the 32,803 single-bounce paths (grazing wall reflections at 62 receivers, up to 10 dB there) |
 
 Run them like any other scene, with an explicit output directory:
 
