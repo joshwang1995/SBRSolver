@@ -36,7 +36,9 @@ Features
 
 SBRSolver is a plain C++17 program built with [CMake](https://cmake.org). It compiles and runs
 on Windows, Linux and macOS with any recent compiler (MSVC 2019+, GCC 8+, Clang 9+, Xcode 11+ on macOS 10.15 or newer).
-The only dependency, [Eigen](https://eigen.tuxfamily.org), is bundled as a git submodule.
+Its dependencies are bundled as git submodules: [Eigen](https://eigen.tuxfamily.org), and
+[Polyscope](https://polyscope.run) and [Tracy](https://github.com/wolfpld/tracy) for the built-in
+viewer and the optional profiling.
 
 ### Prerequisites
 
@@ -46,9 +48,12 @@ The only dependency, [Eigen](https://eigen.tuxfamily.org), is bundled as a git s
   - Windows: Visual Studio 2019/2022 with the *Desktop development with C++* workload
     (the command-line *Build Tools* are enough), or MinGW-w64 with the posix or mcf thread model
     (the MSYS2 UCRT64/MINGW64 packages; the older win32 thread model lacks `std::thread` before GCC 13)
-  - Linux: `sudo apt install build-essential cmake git` (Debian/Ubuntu) or the equivalent
+  - Linux: `sudo apt install build-essential cmake git` (Debian/Ubuntu) or the equivalent, plus
+    `xorg-dev libglu1-mesa-dev` for the built-in viewer (`libegl1-mesa-dev` for headless rendering)
   - macOS 10.15 (Catalina) or newer: `xcode-select --install` and `brew install cmake`
 * Optional: Python 3 to run the regression test
+* Optional: the [Tracy profiler](https://github.com/wolfpld/tracy/releases) GUI (version 0.14.1, the
+  version of the bundled client) to watch the solver's performance live
 
 ### Build
 
@@ -59,9 +64,16 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel
 ```
 
-If you cloned without `--recurse-submodules`, fetch Eigen first with
-`git submodule update --init --recursive`. Alternatively install Eigen 3.4 system-wide
-(`apt install libeigen3-dev`, `brew install eigen`, `vcpkg install eigen3`) and CMake will pick it up.
+If you cloned without `--recurse-submodules`, fetch the submodules first with
+`git submodule update --init --recursive`: Eigen, Polyscope (the viewer's rendering library, with its
+own bundled GLFW, Dear ImGui and glm) and Tracy (the profiler client) are all git submodules, so
+nothing has to be installed system-wide on any platform (on Linux the OpenGL/X11 development packages
+listed above are needed to build the viewer). Eigen alone can also come from a system-wide install
+(`apt install libeigen3-dev`, `brew install eigen`, `vcpkg install eigen3`).
+
+Two CMake options control the extras: `-DSBR_BUILD_VIEWER=OFF` builds the solver without the viewer
+(no OpenGL needed at all), `-DSBR_ENABLE_TRACY=ON` adds the profiler instrumentation (off by default,
+see *Profiling with Tracy*).
 
 The executable is written to `build/sbrsolver` on Linux/macOS. On Windows the Visual Studio generator
 (CMake's default when Visual Studio is installed) puts it in `build\Release\sbrsolver.exe`; single-config
@@ -75,6 +87,7 @@ with `cmake -S . -B build -G "Visual Studio 17 2022"`; both use the same `CMakeL
 ./build/sbrsolver                                                # runs SBRSolver_rev2/data/ground.ini
 ./build/sbrsolver SBRSolver_rev2/data/office.ini results/office  # another scene, into its own output directory
 ./build/sbrsolver my_case.ini                                    # custom config, results in output/ next to it
+./build/sbrsolver SBRSolver_rev2/data/office.ini results/office --view   # ... and open the built-in 3D viewer afterwards
 ./build/sbrsolver --help
 ```
 
@@ -95,6 +108,59 @@ scenes other than `ground.ini` with an explicit output directory.
 incidence with the Fresnel coefficients of the surface material. `RayPath.vtk` holds every path that
 was found (exact image-method paths, one per receiver and interaction sequence) and `RxLocations.vtk`
 the receivers with `|E|` and the field in dB(µV/m).
+
+### Viewer
+
+![The office scene in the viewer: the room, the ray paths and the 2D field view](docs/viewer_office.png)
+
+`--view` (or `viewer = true` in `[outputs]`) opens the built-in 3D viewer on the results once the run
+has finished; the VTK/CSV files are still written, so ParaView and scripts keep working. The viewer
+is built on [Polyscope](https://polyscope.run) and runs on Windows, Linux and macOS. Every item is an
+overlay that can be switched on and off, in the *SBRSolver* panel or in Polyscope's structure list:
+
+* the scene, coloured by **Face ID**, **Material ID** (with a legend of the material names) or
+  **Surface ID** (the coplanar surface ids used by `[surface_materials]`);
+* the mesh **edges**, with the **wedge edges** (two faces at an angle, the candidates for diffraction)
+  highlighted; **diffracting edges** appear once the diffraction model exists;
+* the **transmitter** with its antenna axes and the **receivers**, coloured by any field quantity:
+  `|E|`, `|E|` in dBµV/m, received power in dBm (polarisation-matched isotropic antenna,
+  `|E|² λ² / 4π η₀`), the phase or the magnitude of `Ex`, `Ey`, `Ez`;
+* **all ray paths**, with a filter to show the paths of one receiver, coloured by receiver or by the
+  number of interactions;
+* a **2D interpolated view**: the field interpolated onto a regular grid in the receivers' plane
+  (inverse-distance or nearest-neighbour interpolation of the complex components, then the chosen
+  quantity);
+* a **3D slice view**: the field interpolated onto a grid over the receivers' bounding box and drawn on
+  a movable slice plane (buttons set the plane along x, y or z; the plane's own widget moves it freely).
+  A flat receiver layout has no volume, so the 2D view covers it.
+
+The scene is drawn half transparent by default so that the inside of a closed room is visible from
+outside; the *Scene* section of the panel sets the transparency and can hide the faces that face the
+camera (or those facing away) instead, which removes the near walls of a room whose normals point
+outward (inward). Mouse: left-drag rotates, right-drag pans, wheel zooms; clicking a receiver, face
+or path shows its values in the selection panel. Options for scripts and tests: `--screenshot FILE`
+renders the view into a PNG (or JPEG) file and exits, `--viewer-frames N` closes the viewer after N
+frames (N ≥ 1), and `--viewer-backend NAME` selects `openGL3_glfw` (a window), `openGL3_egl`
+(headless rendering on Linux) or `openGL_mock` (no rendering, used by the tests). Without a display,
+run with `xvfb-run`, or use the EGL backend together with `--screenshot` or `--viewer-frames`; an
+interactive `--view` needs a window and fails without one.
+
+### Profiling with Tracy
+
+The solver is instrumented for the [Tracy](https://github.com/wolfpld/tracy) profiler. Configure
+with `-DSBR_ENABLE_TRACY=ON` to build the instrumented solver: the preprocessing, every ray launch,
+each receiver's image-path correction and field computation and the outputs are zones, the worker
+threads are named, and each rendered viewer frame is a frame mark. Recording is *on demand* by
+default: the zones cost nothing measurable until the Tracy GUI connects, and only what runs after
+the connection is recorded, but the client itself adds about 0.2 s of start-up (timer calibration),
+a few threads and a listening socket (TCP 8086) to every run, which is why the option is off by
+default. To watch a long run, start the Tracy profiler (release 0.14.1 to match the bundled client),
+press *Connect* (the solver appears in the list of clients on the local network, or enter its
+address) and then start `sbrsolver`. For a short run, build with `-DSBR_TRACY_ON_DEMAND=OFF` and
+run with the environment variable `TRACY_NO_EXIT=1`: the solver then records from start-up and waits
+at exit until the GUI has connected and fetched the data. `TRACY_NO_BROADCAST` and
+`TRACY_ONLY_LOCALHOST` (Tracy's own CMake options)
+restrict the client to local connections.
 
 ### Configuration file
 
@@ -126,6 +192,7 @@ required keys, values of the wrong type or range and missing files are reported 
 | `[material]` (repeatable) | `name`, `reflection_loss`, `transmission_loss`, `rel_conductivity`, `rel_permittivity_re`, `rel_permittivity_im`, `frequency_hz` | one section per material with a unique name; the first is the default for `stl_file`. The field computation uses the complex permittivity `rel_permittivity_re - j rel_conductivity / (2π f ε₀)` at the transmitter frequency; the other values are read but not applied. `frequency_hz` defaults to the transmitter frequency |
 | `[surface_materials]` | `<surface id> = <material name>` | override whole coplanar surfaces; ids are the `CoplanarID` field of `Faces.vtk`, written as plain decimal numbers, each at most once |
 | `[outputs]` | `ray_paths`, `receivers`, `field_csv`, `icosahedron` | which result files to write (defaults `true`, `true`, `true`, `false`) |
+| | `viewer` | open the built-in viewer after the run (default `false`; `--view` does the same) |
 
 The scene, receiver layout and material parameters are no longer set in the source code.
 
@@ -162,10 +229,20 @@ checks `ground` and `office` twice and `corner` and `bahen` once:
   `tools/raytube/README.md` describes the conversion of the configuration files, the tolerances and
   the limits of the reference.
 
+The viewer has tests of its own: `viewer_unit_tests` (the scene data model and the field
+interpolation, no display needed), `viewer_smoke_mock` and `viewer_smoke_mock_volume` (a synthetic
+run through every overlay, with flat and with layered receivers, using the rendering-free mock
+backend), `viewer_mock_office` (the whole viewer on the office scene with the mock backend, every
+platform), `viewer_cli_rejects_frames`, `viewer_cli_rejects_screenshot_type` and
+`viewer_cli_rejects_backend` (malformed viewer options are refused before the run) and, where
+`xvfb-run` exists, `viewer_screenshot_office` (a real
+rendering into a PNG, which fails when no file is written).
+
 The same build and test matrix runs in GitHub Actions on Ubuntu (GCC and Clang), macOS and Windows
 (where the reference solver is run) for every pull request and every pushed commit; CI configures
 with `-DSBR_REQUIRE_REFERENCE_TESTS=ON` so a runner without Python fails instead of skipping the
-comparisons.
+comparisons, and with `-DSBR_ENABLE_TRACY=ON` so the instrumented solver is built and tested on
+every platform.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -201,6 +278,19 @@ Any Git client (command line, Visual Studio, VS Code, GitKraken, ...) works for 
   close enough to the exact path for the reception sphere to capture it; raise `tessellation` until
   the number of paths in `RayPath.vtk` stops changing. The `raytube_*` tests show which receivers lost
   a path.
+* **`--view` ends with "no display is available" or "no Polyscope backends could be initialized".**
+  There is no display (a remote shell, a container, CI), so the interactive viewer refuses to start
+  rather than run without a window. Use `xvfb-run -a ./build/sbrsolver ... --screenshot view.png`,
+  or `--screenshot` / `--viewer-frames N` with `--viewer-backend openGL3_egl` on Linux, to render
+  without a display, or `--viewer-backend openGL_mock --viewer-frames N` to run the viewer code
+  without rendering. On a desktop, the graphics driver must provide OpenGL 3.3.
+* **The Tracy GUI shows no client.** The solver must be built with `-DSBR_ENABLE_TRACY=ON`; the
+  GUI and the bundled client must be the same version (0.14.1);
+  a firewall may block the discovery broadcast (UDP 8086) or the connection (TCP 8086), in which case
+  enter the machine's address in the GUI; and the solver must be running while you connect: start a
+  long run, or for a short one build with `-DSBR_TRACY_ON_DEMAND=OFF` and run with `TRACY_NO_EXIT=1`
+  (see *Profiling with Tracy*); `--view` keeps the process alive, but in the on-demand build only the
+  viewer's frames are then recorded.
 * **Parallelism.** The solver runs the ray launches and the per-receiver field computation on all
   hardware threads by default, with results identical to a single-threaded run. Set `threads = 1` in
   `[ray_tracing]` to run serially (for example when timing or debugging), or a specific count to leave

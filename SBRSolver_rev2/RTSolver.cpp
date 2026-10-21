@@ -1,5 +1,6 @@
 #include "RTSolver.h"
 #include "common/ParallelFor.h"
+#include "common/Profiling.h"
 
 #include <algorithm>
 #include <iomanip>
@@ -78,6 +79,7 @@ int RTSolver::ExecuteRayTracing
 	int txTesslation
 )
 {
+	SBR_ZONE_NAMED("ExecuteRayTracing");
 	RayGlobalId = 0;
 
 	_maxReflectionCount = maxReflectionCount;
@@ -109,6 +111,7 @@ int RTSolver::ExecuteRayTracing
 	// atomic counter and are only used for debugging output.
 	ParallelFor(_pathsCount, threads, [&](int i)
 	{
+		SBR_ZONE_NAMED("RayLaunch");
 		Vec3 origin = sourcePoint;
 		PathTreeNode rootNode;
 		rootNode.ray.id = RayGlobalId++;
@@ -147,17 +150,82 @@ int RTSolver::ExecuteRayTracing
 	// Each receiver only touches its own column of _rayPaths and its own
 	// entry of _efield, so the receivers run independently as well.
 	_efield->assign(_receiverCount, Vec3c{ cdouble(0,0), cdouble(0,0), cdouble(0,0) });
+	_pathFields.assign(_receiverCount, std::vector<Vec3c>());
 	timer.restart();
 	ParallelFor(_receiverCount, threads, [&](int k)
 	{
-		ImagePathCorrection(k, sourcePoint, triangleMesh);
-		RemoveDuplicatePath(k);
-		(*_efield)[k] = fieldCore->FieldAtReceiver(k);
+		SBR_ZONE_NAMED("ReceiverField");
+		{
+			SBR_ZONE_NAMED("ImagePathCorrection");
+			ImagePathCorrection(k, sourcePoint, triangleMesh);
+			RemoveDuplicatePath(k);
+		}
+		// The field of every path is kept (the viewer shows it) and summed.
+		std::vector<Vec3c>& fields = _pathFields[k];
+		fields.clear();
+		Vec3c total{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
+		for (int i = 0; i < _pathsCount; i++)
+		{
+			for (const std::vector<Ray>& path : _rayPaths[i][k].rayPaths)
+			{
+				const Vec3c field = fieldCore->FieldForPath(path);
+				fields.push_back(field);
+				total += field;
+			}
+		}
+		(*_efield)[k] = total;
 	});
 	std::cout << "\tTotal Time in field computation -> " << timer.getTime() << std::endl;
 	
 	delete fieldCore;
 	return _pathsCount * _receiverCount;
+}
+
+const std::vector<Vec3c>& RTSolver::Fields() const
+{
+	static const std::vector<Vec3c> empty;
+	return _efield ? *_efield : empty;
+}
+
+std::vector<sbr::viewer::ScenePath> RTSolver::CollectPaths() const
+{
+	using sbr::viewer::InteractionType;
+	using sbr::viewer::ScenePath;
+	std::vector<ScenePath> result;
+	if (_rayPaths == nullptr) return result;
+	// _pathFields[j] holds the fields in (launch, path) order: the order of
+	// the loops below for a fixed receiver j.
+	std::vector<size_t> nextField(_receiverCount, 0);
+	for (int i = 0; i < _pathsCount; i++)
+	{
+		for (int j = 0; j < _receiverCount; j++)
+		{
+			const Paths& paths = _rayPaths[i][j];
+			for (size_t p = 0; p < paths.rayPaths.size(); p++)
+			{
+				const std::vector<Ray>& rays = paths.rayPaths[p];
+				const size_t fieldIndex = nextField[j]++;
+				if (rays.empty()) continue;
+				ScenePath sp;
+				sp.receiverId = j;
+				sp.launchId = i;
+				sp.points.reserve(rays.size() + 1);
+				sp.points.push_back(rays[0].sourcePoint);
+				for (size_t r = 0; r < rays.size(); r++)
+				{
+					sp.points.push_back(rays[r].targetPoint);
+					sp.length += (rays[r].targetPoint - rays[r].sourcePoint).norm();
+					if (r > 0)
+					{
+						sp.interactions.push_back(rays[r].reflectionMaterialId >= 0 ? InteractionType::Reflection : InteractionType::Transmission);
+					}
+				}
+				if (j < int(_pathFields.size()) && fieldIndex < _pathFields[j].size()) sp.field = _pathFields[j][fieldIndex];
+				result.push_back(sp);
+			}
+		}
+	}
+	return result;
 }
 
 void RTSolver::RayLaunch

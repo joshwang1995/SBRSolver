@@ -10,6 +10,8 @@
 #include <thread>
 #include <vector>
 
+#include "common/Profiling.h"
+
 // Number of worker threads to use when the configuration asks for "all
 // cores" (0): the hardware concurrency, or 1 if it is unknown.
 inline int DefaultThreadCount()
@@ -65,7 +67,11 @@ inline void ParallelFor(int count, int threads, const std::function<void(int)>& 
 	{
 		try
 		{
-			pool.emplace_back(worker);
+			pool.emplace_back([&worker]()
+			{
+				SBR_THREAD_NAME("sbr worker");   // the calling thread keeps its name
+				worker();
+			});
 		}
 		catch (...)
 		{

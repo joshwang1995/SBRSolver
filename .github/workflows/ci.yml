@@ -30,10 +30,16 @@ jobs:
             # the other platforms they compare with its committed output.
 
     steps:
-      - name: Check out sources and Eigen submodule
+      - name: Check out sources and submodules (Eigen, Polyscope, Tracy)
         uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Install the viewer's build dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xorg-dev libglu1-mesa-dev libegl1-mesa-dev libxkbcommon-dev xvfb
 
       - name: Configure
         env:
@@ -41,11 +47,13 @@ jobs:
           CXX: ${{ matrix.cxx }}
         # SBR_REQUIRE_REFERENCE_TESTS: a runner without Python must fail here
         # rather than pass a test suite without the comparisons.
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSBR_REQUIRE_REFERENCE_TESTS=ON ${{ matrix.cmake_args }}
+        # SBR_ENABLE_TRACY: the profiler client is off by default; CI builds
+        # and tests the instrumented solver on every platform.
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSBR_REQUIRE_REFERENCE_TESTS=ON -DSBR_ENABLE_TRACY=ON ${{ matrix.cmake_args }}
 
       - name: Build
         run: cmake --build build --config Release --parallel
 
-      - name: Run the scenes and compare with the reference solver
+      - name: Run the scenes, the viewer tests and the reference comparison
         working-directory: build
         run: ctest -C Release --output-on-failure

@@ -9,6 +9,7 @@
 #include "Triangle.h"
 #include "Preprocessor.h"
 #include "FieldCompute.h"
+#include "viewer/SceneData.h"
 #include <mutex>
 
 class RTSolver
@@ -34,6 +35,10 @@ public:
 		std::vector<Triangle*>& triangleMesh,
 		int txTesslation
 	);
+	// Results of the last ExecuteRayTracing for the viewer: the total field
+	// per receiver and every image-corrected path with its own field.
+	const std::vector<Vec3c>& Fields() const;
+	std::vector<sbr::viewer::ScenePath> CollectPaths() const;
 	bool SavePathsAsVtk(std::string fname);
 	bool SaveReceiversAsVtk(std::string fname);
 	bool SaveFieldAsCsv(std::string fname);
@@ -46,6 +51,9 @@ protected:
 	std::vector<Vec3>* _shootRayList = nullptr;
 	VecVec3* _receivers = nullptr;
 	std::vector<Vec3c>* _efield = nullptr;
+	// Field of every captured path, per receiver, in the order CollectPaths
+	// visits them (launch, then path). Grows with the captured paths only.
+	std::vector<std::vector<Vec3c>> _pathFields;
 
 	bool _isSceneInitialized = false;
 	int _txTesslation = 0;

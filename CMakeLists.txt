@@ -9,6 +9,9 @@ project(SBRSolver
 # Options
 # ---------------------------------------------------------------------------
 option(SBR_WARNINGS "Enable the compiler's standard warning set" ON)
+option(SBR_BUILD_VIEWER "Build the built-in 3D viewer (Polyscope, --view / [outputs] viewer = true)" ON)
+option(SBR_ENABLE_TRACY "Instrument the solver for the Tracy profiler (connect the Tracy GUI while it runs)" OFF)
+option(SBR_TRACY_ON_DEMAND "Tracy records only once the GUI connects; OFF records from start-up (run with TRACY_NO_EXIT=1 to wait for the GUI at exit)" ON)
 
 # Default to a Release build for single-config generators (Makefiles, Ninja).
 # Multi-config generators (Visual Studio, Xcode) pick the config at build time.
@@ -72,6 +75,63 @@ if(NOT SBR_HAS_STD_THREAD)
 endif()
 
 # ---------------------------------------------------------------------------
+# Third-party libraries (git submodules under third_party/)
+# ---------------------------------------------------------------------------
+set(_sbr_third_party "${CMAKE_CURRENT_SOURCE_DIR}/third_party")
+
+if(SBR_BUILD_VIEWER)
+    if(NOT EXISTS "${_sbr_third_party}/polyscope/CMakeLists.txt" OR NOT EXISTS "${_sbr_third_party}/polyscope/deps/glfw/CMakeLists.txt")
+        message(FATAL_ERROR
+            "SBRSolver: the viewer needs the Polyscope submodule and its own submodules. Run\n"
+            "    git submodule update --init --recursive\n"
+            "or configure with -DSBR_BUILD_VIEWER=OFF.")
+    endif()
+    # Polyscope bundles GLFW, Dear ImGui, glm and stb. The mock backend lets the
+    # viewer run without a display (used by the tests); EGL is picked up on Linux
+    # when available for headless rendering.
+    set(POLYSCOPE_BACKEND_OPENGL3_GLFW ON CACHE BOOL "" FORCE)
+    set(POLYSCOPE_BACKEND_OPENGL_MOCK ON CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    add_subdirectory("${_sbr_third_party}/polyscope" EXCLUDE_FROM_ALL)
+    # Polyscope's headers are not warning-clean under -Wextra; treat them as
+    # system headers so our own warnings stay visible.
+    foreach(_sbr_dep polyscope imgui glm glfw)
+        if(TARGET ${_sbr_dep})
+            set_target_properties(${_sbr_dep} PROPERTIES
+                INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "$<TARGET_PROPERTY:${_sbr_dep},INTERFACE_INCLUDE_DIRECTORIES>")
+        endif()
+    endforeach()
+    message(STATUS "SBRSolver: viewer enabled (Polyscope)")
+endif()
+
+if(SBR_ENABLE_TRACY)
+    if(NOT EXISTS "${_sbr_third_party}/tracy/CMakeLists.txt")
+        message(FATAL_ERROR
+            "SBRSolver: the Tracy submodule is missing. Run\n"
+            "    git submodule update --init --recursive\n"
+            "or configure with -DSBR_ENABLE_TRACY=OFF.")
+    endif()
+    # By default the client records once the Tracy GUI connects (on demand);
+    # with SBR_TRACY_ON_DEMAND=OFF it records from start-up (and waits for
+    # the GUI at exit when TRACY_NO_EXIT=1 is set), which suits short runs.
+    # Until the GUI connects the zones cost nothing measurable, but the
+    # client itself adds about 0.2 s of start-up (timer calibration), a few
+    # threads and a listening socket (TCP 8086) to every run, which is why
+    # SBR_ENABLE_TRACY is off by default and CI builds with it on.
+    set(TRACY_ENABLE ON CACHE BOOL "" FORCE)
+    set(TRACY_ON_DEMAND ${SBR_TRACY_ON_DEMAND} CACHE BOOL "" FORCE)
+    set(TRACY_STATIC ON CACHE BOOL "" FORCE)
+    add_subdirectory("${_sbr_third_party}/tracy" EXCLUDE_FROM_ALL)
+    if(SBR_TRACY_ON_DEMAND)
+        message(STATUS "SBRSolver: Tracy profiling enabled (on demand)")
+    else()
+        message(STATUS "SBRSolver: Tracy profiling enabled (recording from start-up; run with TRACY_NO_EXIT=1 to wait for the GUI at exit)")
+    endif()
+endif()
+
+# ---------------------------------------------------------------------------
 # Executable
 # ---------------------------------------------------------------------------
 set(SBR_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/SBRSolver_rev2")
@@ -86,7 +146,13 @@ add_executable(sbrsolver
     ${SBR_SRC_DIR}/SimulationConfig.cpp
     ${SBR_SRC_DIR}/Triangle.cpp
     ${SBR_SRC_DIR}/timer/Timer.cpp
+    ${SBR_SRC_DIR}/viewer/SceneData.cpp
+    ${SBR_SRC_DIR}/viewer/FieldGrid.cpp
     # headers listed so IDE generators show them
+    ${SBR_SRC_DIR}/viewer/SceneData.h
+    ${SBR_SRC_DIR}/viewer/FieldGrid.h
+    ${SBR_SRC_DIR}/viewer/Viewer.h
+    ${SBR_SRC_DIR}/common/Profiling.h
     ${SBR_SRC_DIR}/FieldCompute.h
     ${SBR_SRC_DIR}/Icosahedron.h
     ${SBR_SRC_DIR}/Preprocessor.h
@@ -106,6 +172,16 @@ add_executable(sbrsolver
 
 target_include_directories(sbrsolver PRIVATE "${SBR_SRC_DIR}")
 target_link_libraries(sbrsolver PRIVATE sbr_eigen Threads::Threads)
+
+if(SBR_BUILD_VIEWER)
+    target_sources(sbrsolver PRIVATE ${SBR_SRC_DIR}/viewer/Viewer.cpp)
+    target_link_libraries(sbrsolver PRIVATE polyscope)
+    target_compile_definitions(sbrsolver PRIVATE SBR_HAS_VIEWER=1)
+endif()
+if(SBR_ENABLE_TRACY)
+    target_link_libraries(sbrsolver PRIVATE Tracy::TracyClient)
+    target_compile_definitions(sbrsolver PRIVATE SBR_HAS_TRACY=1)
+endif()
 
 # Where the shipped configuration files, scenes and receiver files live, so the
 # binary can be run from any working directory. The configuration file to use
@@ -139,15 +215,16 @@ if(NOT SBR_FILESYSTEM_BUILTIN)
     check_cxx_source_compiles("${_sbr_fs_src}" SBR_FILESYSTEM_NEEDS_CXXFS)
     unset(CMAKE_REQUIRED_LIBRARIES)
     if(SBR_FILESYSTEM_NEEDS_STDCXXFS)
-        target_link_libraries(sbrsolver PRIVATE stdc++fs)
+        set(_sbr_fs_lib stdc++fs)
     elseif(SBR_FILESYSTEM_NEEDS_CXXFS)
-        target_link_libraries(sbrsolver PRIVATE c++fs)
+        set(_sbr_fs_lib c++fs)
     else()
         message(FATAL_ERROR
             "SBRSolver: this compiler/standard library has no usable std::filesystem. "
             "Needs GCC 8+, Clang 7+ with libstdc++ 8+ or libc++ 7+, MSVC 2017 15.7+, "
             "or Xcode 11+ targeting macOS 10.15 or newer.")
     endif()
+    target_link_libraries(sbrsolver PRIVATE ${_sbr_fs_lib})
 endif()
 
 # Visual Studio: start the debugger in the source tree like the old project did.
@@ -173,6 +250,78 @@ foreach(_scene IN LISTS _sbr_scenes)
     # when only a comparison test is selected with ctest -R.
     set_tests_properties(sbrsolver_run_${_scene} PROPERTIES TIMEOUT 600 FIXTURES_SETUP sbr_run_${_scene})
 endforeach()
+
+# Unit tests of the viewer's data model and field interpolation (no display).
+add_executable(sbr_viewer_tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/viewer_tests.cpp
+    ${SBR_SRC_DIR}/viewer/SceneData.cpp
+    ${SBR_SRC_DIR}/viewer/FieldGrid.cpp
+    ${SBR_SRC_DIR}/Triangle.cpp)
+target_include_directories(sbr_viewer_tests PRIVATE "${SBR_SRC_DIR}")
+target_link_libraries(sbr_viewer_tests PRIVATE sbr_eigen)
+if(MSVC)
+    target_compile_definitions(sbr_viewer_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
+    if(SBR_WARNINGS)
+        target_compile_options(sbr_viewer_tests PRIVATE /W4 /wd4267)
+    endif()
+elseif(SBR_WARNINGS)
+    target_compile_options(sbr_viewer_tests PRIVATE -Wall -Wextra)
+endif()
+add_test(NAME viewer_unit_tests COMMAND sbr_viewer_tests)
+
+# Smoke test of the viewer itself: a synthetic run goes through every overlay
+# with Polyscope's mock backend, so it needs no display. With a display (or
+# xvfb-run) `sbr_viewer_smoke --screenshot shot.png` renders it for real.
+if(SBR_BUILD_VIEWER)
+    add_executable(sbr_viewer_smoke
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/viewer_smoke.cpp
+        ${SBR_SRC_DIR}/viewer/Viewer.cpp
+        ${SBR_SRC_DIR}/viewer/SceneData.cpp
+        ${SBR_SRC_DIR}/viewer/FieldGrid.cpp
+        ${SBR_SRC_DIR}/Triangle.cpp)
+    target_include_directories(sbr_viewer_smoke PRIVATE "${SBR_SRC_DIR}")
+    target_link_libraries(sbr_viewer_smoke PRIVATE sbr_eigen polyscope ${_sbr_fs_lib})   # Viewer.cpp uses std::filesystem
+    if(MSVC)
+        target_compile_definitions(sbr_viewer_smoke PRIVATE _CRT_SECURE_NO_WARNINGS)
+    elseif(SBR_WARNINGS)
+        target_compile_options(sbr_viewer_smoke PRIVATE -Wall -Wextra)
+    endif()
+    add_test(NAME viewer_smoke_mock COMMAND sbr_viewer_smoke --backend openGL_mock --frames 2 --runs 2)
+    # Three receiver layers: the field volume (hex mesh) and the slice plane exist.
+    add_test(NAME viewer_smoke_mock_volume COMMAND sbr_viewer_smoke --backend openGL_mock --frames 2 --receiver-layers 3)
+    set_tests_properties(viewer_smoke_mock viewer_smoke_mock_volume PROPERTIES TIMEOUT 300)
+endif()
+
+if(SBR_BUILD_VIEWER)
+    # The viewer on a finished run without any rendering (mock backend): every
+    # overlay is registered and two frames are ticked. Runs on every platform.
+    add_test(NAME viewer_mock_office
+             COMMAND sbrsolver "${SBR_SRC_DIR}/data/office.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_viewer"
+                     --viewer-backend openGL_mock --viewer-frames 2)
+    set_tests_properties(viewer_mock_office PROPERTIES TIMEOUT 600)
+    # Malformed viewer options are rejected before the run starts.
+    add_test(NAME viewer_cli_rejects_frames
+             COMMAND sbrsolver "${SBR_SRC_DIR}/data/office.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_viewer"
+                     --viewer-backend openGL_mock --viewer-frames 2x)
+    add_test(NAME viewer_cli_rejects_screenshot_type
+             COMMAND sbrsolver "${SBR_SRC_DIR}/data/office.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_viewer"
+                     --viewer-backend openGL_mock --screenshot "${CMAKE_CURRENT_BINARY_DIR}/test_output_viewer/office.txt")
+    add_test(NAME viewer_cli_rejects_backend
+             COMMAND sbrsolver "${SBR_SRC_DIR}/data/office.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_viewer"
+                     --viewer-backend openGL_bogus --viewer-frames 1)
+    set_tests_properties(viewer_cli_rejects_frames viewer_cli_rejects_screenshot_type viewer_cli_rejects_backend
+                         PROPERTIES WILL_FAIL TRUE TIMEOUT 60)
+    # A real rendering into a PNG where a display (or Xvfb) is available.
+    find_program(SBR_XVFB_RUN xvfb-run)
+    if(SBR_XVFB_RUN)
+        add_test(NAME viewer_screenshot_office
+                 COMMAND "${SBR_XVFB_RUN}" -a "$<TARGET_FILE:sbrsolver>" "${SBR_SRC_DIR}/data/office.ini"
+                         "${CMAKE_CURRENT_BINARY_DIR}/test_output_viewer_shot"
+                         --screenshot "${CMAKE_CURRENT_BINARY_DIR}/test_output_viewer_shot/office.png")
+        # The viewer removes a stale PNG first and fails when none was written.
+        set_tests_properties(viewer_screenshot_office PROPERTIES TIMEOUT 600)
+    endif()
+endif()
 
 # The comparisons need a Python interpreter. They are skipped without one,
 # unless SBR_REQUIRE_REFERENCE_TESTS is set (as CI does), which makes the

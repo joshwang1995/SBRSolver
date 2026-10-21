@@ -55,3 +55,6 @@ Thumbs.db
 # Python byte-code of the tools
 __pycache__/
 *.pyc
+
+# Claude Code agent worktrees
+.claude/

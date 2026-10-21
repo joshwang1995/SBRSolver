@@ -97,6 +97,7 @@ struct SimulationConfig
 	bool writeReceivers = true;
 	bool writeFieldCsv = true;
 	bool writeIcosahedron = false;
+	bool viewer = false;         // open the built-in viewer after the run (also --view)
 };
 
 // Loads `path` into `config`. Relative file names inside the configuration are
