@@ -245,6 +245,27 @@ if(MSVC)
 endif()
 add_test(NAME viewer_unit_tests COMMAND sbr_viewer_tests)
 
+if(SBR_BUILD_VIEWER)
+    # The viewer on a finished run without any rendering (mock backend): every
+    # overlay is registered and two frames are ticked. Runs on every platform.
+    add_test(NAME viewer_mock_office
+             COMMAND sbrsolver "${SBR_SRC_DIR}/data/office.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_viewer"
+                     --viewer-backend openGL_mock --viewer-frames 2)
+    set_tests_properties(viewer_mock_office PROPERTIES TIMEOUT 600)
+    # A real rendering into a PNG where a display (or Xvfb) is available.
+    find_program(SBR_XVFB_RUN xvfb-run)
+    if(SBR_XVFB_RUN)
+        add_test(NAME viewer_screenshot_office
+                 COMMAND "${SBR_XVFB_RUN}" -a "$<TARGET_FILE:sbrsolver>" "${SBR_SRC_DIR}/data/office.ini"
+                         "${CMAKE_CURRENT_BINARY_DIR}/test_output_viewer_shot"
+                         --screenshot "${CMAKE_CURRENT_BINARY_DIR}/test_output_viewer_shot/office.png")
+        set_tests_properties(viewer_screenshot_office PROPERTIES TIMEOUT 600)
+        add_test(NAME viewer_screenshot_office_exists
+                 COMMAND "${CMAKE_COMMAND}" -E cat "${CMAKE_CURRENT_BINARY_DIR}/test_output_viewer_shot/office.png")
+        set_tests_properties(viewer_screenshot_office_exists PROPERTIES DEPENDS viewer_screenshot_office)
+    endif()
+endif()
+
 # The comparisons need a Python interpreter. They are skipped without one,
 # unless SBR_REQUIRE_REFERENCE_TESTS is set (as CI does), which makes the
 # missing interpreter a configure error instead of a silently smaller suite.

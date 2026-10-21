@@ -60,6 +60,7 @@ class Paths
 {
 public:
 	std::vector<std::vector<Ray>> rayPaths;
+	std::vector<Vec3c> fields;   // field of each path at the receiver, filled by the solver
 	Paths();
 	Paths(TreeNode* rootNode);
 	Paths(PathTreeNode* rootNode);

@@ -1,4 +1,5 @@
 #include "Preprocessor.h"
+#include "common/Profiling.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -137,6 +138,7 @@ bool Preprocessor::StlToGeometry
     std::string dataDir
 )
 {
+    SBR_ZONE_NAMED("StlToGeometry");
     // Merged arrays over all files, in stl_reader's layout: coords holds
     // x y z per vertex, tris holds three vertex indices per triangle.
     std::vector<float> coords, normals;

@@ -15,6 +15,11 @@
 #include "SimulationConfig.h"
 #include "timer/Timer.h"
 #include "Triangle.h"
+#include "common/Profiling.h"
+#include "viewer/SceneData.h"
+#if defined(SBR_HAS_VIEWER)
+#include "viewer/Viewer.h"
+#endif
 
 // Directory that holds the reference configuration files, scenes and receiver
 // files. The build system points this at <repo>/SBRSolver_rev2/data so the
@@ -30,12 +35,74 @@ namespace fs = std::filesystem;
 static void PrintUsage(const char* program)
 {
 	std::cout
-		<< "Usage: " << program << " [config_file] [output_dir]\n"
+		<< "Usage: " << program << " [config_file] [output_dir] [options]\n"
 		<< "  config_file  simulation settings (INI format, see SBRSolver_rev2/data/ground.ini)\n"
 		<< "               (default: " << SBR_DEFAULT_DATA_DIR "/" SBR_DEFAULT_CONFIG_NAME << ")\n"
 		<< "  output_dir   directory for the generated VTK/CSV files\n"
 		<< "               (default: <config_file directory>/output, created if missing)\n"
+		<< "Options:\n"
+		<< "  --view                 open the built-in 3D viewer on the results\n"
+		<< "                         (same as viewer = true in [outputs])\n"
+		<< "  --screenshot FILE      render the viewer once into FILE (PNG) and exit\n"
+		<< "  --viewer-frames N      close the viewer after N frames (tests)\n"
+		<< "  --viewer-backend NAME  openGL3_glfw (window), openGL3_egl (headless, Linux)\n"
+		<< "                         or openGL_mock (no rendering); default: automatic\n"
 		<< "File names inside the configuration are relative to the configuration file.\n";
+}
+
+// Command line: positional config_file and output_dir plus the options above.
+struct CommandLine
+{
+	std::vector<std::string> positional;
+	bool view = false;
+	std::string screenshotFile;
+	long viewerFrames = -1;
+	std::string viewerBackend;
+};
+
+static bool ParseCommandLine(int argc, char* argv[], CommandLine& cl, std::string& error)
+{
+	for (int i = 1; i < argc; i++)
+	{
+		const std::string arg = argv[i];
+		auto value = [&](std::string& out)
+		{
+			if (i + 1 >= argc) { error = arg + " needs a value"; return false; }
+			out = argv[++i];
+			return true;
+		};
+		if (arg == "--view") cl.view = true;
+		else if (arg == "--screenshot")
+		{
+			if (!value(cl.screenshotFile)) return false;
+			cl.view = true;
+		}
+		else if (arg == "--viewer-frames")
+		{
+			std::string text;
+			if (!value(text)) return false;
+			try { cl.viewerFrames = std::stol(text); }
+			catch (const std::exception&) { error = "--viewer-frames needs an integer, got '" + text + "'"; return false; }
+			cl.view = true;
+		}
+		else if (arg == "--viewer-backend")
+		{
+			if (!value(cl.viewerBackend)) return false;
+			cl.view = true;
+		}
+		else if (arg.size() > 1 && arg[0] == '-' && arg != "-")
+		{
+			error = "unknown option " + arg;
+			return false;
+		}
+		else cl.positional.push_back(arg);
+	}
+	if (cl.positional.size() > 2)
+	{
+		error = "too many arguments";
+		return false;
+	}
+	return true;
 }
 
 static std::string PathString(const fs::path& p)
@@ -73,6 +140,7 @@ static bool GenerateReceivers(const ReceiverConfig& rx, VecVec3& output)
 
 int main(int argc, char* argv[])
 {
+	SBR_ZONE_NAMED("main");
 	for (int i = 1; i < argc; i++)
 	{
 		const std::string arg = argv[i];
@@ -83,8 +151,16 @@ int main(int argc, char* argv[])
 		}
 	}
 
-	const fs::path configPath = (argc > 1) ? fs::path(argv[1]) : fs::path(SBR_DEFAULT_DATA_DIR) / SBR_DEFAULT_CONFIG_NAME;
-	if (configPath.empty() || (argc > 2 && std::string(argv[2]).empty()))
+	CommandLine cl;
+	std::string clError;
+	if (!ParseCommandLine(argc, argv, cl, clError))
+	{
+		std::cerr << "Error: " << clError << std::endl;
+		PrintUsage(argv[0]);
+		return 1;
+	}
+	const fs::path configPath = (cl.positional.size() > 0) ? fs::path(cl.positional[0]) : fs::path(SBR_DEFAULT_DATA_DIR) / SBR_DEFAULT_CONFIG_NAME;
+	if (configPath.empty() || (cl.positional.size() > 1 && cl.positional[1].empty()))
 	{
 		std::cerr << "Error: empty path argument" << std::endl;
 		PrintUsage(argv[0]);
@@ -104,7 +180,19 @@ int main(int argc, char* argv[])
 	}
 
 	// config.configFile is already absolute and normalised.
-	const fs::path outputDir = (argc > 2) ? fs::path(argv[2]) : fs::path(config.configFile).parent_path() / "output";
+	const fs::path outputDir = (cl.positional.size() > 1) ? fs::path(cl.positional[1]) : fs::path(config.configFile).parent_path() / "output";
+	const bool openViewer = cl.view || config.viewer;
+#if !defined(SBR_HAS_VIEWER)
+	if (cl.view)
+	{
+		std::cerr << "Error: this build has no viewer (configure with -DSBR_BUILD_VIEWER=ON)" << std::endl;
+		return 1;
+	}
+	if (config.viewer)
+	{
+		std::cerr << "Warning: [outputs] viewer = true, but this build has no viewer (configure with -DSBR_BUILD_VIEWER=ON)" << std::endl;
+	}
+#endif
 
 	std::error_code ec;
 	fs::create_directories(outputDir, ec);
@@ -128,6 +216,7 @@ int main(int argc, char* argv[])
 
 	std::cout << "[Entering] Preprocessor" << std::endl;
 	// Preprocessor Begin
+	SBR_ZONE_NAMED("Preprocessor");
 	VecVec3 rxLocation;
 	std::vector<Triangle*> triangle_mesh;
 	BVH<Triangle> bvh;
@@ -238,11 +327,36 @@ int main(int argc, char* argv[])
 
 	std::cout << "Total ray paths traced -> " << totalPaths << std::endl;
 
-	// rayTracer->CmdLineDebug();
-	if (config.writeRayPaths) rayTracer->SavePathsAsVtk(rayPathFileName);
-	if (config.writeIcosahedron) rayTracer->SaveIcosahedronAsVtk(icosahedronFileName, config.txPosition, config.tessellation);
-	if (config.writeReceivers) rayTracer->SaveReceiversAsVtk(rxLocationOutputFileName);
-	if (config.writeFieldCsv) rayTracer->SaveFieldAsCsv(csvFieldFileName);
+	{
+		SBR_ZONE_NAMED("Outputs");
+		// rayTracer->CmdLineDebug();
+		if (config.writeRayPaths) rayTracer->SavePathsAsVtk(rayPathFileName);
+		if (config.writeIcosahedron) rayTracer->SaveIcosahedronAsVtk(icosahedronFileName, config.txPosition, config.tessellation);
+		if (config.writeReceivers) rayTracer->SaveReceiversAsVtk(rxLocationOutputFileName);
+		if (config.writeFieldCsv) rayTracer->SaveFieldAsCsv(csvFieldFileName);
+	}
+
+	// Everything the viewer needs is copied out before the solver's memory is
+	// released, so a large run does not hold both at once.
+	sbr::viewer::SceneData scene;
+	if (openViewer)
+	{
+		SBR_ZONE_NAMED("CollectSceneData");
+		std::vector<std::string> materialNames;
+		for (const MaterialConfig& m : config.materials) materialNames.push_back(m.name);
+		scene.title = PathString(configPath.filename());
+		scene.outputDir = PathString(outputDir);
+		scene.mesh = sbr::viewer::BuildSceneMesh(triangle_mesh, materialNames);
+		scene.edges = sbr::viewer::BuildSceneEdges(scene.mesh);
+		scene.txPosition = config.txPosition;
+		scene.txCoordSys = config.txCoordSys;
+		scene.antennaType = AntennaTypeName(config.antennaType);
+		scene.frequencyHz = config.frequencyHz;
+		scene.txPowerWatts = config.txPowerWatts;
+		scene.receivers.assign(rxLocation.begin(), rxLocation.end());
+		scene.fields = rayTracer->Fields();
+		scene.paths = rayTracer->CollectPaths();
+	}
 
 	delete rayTracer;
 
@@ -252,5 +366,19 @@ int main(int argc, char* argv[])
 	}
 	triangle_mesh.clear();
 
+#if defined(SBR_HAS_VIEWER)
+	if (openViewer)
+	{
+		SBR_ZONE_NAMED("Viewer");
+		sbr::viewer::ViewerOptions options;
+		options.backend = cl.viewerBackend;
+		options.screenshotFile = cl.screenshotFile;
+		options.frames = cl.viewerFrames;
+		std::cout << "[Entering] Viewer" << std::endl;
+		const int status = sbr::viewer::RunViewer(scene, options);
+		std::cout << "[Leaving] Viewer" << std::endl;
+		return status;
+	}
+#endif
 	return 0;
 }

@@ -626,6 +626,7 @@ namespace
 		r.Boolean("receivers", cfg.writeReceivers, false);
 		r.Boolean("field_csv", cfg.writeFieldCsv, false);
 		r.Boolean("icosahedron", cfg.writeIcosahedron, false);
+		r.Boolean("viewer", cfg.viewer, false);
 	}
 } // namespace
 
@@ -778,5 +779,6 @@ void PrintSimulationConfig(const SimulationConfig& c)
 	cout << "\t[outputs] ray_paths=" << (c.writeRayPaths ? "true" : "false")
 		<< " receivers=" << (c.writeReceivers ? "true" : "false")
 		<< " field_csv=" << (c.writeFieldCsv ? "true" : "false")
-		<< " icosahedron=" << (c.writeIcosahedron ? "true" : "false") << endl;
+		<< " icosahedron=" << (c.writeIcosahedron ? "true" : "false")
+		<< " viewer=" << (c.viewer ? "true" : "false") << endl;
 }

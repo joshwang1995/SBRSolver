@@ -6,15 +6,16 @@
 //
 //   SBR_ZONE();                scope named after the enclosing function
 //   SBR_ZONE_NAMED("name");    scope with an explicit name
-//   SBR_ZONE_VALUE(v);         attach an integer to the current zone
 //   SBR_FRAME_MARK();          end of a frame (the viewer's render loop)
 //   SBR_THREAD_NAME("name");   name the calling thread in the profiler
+//   SBR_PLOT("name", value);   plot a value over time
+// Several zones may be opened in the same scope (each gets its own variable).
 #if defined(SBR_HAS_TRACY)
 #include <tracy/Tracy.hpp>
-#define SBR_ZONE() ZoneScoped
-#define SBR_ZONE_NAMED(name) ZoneScopedN(name)
-#define SBR_ZONE_VALUE(value) ZoneValue(static_cast<uint64_t>(value))
-#define SBR_ZONE_TEXT(text, size) ZoneText(text, size)
+#define SBR_CONCAT_(a, b) a##b
+#define SBR_CONCAT(a, b) SBR_CONCAT_(a, b)
+#define SBR_ZONE() ZoneNamed(SBR_CONCAT(sbr_zone_, __LINE__), true)
+#define SBR_ZONE_NAMED(name) ZoneNamedN(SBR_CONCAT(sbr_zone_, __LINE__), name, true)
 #define SBR_FRAME_MARK() FrameMark
 #define SBR_FRAME_MARK_NAMED(name) FrameMarkNamed(name)
 #define SBR_THREAD_NAME(name) tracy::SetThreadName(name)
@@ -22,8 +23,6 @@
 #else
 #define SBR_ZONE()
 #define SBR_ZONE_NAMED(name)
-#define SBR_ZONE_VALUE(value)
-#define SBR_ZONE_TEXT(text, size)
 #define SBR_FRAME_MARK()
 #define SBR_FRAME_MARK_NAMED(name)
 #define SBR_THREAD_NAME(name)

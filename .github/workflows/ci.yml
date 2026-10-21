@@ -30,10 +30,16 @@ jobs:
             # the other platforms they compare with its committed output.
 
     steps:
-      - name: Check out sources and Eigen submodule
+      - name: Check out sources and submodules (Eigen, Polyscope, Tracy)
         uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Install the viewer's build dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xorg-dev libglu1-mesa-dev libegl1-mesa-dev libxkbcommon-dev xvfb
 
       - name: Configure
         env:
@@ -46,6 +52,6 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel
 
-      - name: Run the scenes and compare with the reference solver
+      - name: Run the scenes, the viewer tests and the reference comparison
         working-directory: build
         run: ctest -C Release --output-on-failure
