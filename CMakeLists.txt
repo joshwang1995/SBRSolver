@@ -251,6 +251,15 @@ foreach(_scene IN LISTS _sbr_scenes)
     set_tests_properties(sbrsolver_run_${_scene} PROPERTIES TIMEOUT 600 FIXTURES_SETUP sbr_run_${_scene})
 endforeach()
 
+# The dense receiver layouts of data/fine run as well; the field file must
+# then hold one finite field per receiver (checked by tools/check_fields.py
+# when a Python interpreter is available).
+foreach(_scene IN LISTS _sbr_scenes)
+    add_test(NAME sbrsolver_run_${_scene}_fine
+             COMMAND sbrsolver "${SBR_SRC_DIR}/data/fine/${_scene}.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_${_scene}_fine")
+    set_tests_properties(sbrsolver_run_${_scene}_fine PROPERTIES TIMEOUT 600 FIXTURES_SETUP sbr_run_${_scene}_fine)
+endforeach()
+
 # Unit tests of the viewer's data model and field interpolation (no display).
 add_executable(sbr_viewer_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/viewer_tests.cpp
@@ -343,6 +352,26 @@ if(Python3_Interpreter_FOUND)
                      "${SBR_SRC_DIR}/data/reference/office_ElectricField.csv"
                      "${CMAKE_CURRENT_BINARY_DIR}/test_output_office/ElectricField.csv")
     set_tests_properties(sbrsolver_reference_office PROPERTIES FIXTURES_REQUIRED sbr_run_office)
+    # Dense layouts: one finite field per receiver. Every receiver of the
+    # ground line and the corner floor sees the transmitter. In the office
+    # the room closed by the glass panel and the rooms without a line of
+    # sight (658 receivers) and in Bahen a few door recesses (7) get no field
+    # with one reflection and no transmission, so those allow zeros.
+    set(_sbr_fine_rx_ground RX_Ground_fine.dat)
+    set(_sbr_fine_rx_corner RX_Corner_fine.dat)
+    set(_sbr_fine_rx_office RX_Office_fine.dat)
+    set(_sbr_fine_rx_bahen RX_Bahen_fine.dat)
+    set(_sbr_fine_check_ground --all-nonzero)
+    set(_sbr_fine_check_corner --all-nonzero)
+    set(_sbr_fine_check_office --max-zero 700)
+    set(_sbr_fine_check_bahen --max-zero 10)
+    foreach(_scene IN LISTS _sbr_scenes)
+        add_test(NAME sbrsolver_fields_${_scene}_fine
+                 COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_fields.py"
+                         "${CMAKE_CURRENT_BINARY_DIR}/test_output_${_scene}_fine/ElectricField.csv"
+                         "${SBR_SRC_DIR}/data/fine/${_sbr_fine_rx_${_scene}}" ${_sbr_fine_check_${_scene}})
+        set_tests_properties(sbrsolver_fields_${_scene}_fine PROPERTIES FIXTURES_REQUIRED sbr_run_${_scene}_fine)
+    endforeach()
 
     # Comparison with RayTubeTracing. With SBR_RAYTUBE_EXE the reference solver
     # is run (on Windows the committed executable is used by default); without
