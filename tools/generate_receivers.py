@@ -8,8 +8,9 @@ keeps only the points that make sense for a coverage map:
   ``reachable`` (default)  the area the transmitter's rays can reach without
                             passing through a surface: a flood fill on a raster
                             of the walls, seeded at the transmitter; the space
-                            outside the scene's extents is a barrier, so a wall
-                            that ends on the edge of the floor is not bypassed;
+                            outside the scene's extents and off the floor faces
+                            is a barrier, so a wall that ends on the edge of the
+                            floor is not bypassed;
   ``enclosure``            everything inside the outermost walls, enclosed
                             rooms included (a flood fill seeded outside the
                             scene marks the exterior);
@@ -115,6 +116,15 @@ def wall_segments(tris, height):
     return np.array(segs, dtype=float).reshape(-1, 4)
 
 
+def floor_faces(tris, height):
+    """Horizontal faces below `height`: the floor the receivers stand on."""
+    n = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
+    norm = np.linalg.norm(n, axis=1)
+    horizontal = (norm > 0) & (np.abs(n[:, 2]) >= 0.99 * np.maximum(norm, 1e-300))
+    below = tris[:, :, 2].max(axis=1) < height
+    return tris[horizontal & below]
+
+
 def distance_to_segments(points, segs):
     """Shortest 2D distance from each point (n, 2) to any segment (m, 4)."""
     if len(segs) == 0:
@@ -173,6 +183,23 @@ class Raster:
         self.wall[j1 + 1:, :] = True
         self.wall[:, :max(i0, 0)] = True
         self.wall[:, i1 + 1:] = True
+
+    def block_off_floor(self, floor_tris):
+        """Marks every cell that no floor face covers as a wall, so a plate
+        with notches does not let the fill run around its envelope."""
+        if len(floor_tris) == 0:
+            return
+        X = self.x0 + (np.arange(self.nx) + 0.5) * self.cell
+        Y = self.y0 + (np.arange(self.ny) + 0.5) * self.cell
+        gx, gy = np.meshgrid(X, Y)
+        covered = np.zeros_like(self.wall)
+        for t in floor_tris:
+            (ax, ay), (bx, by), (cx, cy) = t[0][:2], t[1][:2], t[2][:2]
+            d1 = (bx - ax) * (gy - ay) - (by - ay) * (gx - ax)
+            d2 = (cx - bx) * (gy - by) - (cy - by) * (gx - bx)
+            d3 = (ax - cx) * (gy - cy) - (ay - cy) * (gx - cx)
+            covered |= ((d1 >= 0) & (d2 >= 0) & (d3 >= 0)) | ((d1 <= 0) & (d2 <= 0) & (d3 <= 0))
+        self.wall |= ~covered
 
     def flood(self, seeds):
         """Cells reachable from the seeds (world coordinates, or raster
@@ -312,6 +339,7 @@ def main():
         raster.rasterise(segs)
         if args.region == 'reachable':
             raster.block_outside(extents)
+            raster.block_off_floor(floor_faces(tris, height))
             reached = raster.flood([(tx[0], tx[1])])
             inside = raster.lookup(reached, candidates[:, :2])
         else:
