@@ -130,6 +130,64 @@ layout costs memory: the solver keeps a path list per launched ray and receiver 
 the Bahen grid is 2562 × 6858 × 24 bytes, about 0.4 GB, and a 0.25 m grid would need four times
 that.
 
+### A floor plan as a scene
+
+`tools/plan_to_stl.py` turns an architectural floor plan (a vector PDF) into the STL files of a
+scene. It reads the plan's line work with pdfplumber. Two parallel lines a wall's thickness apart
+are a new wall. A wall drawn with three or more lines gives one wall per band of lines a wall's
+thickness wide. A single line with a jamb block at an end is a glazed partition. A rectangle wider
+than a wall outlines an object (a desk, a table, a cabinet) and gives no wall lines. Filled black
+polygons are the existing walls, the concrete core and the columns. A quarter-circle arc is a door
+swing, so its leaf is removed and the door is open. Every wall gets a class that sets its height and
+material:
+
+| Class | Rule | Height | Material |
+|---|---|---|---|
+| exterior | a ray from the wall leaves the plan without crossing anything, or a long oblique wall | ceiling (2.7 m) | glass |
+| glazing | a single line with a jamb block at an end | ceiling | glass |
+| partition | joins the wall network or the core. Or a free-standing group of 4 m or more with a corner. Or a free-standing piece in line with such walls within 1.2 m of both ends (the pier between two doors) | ceiling | plaster board |
+| booth | a closed box of 1 m or more that joins nothing (a phone booth) | 2.2 m | plaster board |
+| screen | a long free-standing wall that joins nothing (a desk screen), or a desk row | 1.2 m | wood |
+| existing | filled polygon thinner than 8 in, extruded | ceiling | plaster board |
+| core | filled polygon 8 in or thicker (the core and the columns), extruded | ceiling | concrete |
+
+A desk row is a piece of 1 m to 7.5 m with one free end and no door swing at either end. It has a
+parallel twin of about the same length within 6 m that also has a free end. The tool drops these
+pieces:
+
+* short free-standing pieces (bench ends, symbols)
+* short pieces that hug the curtain wall (sills, mullions, column faces)
+* short pieces off the 90 degree grid (break lines, symbols)
+* a piece under 2 ft with a free end and no door at either end (a seat, a cabinet)
+* a piece under 1 m with a free end and no door beside a parallel piece of 0.5 to 1.5 m (a row of
+  seats, cabinets or lockers)
+* stair treads with their landing edges
+* the dashes of dotted lines and glyph-sized fills
+
+A small fill on the edge of a wall fill is a chamfer or a jamb and stays. Walls become single planes
+at their centre line. The polygons become extruded prisms. Two fills that abut get no face between
+them, and a column that overlaps a wall fill writes the shared face once. The floor and the
+suspended ceiling cover the plate outline (`--outline`, or the convex hull of the exterior walls).
+The tool writes one STL per surface group: partitions, curtain wall, glazed partitions, core,
+screens, floor and ceiling. It also writes `walls.json` (the walls and the polygons) and `walls.csv`
+(every wall's class, length, thickness, height and material). With `--overlay` it writes a PNG of
+the plan with the classes drawn on it.
+
+`SBRSolver_rev2/data/large_office/` is a large office made this way from its furniture plan. The
+scene holds 102 new partitions, 6 glazed partitions and 10 desk screens. The envelope is 16 glass
+planes: 9 curtain-wall segments and 7 closures at the corner columns and piers. The fills give 203
+existing wall and jamb polygons and 117 core and column polygons. Of the plan's three phone booths
+only the one next to the east lab bays is in the model, as partitions. The two pods at the south
+curtain wall have a door opening, so two of their pieces have a free end. No closed box is found and
+they are dropped. Two configurations put a 20 dBm, 2.44 GHz access point 0.2 m below the ceiling.
+One is in the centre of the lab (`large_office_lab.ini`), the other above the east open workstations
+(`large_office_east.ini`). Both use a 0.5 m receiver grid at 1.5 m over the reachable floor (7,227
+receivers), two reflections and six wall transmissions. A run takes 15 to 30 s on four cores.
+
+```sh
+./build/sbrsolver SBRSolver_rev2/data/large_office/large_office_east.ini results/large_office_east --view
+```
+
 ### Results
 
 `ElectricField.csv` lists the complex field `Ex, Ey, Ez` (V/m) at every receiver, written with
@@ -244,11 +302,15 @@ material received. `SBRSolver_rev2/data/office.ini` shows both mechanisms.
 cd build && ctest -C Release --output-on-failure
 ```
 
-This runs the four scenes in `SBRSolver_rev2/data` (`ground`, `corner`, `office`, `bahen`), their dense
-receiver layouts in `data/fine` (`sbrsolver_run_<scene>_fine`; with a Python interpreter,
+This runs the four scenes in `SBRSolver_rev2/data` (`ground`, `corner`, `office`, `bahen`) and their
+dense receiver layouts in `data/fine` (`sbrsolver_run_<scene>_fine`). With a Python interpreter,
 `sbrsolver_fields_<scene>_fine` then checks with `tools/check_fields.py` that every receiver got one
-finite field at its own position, non-zero everywhere on the ground line and the corner floor), and
-checks `ground` and `office` twice and `corner` and `bahen` once:
+finite field at its own position. On the ground line and the corner floor every field is non-zero.
+`ctest` also runs the two access-point positions of the floor-plan scene in `data/large_office`
+(`sbrsolver_run_large_office_lab` and `sbrsolver_run_large_office_east`).
+`sbrsolver_fields_large_office_<tx>` applies the same check to each, with a bound on the receivers
+without a field. `ctest` checks
+`ground` and `office` twice and `corner` and `bahen` once:
 
 * `sbrsolver_reference_*`: the `ground` and `office` fields against the results committed in
   `SBRSolver_rev2/data/output/ElectricField.csv` and `SBRSolver_rev2/data/reference/office_ElectricField.csv`
