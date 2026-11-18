@@ -1,0 +1,455 @@
+id,class,x0,y0,x1,y1,length_m,thickness_in,height_m,material,joined
+0,exterior,38.30,65.63,38.30,9.90,55.73,8.5,2.7,glass,both ends
+1,exterior,37.44,9.75,37.44,3.36,6.39,8.5,2.7,glass,one end
+2,exterior,33.47,73.65,33.47,65.79,7.86,8.5,2.7,glass,both ends
+3,partition,33.47,65.63,33.47,65.16,0.47,6.0,2.7,plaster_board,both ends
+4,partition,32.91,62.87,32.91,56.15,6.72,6.0,2.7,plaster_board,one end
+5,partition,32.90,35.18,32.90,34.25,0.93,5.5,2.7,plaster_board,one end
+6,partition,32.42,67.68,32.42,66.79,0.89,6.0,2.7,plaster_board,one end
+7,partition,31.08,65.01,31.08,56.15,8.86,6.0,2.7,plaster_board,one end
+8,partition,31.10,54.07,31.10,48.00,6.07,4.0,2.7,plaster_board,one end
+9,partition,31.10,47.90,31.10,42.25,5.64,4.0,2.7,plaster_board,one end
+10,partition,31.10,37.24,31.10,35.88,1.36,4.0,2.7,plaster_board,one end
+11,partition,30.30,19.16,30.30,18.00,1.16,5.0,2.7,plaster_board,both ends
+12,partition,30.24,36.38,30.24,35.78,0.60,4.0,2.7,plaster_board,both ends
+13,partition,30.09,19.10,30.09,18.02,1.08,4.4,2.7,plaster_board,both ends
+14,partition,29.00,34.11,29.00,28.37,5.75,5.5,2.7,plaster_board,both ends
+15,partition,29.00,21.20,29.00,19.50,1.70,5.5,2.7,plaster_board,both ends
+16,partition,28.39,54.83,28.39,54.17,0.66,4.0,2.7,plaster_board,one end
+17,partition,28.25,19.10,28.25,18.02,1.08,4.3,2.7,plaster_board,both ends
+18,partition,28.04,19.16,28.04,18.00,1.16,7.4,2.7,plaster_board,both ends
+19,partition,27.34,43.01,27.34,41.66,1.35,5.0,2.7,plaster_board,both ends
+20,partition,26.86,71.86,26.86,70.85,1.01,6.0,2.7,plaster_board,one end
+21,partition,26.86,69.99,26.86,69.11,0.88,6.0,2.7,plaster_board,no
+22,partition,26.86,68.25,26.86,66.78,1.47,6.0,2.7,plaster_board,one end
+23,screen,25.75,22.55,25.75,15.34,7.21,5.4,1.2,wood,no
+24,partition,25.50,28.37,25.50,24.38,3.99,5.5,2.7,plaster_board,one end
+25,partition,25.33,74.64,25.33,72.00,2.63,6.0,2.7,plaster_board,both ends
+26,partition,25.33,71.86,25.33,66.78,5.08,6.0,2.7,plaster_board,both ends
+27,partition,22.86,65.01,22.86,60.14,4.88,6.0,2.7,plaster_board,both ends
+28,screen,22.00,22.55,22.00,15.34,7.21,5.4,1.2,wood,no
+29,partition,19.67,28.37,19.67,24.38,3.99,6.0,2.7,plaster_board,both ends
+30,partition,19.66,64.40,19.66,60.14,4.27,6.0,2.7,plaster_board,both ends
+31,partition,19.66,59.99,19.66,56.97,3.01,6.0,2.7,plaster_board,both ends
+32,partition,19.65,19.39,19.65,18.17,1.22,5.5,2.7,plaster_board,both ends
+33,partition,19.65,13.05,19.65,11.16,1.89,5.5,2.7,plaster_board,one end
+34,screen,18.26,22.55,18.26,20.17,2.39,5.4,1.2,wood,one end
+35,partition,17.84,28.37,17.84,24.48,3.89,5.8,2.7,plaster_board,both ends
+36,screen,14.52,22.56,14.52,20.17,2.39,5.4,1.2,wood,one end
+37,partition,13.21,27.42,13.21,24.38,3.05,5.5,2.7,plaster_board,one end
+38,partition,13.10,65.01,13.10,64.27,0.74,6.0,2.7,plaster_board,one end
+39,partition,13.10,62.24,13.10,61.53,0.71,6.0,2.7,plaster_board,one end
+40,partition,13.10,61.38,13.10,58.93,2.45,6.0,2.7,plaster_board,both ends
+41,partition,13.11,58.01,13.11,57.10,0.91,5.0,2.7,plaster_board,both ends
+42,partition,11.27,65.25,11.27,64.53,0.72,6.0,2.7,plaster_board,one end
+43,partition,11.27,62.24,11.27,61.53,0.71,6.0,2.7,plaster_board,one end
+44,partition,11.27,61.38,11.27,58.93,2.45,7.2,2.7,plaster_board,both ends
+45,partition,6.71,26.94,6.71,26.02,0.91,5.0,2.7,plaster_board,both ends
+46,partition,6.71,22.67,6.71,21.76,0.91,5.0,2.7,plaster_board,both ends
+47,partition,6.71,18.59,6.71,17.62,0.97,5.0,2.7,plaster_board,both ends
+48,partition,6.62,51.86,6.62,50.94,0.91,4.0,2.7,plaster_board,both ends
+49,partition,6.62,49.05,6.62,48.13,0.91,4.0,2.7,plaster_board,both ends
+50,partition,6.62,45.45,6.62,44.11,1.35,4.0,2.7,plaster_board,one end
+51,partition,6.16,33.26,6.16,32.94,0.31,8.5,2.7,plaster_board,both ends
+52,partition,4.49,52.22,4.49,50.86,1.36,4.5,2.7,plaster_board,one end
+53,partition,4.49,49.28,4.49,48.36,0.91,4.5,2.7,plaster_board,both ends
+54,partition,4.49,45.66,4.49,44.30,1.36,4.5,2.7,plaster_board,one end
+55,partition,4.49,42.20,4.49,41.29,0.91,4.5,2.7,plaster_board,both ends
+56,partition,4.49,40.26,4.49,39.34,0.91,4.5,2.7,plaster_board,both ends
+57,partition,4.49,36.22,4.49,35.31,0.91,4.5,2.7,plaster_board,both ends
+58,partition,4.49,34.26,4.49,33.35,0.91,4.5,2.7,plaster_board,both ends
+59,partition,4.49,31.27,4.49,30.35,0.91,4.5,2.7,plaster_board,both ends
+60,partition,4.49,27.23,4.49,26.32,0.91,4.5,2.7,plaster_board,both ends
+61,partition,4.49,25.23,4.49,23.87,1.36,4.5,2.7,plaster_board,one end
+62,partition,4.49,22.69,4.49,20.87,1.83,4.5,2.7,plaster_board,one end
+63,partition,4.49,18.19,4.49,17.27,0.91,4.5,2.7,plaster_board,both ends
+64,partition,4.49,15.67,4.49,14.31,1.36,4.5,2.7,plaster_board,one end
+65,exterior,0.38,65.63,0.38,9.93,55.70,6.0,2.7,glass,both ends
+66,exterior,1.39,74.70,32.74,74.70,31.35,8.5,2.7,glass,both ends
+67,partition,25.41,71.93,26.78,71.93,1.37,5.7,2.7,plaster_board,both ends
+68,partition,32.49,67.75,33.40,67.75,0.90,6.0,2.7,plaster_board,both ends
+69,partition,25.41,66.71,26.78,66.71,1.37,6.0,2.7,plaster_board,both ends
+70,partition,26.93,66.71,30.21,66.71,3.28,6.0,2.7,plaster_board,one end
+71,partition,0.45,65.70,1.06,65.70,0.61,8.5,2.7,plaster_board,both ends
+72,exterior,33.55,65.71,38.22,65.71,4.67,8.5,2.7,glass,both ends
+73,partition,10.71,65.10,11.19,65.10,0.48,4.0,2.7,plaster_board,both ends
+74,partition,13.18,65.09,18.94,65.09,5.76,6.0,2.7,plaster_board,both ends
+75,partition,20.95,65.09,22.78,65.09,1.83,6.0,2.7,plaster_board,one end
+76,partition,22.93,65.09,25.83,65.09,2.90,6.2,2.7,plaster_board,one end
+77,partition,28.72,65.08,31.00,65.08,2.28,6.0,2.7,plaster_board,both ends
+78,partition,32.98,65.08,33.40,65.08,0.41,6.0,2.7,plaster_board,one end
+79,partition,1.72,64.45,9.95,64.45,8.23,6.0,2.7,plaster_board,both ends
+80,partition,10.71,64.45,11.19,64.45,0.48,6.0,2.7,plaster_board,both ends
+81,partition,19.73,60.06,22.78,60.06,3.05,6.0,2.7,plaster_board,both ends
+82,partition,25.60,56.08,29.83,56.08,4.24,6.0,2.7,plaster_board,one end
+83,partition,32.98,56.08,36.95,56.08,3.97,6.0,2.7,plaster_board,both ends
+84,partition,27.40,54.12,29.89,54.12,2.48,4.0,2.7,plaster_board,one end
+85,screen,33.24,53.27,38.07,53.27,4.83,5.4,1.2,wood,no
+86,partition,0.52,49.77,1.27,49.77,0.75,4.0,2.7,plaster_board,both ends
+87,screen,33.24,49.38,38.07,49.38,4.83,5.4,1.2,wood,no
+88,partition,27.40,47.95,31.05,47.95,3.65,4.0,2.7,plaster_board,both ends
+89,screen,33.24,44.19,38.07,44.19,4.83,5.4,1.2,wood,no
+90,partition,0.45,43.76,1.27,43.76,0.82,4.0,2.7,plaster_board,both ends
+91,partition,27.40,41.03,28.34,41.03,0.94,4.0,2.7,plaster_board,both ends
+92,partition,28.44,41.03,31.05,41.03,2.61,4.0,2.7,plaster_board,one end
+93,screen,33.24,40.29,38.07,40.29,4.83,5.4,1.2,wood,no
+94,partition,27.40,38.45,28.34,38.45,0.94,4.0,2.7,plaster_board,both ends
+95,partition,28.44,38.45,31.05,38.45,2.61,4.0,2.7,plaster_board,one end
+96,partition,32.97,37.39,37.00,37.39,4.03,6.0,2.7,plaster_board,one end
+97,partition,30.29,36.43,31.05,36.43,0.76,4.0,2.7,plaster_board,both ends
+98,partition,30.34,35.94,31.05,35.94,0.71,11.5,2.7,plaster_board,both ends
+99,partition,27.40,35.83,30.19,35.83,2.79,4.0,2.7,plaster_board,both ends
+100,partition,29.07,34.18,32.83,34.18,3.77,5.5,2.7,plaster_board,both ends
+101,partition,0.45,31.81,1.27,31.81,0.82,4.0,2.7,plaster_board,both ends
+102,partition,0.45,25.79,1.27,25.79,0.82,4.0,2.7,plaster_board,both ends
+103,partition,14.45,24.43,17.77,24.43,3.33,4.0,2.7,plaster_board,one end
+104,partition,17.88,24.43,18.43,24.43,0.56,4.0,2.7,plaster_board,one end
+105,partition,26.74,24.43,27.40,24.43,0.66,4.0,2.7,plaster_board,one end
+106,partition,0.45,22.76,4.43,22.76,3.98,5.0,2.7,plaster_board,both ends
+107,partition,28.06,20.45,28.93,20.45,0.86,11.5,2.7,plaster_board,one end
+108,partition,13.10,20.11,18.94,20.11,5.84,4.0,2.7,plaster_board,one end
+109,partition,29.07,19.43,36.93,19.43,7.86,5.5,2.7,plaster_board,both ends
+110,partition,28.10,19.15,30.23,19.15,2.13,3.0,2.7,plaster_board,both ends
+111,partition,11.37,18.25,12.75,18.25,1.37,4.0,2.7,plaster_board,one end
+112,partition,28.09,17.97,28.65,17.97,0.56,2.7,2.7,plaster_board,one end
+113,partition,29.68,17.97,30.24,17.97,0.56,2.7,2.7,plaster_board,one end
+114,screen,32.02,17.12,38.07,17.12,6.05,5.4,1.2,wood,no
+115,screen,32.02,13.38,38.07,13.38,6.05,5.4,1.2,wood,no
+116,partition,37.36,9.94,38.16,9.94,0.80,2.6,2.7,plaster_board,both ends
+117,exterior,0.45,9.89,27.63,9.89,27.18,8.5,2.7,glass,both ends
+118,partition,33.10,9.87,34.04,9.87,0.94,5.5,2.7,plaster_board,both ends
+119,exterior,0.51,73.65,1.14,65.79,7.89,6.0,2.7,glass,both ends
+120,exterior,28.31,9.36,35.20,3.13,9.29,2.5,2.7,glass,one end
+121,glazing,29.00,28.33,29.00,21.24,7.09,0.0,2.7,glass,both ends
+122,glazing,27.35,28.33,27.35,24.52,3.81,0.0,2.7,glass,one end
+123,glazing,19.65,18.13,19.65,15.08,3.05,0.0,2.7,glass,one end
+124,glazing,11.29,66.69,25.21,66.69,13.91,0.0,2.7,glass,no
+125,glazing,19.79,24.45,24.26,24.45,4.47,0.0,2.7,glass,one end
+126,glazing,30.09,9.87,33.06,9.87,2.97,0.0,2.7,glass,one end
+127,exterior,38.30,9.90,37.44,9.75,0.88,0.0,2.7,glass,closure
+128,exterior,37.44,3.36,37.21,3.26,0.25,0.0,2.7,glass,closure
+129,exterior,33.47,73.65,32.74,74.70,1.28,0.0,2.7,glass,closure
+130,exterior,0.38,65.63,1.14,65.79,0.78,0.0,2.7,glass,closure
+131,exterior,1.39,74.70,0.51,73.65,1.37,0.0,2.7,glass,closure
+132,exterior,27.63,9.89,28.31,9.36,0.86,0.0,2.7,glass,closure
+133,exterior,35.20,3.13,35.83,2.57,0.85,0.0,2.7,glass,closure
+134,existing,5.98,11.17,5.98,10.85,0.32,5.0,2.7,plaster_board,yes
+135,existing,5.85,10.72,5.85,9.99,0.72,5.0,2.7,plaster_board,yes
+136,existing,0.45,54.24,11.24,54.24,10.79,4.0,2.7,plaster_board,yes
+137,existing,0.52,13.79,1.25,13.79,0.74,4.0,2.7,plaster_board,yes
+138,existing,0.52,16.75,1.27,16.75,0.75,4.0,2.7,plaster_board,yes
+139,existing,25.60,28.44,26.20,28.44,0.60,5.0,2.7,plaster_board,yes
+140,existing,13.11,58.80,13.11,58.01,0.79,5.0,2.7,plaster_board,yes
+141,existing,13.09,28.43,13.09,27.56,0.88,3.5,2.7,plaster_board,yes
+142,existing,1.27,49.77,4.54,49.77,3.27,4.0,2.7,plaster_board,yes
+143,existing,10.36,49.39,11.24,49.39,0.88,4.0,2.7,plaster_board,yes
+144,existing,6.57,49.39,10.36,49.39,3.79,4.0,2.7,plaster_board,yes
+145,existing,4.49,49.72,4.49,49.28,0.45,4.5,2.7,plaster_board,yes
+146,existing,4.49,48.36,4.49,47.92,0.45,4.5,2.7,plaster_board,yes
+147,existing,6.62,48.13,6.62,47.70,0.43,4.0,2.7,plaster_board,yes
+148,existing,1.72,46.78,4.54,46.78,2.82,4.0,2.7,plaster_board,yes
+149,existing,10.36,46.60,11.24,46.60,0.88,2.0,2.7,plaster_board,yes
+150,existing,6.57,46.60,10.36,46.60,3.79,2.0,2.7,plaster_board,yes
+151,existing,10.36,46.55,11.24,46.55,0.88,2.0,2.7,plaster_board,yes
+152,existing,6.57,46.55,10.36,46.55,3.79,2.0,2.7,plaster_board,yes
+153,existing,4.49,44.30,4.49,43.81,0.48,4.5,2.7,plaster_board,yes
+154,existing,10.36,43.80,11.25,43.80,0.88,4.0,2.7,plaster_board,yes
+155,existing,6.57,43.80,10.36,43.80,3.79,4.0,2.7,plaster_board,yes
+156,existing,1.27,43.76,4.54,43.76,3.27,4.0,2.7,plaster_board,yes
+157,existing,10.38,38.90,10.38,38.19,0.71,7.0,2.7,plaster_board,yes
+158,existing,11.33,37.18,10.34,38.22,1.43,5.4,2.7,plaster_board,yes
+159,existing,11.31,37.16,11.31,29.63,7.53,5.0,2.7,plaster_board,yes
+160,existing,4.49,30.35,4.49,29.91,0.45,4.5,2.7,plaster_board,yes
+161,existing,6.71,27.39,6.71,26.94,0.46,5.0,2.7,plaster_board,yes
+162,existing,6.21,25.95,6.65,25.95,0.43,4.0,2.7,plaster_board,yes
+163,existing,6.07,25.64,6.07,23.04,2.60,4.0,2.7,plaster_board,yes
+164,existing,6.05,23.03,6.31,22.76,0.38,4.0,2.7,plaster_board,yes
+165,existing,6.21,22.74,6.65,22.74,0.44,4.0,2.7,plaster_board,yes
+166,existing,6.71,25.89,6.71,22.67,3.22,5.0,2.7,plaster_board,yes
+167,existing,6.71,21.76,6.71,21.30,0.46,5.0,2.7,plaster_board,yes
+168,existing,6.65,20.17,11.25,20.17,4.60,5.0,2.7,plaster_board,yes
+169,existing,10.36,31.76,11.25,31.76,0.88,5.0,2.7,plaster_board,yes
+170,existing,9.86,31.76,10.36,31.76,0.50,5.0,2.7,plaster_board,yes
+171,existing,4.54,42.30,4.93,42.30,0.39,4.0,2.7,plaster_board,yes
+172,existing,4.84,42.29,5.11,41.96,0.42,4.0,2.7,plaster_board,yes
+173,existing,4.49,41.29,4.49,40.81,0.48,4.5,2.7,plaster_board,yes
+174,existing,1.27,40.75,4.54,40.75,3.27,4.0,2.7,plaster_board,yes
+175,existing,0.52,40.75,1.25,40.75,0.74,4.0,2.7,plaster_board,yes
+176,existing,4.49,40.70,4.49,40.26,0.45,4.5,2.7,plaster_board,yes
+177,existing,5.10,41.96,5.10,39.60,2.36,4.0,2.7,plaster_board,yes
+178,existing,4.54,39.25,4.93,39.25,0.39,4.0,2.7,plaster_board,yes
+179,existing,4.49,39.34,4.49,38.90,0.45,4.5,2.7,plaster_board,yes
+180,existing,6.83,38.13,10.36,38.13,3.53,2.5,2.7,plaster_board,yes
+181,existing,6.70,38.04,10.36,38.04,3.66,4.6,2.7,plaster_board,yes
+182,existing,6.56,37.92,10.36,37.92,3.80,5.0,2.7,plaster_board,yes
+183,existing,6.50,37.83,7.02,37.83,0.52,2.2,2.7,plaster_board,yes
+184,existing,1.71,37.82,4.54,37.82,2.83,1.8,2.7,plaster_board,yes
+185,existing,1.71,37.76,4.54,37.76,2.83,3.3,2.7,plaster_board,yes
+186,existing,6.09,37.37,6.55,37.37,0.46,5.4,2.7,plaster_board,yes
+187,existing,4.49,36.66,4.49,36.22,0.44,4.5,2.7,plaster_board,yes
+188,existing,6.12,35.22,6.12,34.87,0.34,5.0,2.7,plaster_board,yes
+189,existing,4.49,35.31,4.49,34.84,0.47,4.5,2.7,plaster_board,yes
+190,existing,1.27,34.78,4.54,34.78,3.27,4.0,2.7,plaster_board,yes
+191,existing,0.52,34.78,1.25,34.78,0.74,4.0,2.7,plaster_board,yes
+192,existing,4.49,34.73,4.49,34.26,0.47,4.5,2.7,plaster_board,yes
+193,existing,6.86,35.22,6.86,33.63,1.59,5.5,2.7,plaster_board,yes
+194,existing,6.12,33.96,6.12,33.63,0.33,5.0,2.7,plaster_board,yes
+195,existing,6.05,33.58,8.80,33.58,2.74,4.0,2.7,plaster_board,yes
+196,existing,7.44,33.47,7.87,33.47,0.43,3.4,2.7,plaster_board,yes
+197,existing,6.39,33.26,6.39,32.94,0.31,3.8,2.7,plaster_board,yes
+198,existing,4.49,33.35,4.49,32.90,0.45,4.5,2.7,plaster_board,yes
+199,existing,8.75,33.53,8.75,31.83,1.70,4.0,2.7,plaster_board,yes
+200,existing,1.27,31.81,4.54,31.81,3.27,4.0,2.7,plaster_board,yes
+201,existing,4.49,31.76,4.49,31.27,0.50,4.5,2.7,plaster_board,yes
+202,existing,6.13,32.46,6.13,29.64,2.82,6.0,2.7,plaster_board,yes
+203,existing,1.72,28.83,4.54,28.83,2.82,1.8,2.7,plaster_board,yes
+204,existing,1.72,28.77,4.54,28.77,2.82,3.3,2.7,plaster_board,yes
+205,existing,8.35,54.19,8.35,53.26,0.93,5.0,2.7,plaster_board,yes
+206,existing,10.36,52.22,11.24,52.22,0.88,4.0,2.7,plaster_board,yes
+207,existing,6.57,52.22,10.36,52.22,3.79,4.0,2.7,plaster_board,yes
+208,existing,6.62,52.17,6.62,51.86,0.32,4.0,2.7,plaster_board,yes
+209,existing,6.62,50.94,6.62,50.51,0.43,4.0,2.7,plaster_board,yes
+210,existing,8.10,14.68,8.10,13.84,0.84,5.0,2.7,plaster_board,yes
+211,existing,10.36,13.79,11.25,13.79,0.88,4.0,2.7,plaster_board,yes
+212,existing,7.09,13.79,10.36,13.79,3.27,4.0,2.7,plaster_board,yes
+213,existing,4.49,27.67,4.49,27.23,0.44,4.5,2.7,plaster_board,yes
+214,existing,1.70,19.75,4.54,19.75,2.84,5.0,2.7,plaster_board,yes
+215,existing,4.49,18.63,4.49,18.19,0.45,4.5,2.7,plaster_board,yes
+216,existing,4.49,17.27,4.49,16.80,0.47,4.5,2.7,plaster_board,yes
+217,existing,1.27,16.75,4.54,16.75,3.27,4.0,2.7,plaster_board,yes
+218,existing,4.49,26.32,4.49,25.84,0.47,4.5,2.7,plaster_board,yes
+219,existing,1.27,25.79,4.54,25.79,3.27,4.0,2.7,plaster_board,yes
+220,existing,4.49,25.74,4.49,25.23,0.51,4.5,2.7,plaster_board,yes
+221,existing,4.49,14.31,4.49,13.84,0.47,4.5,2.7,plaster_board,yes
+222,existing,1.27,13.79,4.87,13.79,3.60,4.0,2.7,plaster_board,yes
+223,existing,5.79,13.79,6.18,13.79,0.39,4.0,2.7,plaster_board,yes
+224,existing,5.98,13.74,5.98,11.17,2.57,5.0,2.7,plaster_board,yes
+225,existing,6.71,19.05,6.71,18.68,0.37,5.0,2.7,plaster_board,yes
+226,existing,6.22,18.64,6.65,18.64,0.43,4.0,2.7,plaster_board,yes
+227,existing,6.07,18.35,6.07,17.33,1.01,4.0,2.7,plaster_board,yes
+228,existing,6.69,17.61,7.96,16.41,1.74,5.0,2.7,plaster_board,yes
+229,existing,10.36,16.38,11.25,16.38,0.88,6.5,2.7,plaster_board,yes
+230,existing,7.82,16.38,10.36,16.38,2.54,6.5,2.7,plaster_board,yes
+231,existing,8.10,16.25,8.10,15.71,0.54,5.0,2.7,plaster_board,yes
+232,existing,6.05,17.33,7.80,15.67,2.41,4.0,2.7,plaster_board,yes
+233,existing,7.69,15.66,8.04,15.66,0.35,4.0,2.7,plaster_board,yes
+234,existing,14.72,53.68,14.72,54.36,0.67,7.5,2.7,plaster_board,yes
+235,existing,24.85,56.92,19.41,56.92,5.44,4.0,2.7,plaster_board,yes
+236,existing,25.56,54.15,25.56,54.78,0.62,3.0,2.7,plaster_board,yes
+237,existing,25.50,48.62,25.50,51.18,2.56,7.4,2.7,plaster_board,yes
+238,existing,17.86,52.44,23.57,52.44,5.70,5.0,2.7,plaster_board,yes
+239,existing,13.15,48.68,13.15,51.17,2.49,7.5,2.7,plaster_board,yes
+240,existing,16.80,47.31,16.80,48.68,1.37,5.5,2.7,plaster_board,yes
+241,existing,17.67,47.85,17.67,49.47,1.61,5.5,2.7,plaster_board,yes
+242,existing,20.98,47.85,20.98,49.47,1.61,5.5,2.7,plaster_board,yes
+243,existing,21.85,47.19,21.85,48.69,1.50,5.5,2.7,plaster_board,yes
+244,existing,16.81,33.02,16.81,34.66,1.64,6.0,2.7,plaster_board,yes
+245,existing,23.83,34.92,23.83,32.94,1.98,7.0,2.7,plaster_board,yes
+246,existing,21.84,34.66,21.84,32.99,1.66,6.0,2.7,plaster_board,yes
+247,existing,22.42,29.92,22.42,31.28,1.36,7.5,2.7,plaster_board,yes
+248,existing,13.35,28.74,13.35,30.09,1.35,6.5,2.7,plaster_board,yes
+249,existing,11.31,28.71,11.31,10.46,18.25,5.0,2.7,plaster_board,yes
+250,existing,32.74,74.71,33.55,74.71,0.81,6.0,2.7,plaster_board,yes
+251,existing,4.49,54.19,4.49,52.22,1.97,4.5,2.7,plaster_board,yes
+252,existing,6.05,28.52,11.25,28.52,5.19,5.4,2.7,plaster_board,yes
+253,existing,11.30,58.93,11.30,57.65,1.28,5.0,2.7,plaster_board,yes
+254,existing,11.31,42.46,11.30,56.84,14.38,5.0,2.7,plaster_board,yes
+255,existing,10.34,41.39,11.32,42.43,1.42,5.1,2.7,plaster_board,yes
+256,existing,10.38,41.44,10.38,40.73,0.71,7.0,2.7,plaster_board,yes
+257,existing,27.34,41.66,27.34,40.99,0.67,5.0,2.7,plaster_board,yes
+258,existing,28.79,11.35,28.79,10.24,1.10,7.5,2.7,plaster_board,yes
+259,existing,27.73,11.35,27.73,10.24,1.10,4.5,2.7,plaster_board,yes
+260,existing,27.69,9.88,29.03,9.88,1.34,3.4,2.7,plaster_board,yes
+261,existing,25.60,54.10,26.22,54.10,0.62,5.5,2.7,plaster_board,yes
+262,existing,27.34,38.51,27.34,28.59,9.91,5.0,2.7,plaster_board,yes
+263,existing,27.34,54.03,27.34,43.01,11.02,5.0,2.7,plaster_board,yes
+264,existing,10.69,10.39,11.37,10.39,0.68,5.0,2.7,plaster_board,yes
+265,existing,34.04,9.89,37.30,9.89,3.25,4.0,2.7,plaster_board,yes
+266,existing,5.79,10.79,6.04,10.79,0.25,4.5,2.7,plaster_board,yes
+267,existing,13.11,57.10,13.11,56.97,0.13,5.0,2.7,plaster_board,yes
+268,existing,27.27,28.55,27.40,28.55,0.13,4.0,2.7,plaster_board,yes
+269,existing,13.05,58.83,13.18,58.83,0.13,2.6,2.7,plaster_board,yes
+270,existing,4.49,49.95,4.49,49.82,0.13,4.5,2.7,plaster_board,yes
+271,existing,6.62,49.59,6.62,49.44,0.15,4.0,2.7,plaster_board,yes
+272,existing,6.62,49.34,6.62,49.05,0.29,4.0,2.7,plaster_board,yes
+273,existing,4.49,47.00,4.49,46.83,0.17,4.5,2.7,plaster_board,yes
+274,existing,6.62,46.79,6.62,46.62,0.16,4.0,2.7,plaster_board,yes
+275,existing,4.49,46.72,4.49,46.57,0.15,4.5,2.7,plaster_board,yes
+276,existing,6.62,46.52,6.62,46.37,0.15,4.0,2.7,plaster_board,yes
+277,existing,6.62,44.11,6.62,43.85,0.25,4.0,2.7,plaster_board,yes
+278,existing,4.49,43.71,4.49,43.56,0.15,4.5,2.7,plaster_board,yes
+279,existing,11.19,37.19,11.37,37.19,0.18,2.5,2.7,plaster_board,yes
+280,existing,6.64,25.96,6.78,25.93,0.15,4.9,2.7,plaster_board,yes
+281,existing,6.32,25.93,6.05,25.64,0.39,4.0,2.7,plaster_board,yes
+282,existing,6.02,25.66,6.15,25.66,0.14,1.5,2.7,plaster_board,yes
+283,existing,6.02,23.02,6.16,23.02,0.14,1.6,2.7,plaster_board,yes
+284,existing,6.71,20.38,6.71,20.23,0.15,5.0,2.7,plaster_board,yes
+285,existing,6.71,20.10,6.71,19.96,0.14,5.0,2.7,plaster_board,yes
+286,existing,4.49,42.65,4.49,42.35,0.29,4.5,2.7,plaster_board,yes
+287,existing,4.49,42.35,4.49,42.20,0.15,4.5,2.7,plaster_board,yes
+288,existing,5.02,39.58,5.15,39.58,0.13,1.5,2.7,plaster_board,yes
+289,existing,4.84,39.27,5.11,39.59,0.42,4.0,2.7,plaster_board,yes
+290,existing,10.30,38.04,10.53,37.80,0.33,6.6,2.7,plaster_board,yes
+291,existing,4.49,37.98,4.49,37.85,0.14,4.5,2.7,plaster_board,yes
+292,existing,4.49,37.72,4.49,37.58,0.14,4.5,2.7,plaster_board,yes
+293,existing,6.35,33.50,6.35,33.26,0.25,6.5,2.7,plaster_board,yes
+294,existing,6.35,32.94,6.35,32.68,0.26,6.5,2.7,plaster_board,yes
+295,existing,4.43,31.91,4.54,31.91,0.11,3.3,2.7,plaster_board,yes
+296,existing,8.70,31.76,8.95,31.76,0.25,5.0,2.7,plaster_board,yes
+297,existing,4.49,28.99,4.49,28.86,0.14,4.5,2.7,plaster_board,yes
+298,existing,4.49,28.73,4.49,28.59,0.14,4.5,2.7,plaster_board,yes
+299,existing,8.29,52.31,8.42,52.31,0.13,3.0,2.7,plaster_board,yes
+300,existing,4.49,19.95,4.49,19.81,0.14,4.5,2.7,plaster_board,yes
+301,existing,4.49,19.68,4.49,19.54,0.14,4.5,2.7,plaster_board,yes
+302,existing,4.43,16.64,4.54,16.64,0.11,4.5,2.7,plaster_board,yes
+303,existing,6.33,18.63,6.05,18.35,0.39,4.0,2.7,plaster_board,yes
+304,existing,6.02,18.37,6.16,18.37,0.14,1.6,2.7,plaster_board,yes
+305,existing,6.65,17.59,6.83,17.59,0.18,2.2,2.7,plaster_board,yes
+306,existing,6.02,17.31,6.16,17.31,0.15,1.7,2.7,plaster_board,yes
+307,existing,7.99,16.27,8.16,16.27,0.17,1.5,2.7,plaster_board,yes
+308,existing,8.04,15.66,8.16,15.66,0.13,4.0,2.7,plaster_board,yes
+309,existing,13.32,55.19,13.05,55.19,0.27,6.0,2.7,plaster_board,yes
+310,existing,14.62,55.28,14.82,55.28,0.19,2.0,2.7,plaster_board,yes
+311,existing,13.32,54.16,13.05,54.16,0.27,5.5,2.7,plaster_board,yes
+312,existing,13.05,52.27,13.33,52.27,0.28,5.8,2.7,plaster_board,yes
+313,existing,25.56,55.69,25.56,55.87,0.18,3.0,2.7,plaster_board,yes
+314,existing,25.33,51.26,25.60,51.26,0.27,6.0,2.7,plaster_board,yes
+315,existing,13.05,51.24,13.33,51.24,0.28,5.5,2.7,plaster_board,yes
+316,existing,13.15,47.57,13.15,47.78,0.20,7.5,2.7,plaster_board,yes
+317,existing,25.50,47.51,25.50,47.71,0.20,7.4,2.7,plaster_board,yes
+318,existing,13.32,37.52,13.05,37.52,0.27,7.5,2.7,plaster_board,yes
+319,existing,13.36,35.31,13.36,35.47,0.16,3.4,2.7,plaster_board,yes
+320,existing,25.33,34.89,25.60,34.89,0.27,2.5,2.7,plaster_board,yes
+321,existing,25.33,33.91,25.60,33.91,0.27,4.0,2.7,plaster_board,yes
+322,existing,22.42,28.77,22.42,29.02,0.25,7.5,2.7,plaster_board,yes
+323,existing,13.32,31.18,13.05,31.18,0.27,5.5,2.7,plaster_board,yes
+324,existing,13.32,33.91,13.05,33.92,0.27,3.5,2.7,plaster_board,yes
+325,existing,13.05,30.16,13.32,30.16,0.27,5.5,2.7,plaster_board,yes
+326,existing,0.43,73.71,0.58,73.72,0.16,4.5,2.7,plaster_board,yes
+327,existing,35.71,2.57,35.88,2.43,0.22,6.0,2.7,plaster_board,yes
+328,existing,37.36,3.31,37.51,3.31,0.15,4.0,2.7,plaster_board,yes
+329,existing,11.41,58.93,11.41,58.80,0.13,4.1,2.7,plaster_board,yes
+330,existing,33.40,73.70,33.55,73.70,0.15,4.0,2.7,plaster_board,yes
+331,existing,6.05,28.66,6.21,28.66,0.15,5.5,2.7,plaster_board,yes
+332,existing,6.71,28.45,6.71,28.31,0.14,5.0,2.7,plaster_board,yes
+333,existing,11.18,42.42,11.36,42.42,0.18,2.6,2.7,plaster_board,yes
+334,existing,12.99,58.93,12.99,58.80,0.13,4.4,2.7,plaster_board,yes
+335,existing,13.17,27.46,13.02,27.59,0.20,3.9,2.7,plaster_board,yes
+336,existing,27.14,54.10,27.40,54.10,0.27,5.5,2.7,plaster_board,yes
+337,core,6.85,37.92,6.19,37.33,0.89,12.0,2.7,concrete,yes
+338,core,6.24,37.30,6.24,36.55,0.75,12.0,2.7,concrete,yes
+339,core,6.05,35.35,6.93,35.35,0.88,10.5,2.7,concrete,yes
+340,core,6.05,32.57,6.43,32.57,0.38,8.5,2.7,concrete,yes
+341,core,13.24,56.97,13.24,55.27,1.70,15.0,2.7,concrete,yes
+342,core,19.41,56.72,13.05,56.72,6.36,19.4,2.7,concrete,yes
+343,core,14.52,55.31,14.52,56.60,1.29,23.5,2.7,concrete,yes
+344,core,18.64,56.60,18.64,54.09,2.51,61.0,2.7,concrete,yes
+345,core,13.25,52.34,13.25,54.09,1.74,15.5,2.7,concrete,yes
+346,core,14.63,53.89,13.05,53.89,1.57,16.0,2.7,concrete,yes
+347,core,17.86,53.89,14.62,53.89,3.24,16.0,2.7,concrete,yes
+348,core,17.86,53.92,19.34,53.93,1.47,18.4,2.7,concrete,yes
+349,core,25.60,53.92,18.14,53.92,7.45,18.0,2.7,concrete,yes
+350,core,25.22,55.87,25.22,56.97,1.10,29.4,2.7,concrete,yes
+351,core,25.41,53.37,25.41,54.15,0.79,14.5,2.7,concrete,yes
+352,core,25.41,52.38,25.41,53.37,0.99,14.5,2.7,concrete,yes
+353,core,25.31,52.24,25.68,52.45,0.43,12.5,2.7,concrete,yes
+354,core,17.86,53.09,19.34,53.10,1.48,47.0,2.7,concrete,yes
+355,core,17.81,51.84,19.33,51.70,1.53,52.3,2.7,concrete,yes
+356,core,25.60,51.02,13.05,51.00,12.55,13.0,2.7,concrete,yes
+357,core,14.80,47.57,14.80,49.53,1.96,8.0,2.7,concrete,yes
+358,core,13.18,47.57,13.18,41.34,6.24,10.6,2.7,concrete,yes
+359,core,15.05,47.44,13.05,47.44,2.00,10.5,2.7,concrete,yes
+360,core,14.91,43.92,14.91,47.31,3.39,10.6,2.7,concrete,yes
+361,core,15.11,43.92,15.11,41.64,2.28,26.6,2.7,concrete,yes
+362,core,17.46,41.49,13.05,41.49,4.41,12.0,2.7,concrete,yes
+363,core,20.24,41.49,18.36,41.49,1.88,12.0,2.7,concrete,yes
+364,core,14.70,47.66,16.73,47.66,2.03,27.5,2.7,concrete,yes
+365,core,21.05,47.58,16.87,47.58,4.18,21.5,2.7,concrete,yes
+366,core,23.86,48.01,23.86,49.50,1.50,8.0,2.7,concrete,yes
+367,core,24.06,47.51,24.06,47.19,0.32,8.0,2.7,concrete,yes
+368,core,21.92,47.60,23.96,47.60,2.04,32.0,2.7,concrete,yes
+369,core,21.92,47.52,19.38,47.52,2.54,26.0,2.7,concrete,yes
+370,core,20.04,47.85,20.04,41.34,6.52,79.5,2.7,concrete,yes
+371,core,25.60,47.35,25.05,47.35,0.55,12.5,2.7,concrete,yes
+372,core,25.44,47.21,25.44,44.68,2.53,12.6,2.7,concrete,yes
+373,core,25.60,43.36,19.38,43.36,6.22,104.0,2.7,concrete,yes
+374,core,19.54,41.56,19.54,44.68,3.12,13.0,2.7,concrete,yes
+375,core,19.46,41.89,20.32,41.67,0.89,26.7,2.7,concrete,yes
+376,core,21.31,41.91,20.24,41.91,1.07,10.0,2.7,concrete,yes
+377,core,21.57,42.04,21.57,41.34,0.70,21.0,2.7,concrete,yes
+378,core,22.26,43.79,22.26,41.34,2.45,33.5,2.7,concrete,yes
+379,core,22.96,42.04,22.96,41.34,0.70,21.1,2.7,concrete,yes
+380,core,24.29,41.91,23.22,41.91,1.07,10.0,2.7,concrete,yes
+381,core,24.94,44.68,24.94,41.34,3.34,51.4,2.7,concrete,yes
+382,core,13.24,38.16,13.24,37.62,0.55,15.0,2.7,concrete,yes
+383,core,17.23,37.99,13.05,37.99,4.18,14.0,2.7,concrete,yes
+384,core,16.90,38.41,15.78,36.92,1.87,32.2,2.7,concrete,yes
+385,core,16.84,37.33,17.40,38.02,0.89,17.8,2.7,concrete,yes
+386,core,16.45,35.59,16.45,37.46,1.87,19.5,2.7,concrete,yes
+387,core,18.83,37.58,17.23,37.58,1.60,10.0,2.7,concrete,yes
+388,core,20.23,37.81,18.30,37.81,1.93,28.0,2.7,concrete,yes
+389,core,13.18,34.87,13.18,35.65,0.77,10.6,2.7,concrete,yes
+390,core,15.91,35.10,13.32,35.10,2.59,16.0,2.7,concrete,yes
+391,core,16.73,34.89,14.91,34.89,1.83,33.0,2.7,concrete,yes
+392,core,15.32,35.31,15.32,32.97,2.34,46.6,2.7,concrete,yes
+393,core,17.03,34.76,16.07,35.74,1.38,32.9,2.7,concrete,yes
+394,core,18.83,35.18,16.70,35.18,2.13,41.0,2.7,concrete,yes
+395,core,19.53,37.45,19.53,34.66,2.79,55.0,2.7,concrete,yes
+396,core,25.60,37.58,20.23,37.58,5.37,10.0,2.7,concrete,yes
+397,core,23.22,37.94,21.29,37.94,1.93,18.0,2.7,concrete,yes
+398,core,25.60,37.94,24.29,37.94,1.31,18.0,2.7,concrete,yes
+399,core,25.21,34.92,25.21,37.71,2.78,30.5,2.7,concrete,yes
+400,core,23.92,35.18,19.69,35.18,4.23,41.0,2.7,concrete,yes
+401,core,22.26,35.70,22.26,37.45,1.75,34.0,2.7,concrete,yes
+402,core,23.92,35.31,25.60,35.31,1.68,30.5,2.7,concrete,yes
+403,core,24.15,35.23,21.99,34.19,2.39,41.1,2.7,concrete,yes
+404,core,25.38,31.62,25.38,33.86,2.24,17.4,2.7,concrete,yes
+405,core,25.60,31.38,20.84,31.38,4.76,19.0,2.7,concrete,yes
+406,core,25.42,28.37,25.42,29.96,1.59,14.0,2.7,concrete,yes
+407,core,19.29,28.57,25.60,28.57,6.31,15.5,2.7,concrete,yes
+408,core,19.24,28.54,20.79,28.94,1.60,14.0,2.7,concrete,yes
+409,core,20.09,28.74,20.09,31.28,2.54,59.0,2.7,concrete,yes
+410,core,20.84,31.46,19.33,31.44,1.51,14.5,2.7,concrete,yes
+411,core,13.32,31.44,19.33,31.44,6.01,14.5,2.7,concrete,yes
+412,core,13.05,31.44,13.51,31.44,0.46,14.5,2.7,concrete,yes
+413,core,13.28,31.62,13.28,33.88,2.25,18.0,2.7,concrete,yes
+414,core,13.43,29.97,13.05,29.97,0.38,9.0,2.7,concrete,yes
+415,core,13.24,28.43,13.24,29.08,0.65,15.0,2.7,concrete,yes
+416,core,19.29,28.59,13.05,28.59,6.24,12.0,2.7,concrete,yes
+417,core,1.32,73.34,1.32,74.47,1.13,30.5,2.7,concrete,yes
+418,core,0.34,74.63,1.39,74.63,1.05,12.5,2.7,concrete,yes
+419,core,0.71,73.74,0.63,74.81,1.07,22.2,2.7,concrete,yes
+420,core,10.36,73.33,10.36,74.52,1.19,33.5,2.7,concrete,yes
+421,core,19.32,73.32,19.32,74.49,1.17,30.0,2.7,concrete,yes
+422,core,28.34,64.39,28.34,65.15,0.76,30.0,2.7,concrete,yes
+423,core,38.02,64.76,36.99,64.76,1.03,26.0,2.7,concrete,yes
+424,core,19.73,64.78,18.94,64.78,0.79,29.4,2.7,concrete,yes
+425,core,1.72,64.76,0.60,64.76,1.12,30.0,2.7,concrete,yes
+426,core,1.72,55.77,0.74,55.77,0.98,29.5,2.7,concrete,yes
+427,core,36.95,55.77,37.93,55.77,0.98,30.0,2.7,concrete,yes
+428,core,36.95,46.78,37.93,46.78,0.98,30.5,2.7,concrete,yes
+429,core,1.72,46.80,0.73,46.80,0.99,30.1,2.7,concrete,yes
+430,core,1.71,37.80,0.73,37.80,0.98,29.5,2.7,concrete,yes
+431,core,1.72,28.81,0.73,28.81,0.99,30.5,2.7,concrete,yes
+432,core,37.92,28.75,36.98,28.75,0.94,30.5,2.7,concrete,yes
+433,core,37.97,37.74,37.00,37.74,0.97,33.0,2.7,concrete,yes
+434,core,1.70,19.83,0.58,19.83,1.12,30.5,2.7,concrete,yes
+435,core,10.32,20.23,10.32,19.43,0.80,31.0,2.7,concrete,yes
+436,core,1.12,10.46,1.12,11.75,1.28,44.6,2.7,concrete,yes
+437,core,10.31,10.03,10.31,11.16,1.13,30.0,2.7,concrete,yes
+438,core,19.29,10.04,19.29,11.16,1.12,34.0,2.7,concrete,yes
+439,core,19.73,19.78,18.94,19.78,0.79,30.5,2.7,concrete,yes
+440,core,28.24,10.25,28.24,11.35,1.11,36.0,2.7,concrete,yes
+441,core,38.09,10.74,36.91,10.74,1.18,30.0,2.7,concrete,yes
+442,core,37.55,1.11,35.84,2.57,2.25,11.8,2.7,concrete,yes
+443,core,36.71,2.68,37.88,1.40,1.73,39.3,2.7,concrete,yes
+444,core,37.36,2.54,37.36,3.26,0.72,12.0,2.7,concrete,yes
+445,core,28.70,19.75,27.92,19.75,0.77,30.0,2.7,concrete,yes
+446,core,38.11,19.75,36.93,19.75,1.18,29.5,2.7,concrete,yes
+447,core,32.85,74.40,33.55,74.40,0.70,18.5,2.7,concrete,yes
+448,core,33.38,74.17,33.38,73.75,0.42,13.5,2.7,concrete,yes
+449,core,32.82,74.17,32.82,73.39,0.77,30.0,2.7,concrete,yes
+450,core,28.37,74.51,28.37,73.33,1.18,33.0,2.7,concrete,yes
+451,core,9.95,64.77,10.71,64.77,0.76,30.0,2.7,concrete,yes
+452,core,27.67,10.09,28.89,10.09,1.22,12.0,2.7,concrete,yes
+453,core,25.46,29.96,25.46,30.23,0.27,10.5,2.7,concrete,yes

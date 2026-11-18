@@ -260,6 +260,13 @@ foreach(_scene IN LISTS _sbr_scenes)
     set_tests_properties(sbrsolver_run_${_scene}_fine PROPERTIES TIMEOUT 600 FIXTURES_SETUP sbr_run_${_scene}_fine)
 endforeach()
 
+# The large-office plan scene, both access-point positions.
+foreach(_tx IN ITEMS lab east)
+    add_test(NAME sbrsolver_run_large_office_${_tx}
+             COMMAND sbrsolver "${SBR_SRC_DIR}/data/large_office/large_office_${_tx}.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_large_office_${_tx}")
+    set_tests_properties(sbrsolver_run_large_office_${_tx} PROPERTIES TIMEOUT 900 FIXTURES_SETUP sbr_run_large_office_${_tx})
+endforeach()
+
 # Unit tests of the viewer's data model and field interpolation (no display).
 add_executable(sbr_viewer_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/viewer_tests.cpp
@@ -365,6 +372,18 @@ if(Python3_Interpreter_FOUND)
     set(_sbr_fine_check_corner --all-nonzero)
     set(_sbr_fine_check_office --max-zero 700)
     set(_sbr_fine_check_bahen --max-zero 10)
+    # The plan scene: one finite field per receiver. The rooms the access
+    # point cannot reach within six wall transmissions get no field: 3851
+    # receivers from the lab, 2348 from the east workstations.
+    set(_sbr_large_office_max_zero_lab 4050)
+    set(_sbr_large_office_max_zero_east 2500)
+    foreach(_tx IN ITEMS lab east)
+        add_test(NAME sbrsolver_fields_large_office_${_tx}
+                 COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_fields.py"
+                         "${CMAKE_CURRENT_BINARY_DIR}/test_output_large_office_${_tx}/ElectricField.csv"
+                         "${SBR_SRC_DIR}/data/large_office/RX_large_office.dat" --max-zero ${_sbr_large_office_max_zero_${_tx}})
+        set_tests_properties(sbrsolver_fields_large_office_${_tx} PROPERTIES FIXTURES_REQUIRED sbr_run_large_office_${_tx})
+    endforeach()
     foreach(_scene IN LISTS _sbr_scenes)
         add_test(NAME sbrsolver_fields_${_scene}_fine
                  COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_fields.py"
