@@ -2,7 +2,7 @@
 
 // The built-in 3D viewer (Polyscope). Shows the scene with face, material and
 // surface ids, the edges (wedges are the diffraction candidates), the
-// transmitter, the receivers coloured by any field quantity, every ray path,
+// transmitters, the receivers coloured by any field quantity, every ray path,
 // a 2D interpolated field view in the receivers' plane and a 3D slice view of
 // the interpolated field.
 #include <string>

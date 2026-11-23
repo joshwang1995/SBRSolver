@@ -5,8 +5,10 @@
 #include <cctype>
 #include <filesystem>
 #include <iostream>
+#include <memory>
 #include <new>
 #include <string>
+#include <utility>
 #include <vector>
 #include "BVH/BVH.h"
 #include "common/VecMatDef.h"
@@ -251,18 +253,19 @@ int main(int argc, char* argv[])
 	timer.start();
 	{
 	SBR_ZONE_NAMED("Preprocessor");
-	if (!config.patternFile.empty())
+	for (const TransmitterConfig& tx : config.transmitters)
 	{
+		if (tx.patternFile.empty()) continue;
 		// The measured pattern is validated here but the field computation still
 		// uses the analytic antenna_type: applying a tabulated gain is not
 		// implemented yet (see FieldCompute::FieldForPath).
 		GainMap txPattern;
-		if (!Preprocessor::ReadPatternFile(config.patternFile, txPattern) || txPattern.empty())
+		if (!Preprocessor::ReadPatternFile(tx.patternFile, txPattern) || txPattern.empty())
 		{
-			std::cerr << "Error: cannot read transmitter pattern file " << config.patternFile << std::endl;
+			std::cerr << "Error: cannot read transmitter pattern file " << tx.patternFile << std::endl;
 			return 1;
 		}
-		std::cout << "\tWarning: pattern_file was read (" << txPattern.size()
+		std::cout << "\tWarning: pattern_file of transmitter " << tx.name << " was read (" << txPattern.size()
 			<< " samples) but is not applied; the analytic antenna_type is used instead." << std::endl;
 	}
 	if (!GenerateReceivers(config.receivers, rxLocation))
@@ -320,7 +323,24 @@ int main(int argc, char* argv[])
 		materials.push_back(m.properties);
 	}
 
-	RTSolver* rayTracer = new RTSolver();
+	// Every transmitter radiates at once: their rays are launched together
+	// and each receiver gets the sum of their fields.
+	std::vector<TransmitterSource> sources;
+	size_t launchRays = 0;
+	for (const TransmitterConfig& tx : config.transmitters)
+	{
+		TransmitterSource source;
+		source.position = tx.position;
+		source.coordSys = tx.coordSys;
+		source.powerWatts = tx.powerWatts;
+		source.antennaType = int(tx.antennaType);
+		source.tessellation = tx.tessellation;
+		sources.push_back(source);
+		launchRays += size_t(10 * (1 << (2 * tx.tessellation)) + 2);
+	}
+	std::cout << "\tTransmitters             -> " << sources.size() << " (" << launchRays << " launch rays)" << std::endl;
+
+	std::unique_ptr<RTSolver> rayTracer(new RTSolver());
 	rayTracer->Init(materials.data(), int(materials.size()), bvh);
 	rayTracer->SetThreadCount(config.threads);
 
@@ -329,24 +349,20 @@ int main(int argc, char* argv[])
 	{
 		totalPaths = rayTracer->ExecuteRayTracing
 		(
-			config.txPosition,
-			config.txCoordSys,
+			sources,
 			config.maxReflections,
 			config.maxTransmissions,
 			config.frequencyHz,
-			config.txPowerWatts,
 			config.useFresnelCoefficients,
-			int(config.antennaType),
 			rxLocation,
-			triangle_mesh,
-			config.tessellation
+			triangle_mesh
 		);
 	}
 	catch (const std::bad_alloc&)
 	{
 		std::cerr << "Error: out of memory while tracing " << rxLocation.size() << " receivers x "
-			<< (10 * (1 << (2 * config.tessellation)) + 2) << " launch rays; reduce the receiver count, "
-			<< "the tessellation or the number of threads" << std::endl;
+			<< launchRays << " launch rays; reduce the receiver count, "
+			<< "the tessellation, the number of transmitters or the number of threads" << std::endl;
 		return 1;
 	}
 	catch (const std::exception& e)
@@ -361,7 +377,7 @@ int main(int argc, char* argv[])
 		SBR_ZONE_NAMED("Outputs");
 		// rayTracer->CmdLineDebug();
 		if (config.writeRayPaths) rayTracer->SavePathsAsVtk(rayPathFileName);
-		if (config.writeIcosahedron) rayTracer->SaveIcosahedronAsVtk(icosahedronFileName, config.txPosition, config.tessellation);
+		if (config.writeIcosahedron) rayTracer->SaveIcosahedronAsVtk(icosahedronFileName);
 		if (config.writeReceivers) rayTracer->SaveReceiversAsVtk(rxLocationOutputFileName);
 		if (config.writeFieldCsv) rayTracer->SaveFieldAsCsv(csvFieldFileName);
 	}
@@ -379,18 +395,24 @@ int main(int argc, char* argv[])
 		scene.outputDir = PathString(outputDir);
 		scene.mesh = sbr::viewer::BuildSceneMesh(triangle_mesh, materialNames);
 		scene.edges = sbr::viewer::BuildSceneEdges(scene.mesh);
-		scene.txPosition = config.txPosition;
-		scene.txCoordSys = config.txCoordSys;
-		scene.antennaType = AntennaTypeName(config.antennaType);
 		scene.frequencyHz = config.frequencyHz;
-		scene.txPowerWatts = config.txPowerWatts;
+		for (const TransmitterConfig& tx : config.transmitters)
+		{
+			sbr::viewer::SceneTransmitter transmitter;
+			transmitter.name = tx.name;
+			transmitter.position = tx.position;
+			transmitter.coordSys = tx.coordSys;
+			transmitter.antennaType = AntennaTypeName(tx.antennaType);
+			transmitter.powerWatts = tx.powerWatts;
+			scene.transmitters.push_back(transmitter);
+		}
 		scene.receivers.assign(rxLocation.begin(), rxLocation.end());
 		scene.fields = rayTracer->Fields();
 		scene.paths = rayTracer->CollectPaths();
 	}
 #endif
 
-	delete rayTracer;
+	rayTracer.reset();
 
 	for (Triangle* triangle : triangle_mesh)
 	{

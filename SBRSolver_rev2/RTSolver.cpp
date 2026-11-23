@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cmath>
 #include <map>
+#include <memory>
 #include <utility>
 
 namespace
@@ -66,17 +67,13 @@ void RTSolver::Cleanup()
 
 int RTSolver::ExecuteRayTracing
 (
-	Vec3 sourcePoint,
-	const Mat3& txCoordSys,
+	const std::vector<TransmitterSource>& transmitters,
 	int maxReflectionCount,
 	int maxTransmissionCount,
 	double frequency,
-	double pt,
 	bool useFresnelCoeff,
-	int antennaType,
 	VecVec3& receivers,
-	std::vector<Triangle*>& triangleMesh,
-	int txTesslation
+	std::vector<Triangle*>& triangleMesh
 )
 {
 	SBR_ZONE_NAMED("ExecuteRayTracing");
@@ -84,8 +81,18 @@ int RTSolver::ExecuteRayTracing
 
 	_maxReflectionCount = maxReflectionCount;
 	_maxTransmissionCount = maxTransmissionCount;
-	_txTesslation = txTesslation + 1; // user can enter 0 as txTesslation
-	_shootRayList = GenerateRaysOnIcosahedron(txTesslation, sourcePoint);
+	// One launch list for all transmitters: every direction remembers the
+	// transmitter it starts from, so the launches of all of them run
+	// together in the loop below.
+	_transmitters = transmitters;
+	_shootRayList = new std::vector<Vec3>;
+	_launchTx.clear();
+	for (size_t t = 0; t < _transmitters.size(); t++)
+	{
+		std::unique_ptr<std::vector<Vec3>> directions(GenerateRaysOnIcosahedron(_transmitters[t].tessellation, _transmitters[t].position));
+		_shootRayList->insert(_shootRayList->end(), directions->begin(), directions->end());
+		_launchTx.insert(_launchTx.end(), directions->size(), int(t));
+	}
 	_receivers = &receivers;
 	_receiverCount = int(receivers.size());
 	_pathsCount = int(_shootRayList->size());
@@ -112,7 +119,8 @@ int RTSolver::ExecuteRayTracing
 	ParallelFor(_pathsCount, threads, [&](int i)
 	{
 		SBR_ZONE_NAMED("RayLaunch");
-		Vec3 origin = sourcePoint;
+		const TransmitterSource& tx = _transmitters[_launchTx[i]];
+		Vec3 origin = tx.position;
 		PathTreeNode rootNode;
 		rootNode.ray.id = RayGlobalId++;
 		rootNode.childTransmit = nullptr;
@@ -122,7 +130,7 @@ int RTSolver::ExecuteRayTracing
 		{
 			PathTreeNode* cloneRoot = CloneNode(&rootNode);
 			CloneTree(&rootNode, cloneRoot);
-			RayCapture(cloneRoot, receivers[j], 0.0);
+			RayCapture(cloneRoot, receivers[j], 0.0, tx.tessellation + 1); // a user may give level 0
 			_rayPaths[i][j] = Paths(cloneRoot);
 			cloneRoot = DeleteChildNodes(cloneRoot);
 			delete cloneRoot;
@@ -133,19 +141,25 @@ int RTSolver::ExecuteRayTracing
 	});
 	std::cout << "\tTotal Time in ray launching -> " << timer.getTime() << std::endl;
 
-	FieldCompute* fieldCore = new FieldCompute
-	(
-		_rayPaths, 
-		triangleMesh, 
-		receivers, 
-		_pathsCount, 
-		_materialProperties, 
-		txCoordSys, 
-		frequency, 
-		pt,
-		useFresnelCoeff,
-		antennaType
-	);
+	// The source field differs per transmitter (power, antenna, frame); the
+	// propagation does not.
+	std::vector<std::unique_ptr<FieldCompute>> fieldCores;
+	for (const TransmitterSource& tx : _transmitters)
+	{
+		fieldCores.emplace_back(new FieldCompute
+		(
+			_rayPaths,
+			triangleMesh,
+			receivers,
+			_pathsCount,
+			_materialProperties,
+			tx.coordSys,
+			frequency,
+			tx.powerWatts,
+			useFresnelCoeff,
+			tx.antennaType
+		));
+	}
 
 	// Each receiver only touches its own column of _rayPaths and its own
 	// entry of _efield, so the receivers run independently as well.
@@ -157,18 +171,20 @@ int RTSolver::ExecuteRayTracing
 		SBR_ZONE_NAMED("ReceiverField");
 		{
 			SBR_ZONE_NAMED("ImagePathCorrection");
-			ImagePathCorrection(k, sourcePoint, triangleMesh);
+			ImagePathCorrection(k, triangleMesh);
 			RemoveDuplicatePath(k);
 		}
-		// The field of every path is kept (the viewer shows it) and summed.
+		// The field of every path is kept (the viewer shows it) and summed
+		// over the paths of every transmitter.
 		std::vector<Vec3c>& fields = _pathFields[k];
 		fields.clear();
 		Vec3c total{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
 		for (int i = 0; i < _pathsCount; i++)
 		{
+			const FieldCompute& fieldCore = *fieldCores[_launchTx[i]];
 			for (const std::vector<Ray>& path : _rayPaths[i][k].rayPaths)
 			{
-				const Vec3c field = fieldCore->FieldForPath(path);
+				const Vec3c field = fieldCore.FieldForPath(path);
 				fields.push_back(field);
 				total += field;
 			}
@@ -176,8 +192,7 @@ int RTSolver::ExecuteRayTracing
 		(*_efield)[k] = total;
 	});
 	std::cout << "\tTotal Time in field computation -> " << timer.getTime() << std::endl;
-	
-	delete fieldCore;
+
 	return _pathsCount * _receiverCount;
 }
 
@@ -209,6 +224,7 @@ std::vector<sbr::viewer::ScenePath> RTSolver::CollectPaths() const
 				ScenePath sp;
 				sp.receiverId = j;
 				sp.launchId = i;
+				sp.transmitterId = _launchTx[i];
 				sp.points.reserve(rays.size() + 1);
 				sp.points.push_back(rays[0].sourcePoint);
 				for (size_t r = 0; r < rays.size(); r++)
@@ -361,7 +377,7 @@ void RTSolver::RayLaunch
 	}
 }
 
-void RTSolver::RayCapture(PathTreeNode* rayTreeNode, const Vec3& receiver, double totalPathLength)
+void RTSolver::RayCapture(PathTreeNode* rayTreeNode, const Vec3& receiver, double totalPathLength, int tessellation)
 {
 	// Marks every ray whose segment passes through the receiver's reception
 	// sphere. The children of a captured ray are still visited: a ray that
@@ -370,7 +386,7 @@ void RTSolver::RayCapture(PathTreeNode* rayTreeNode, const Vec3& receiver, doubl
 	// the second. Paths::Paths turns the marks into candidate paths, which
 	// ImagePathCorrection then verifies.
 	Vec3 capturePoint;
-	if (HitReceptionSphere(rayTreeNode->ray.sourcePoint, rayTreeNode->ray.targetPoint, receiver, totalPathLength, _txTesslation, capturePoint))
+	if (HitReceptionSphere(rayTreeNode->ray.sourcePoint, rayTreeNode->ray.targetPoint, receiver, totalPathLength, tessellation, capturePoint))
 	{
 		rayTreeNode->ray.captured = true;
 	}
@@ -378,19 +394,20 @@ void RTSolver::RayCapture(PathTreeNode* rayTreeNode, const Vec3& receiver, doubl
 	// of every ray in pathLength, so that is the children's starting length.
 	if (rayTreeNode->childTransmit != nullptr)
 	{
-		RayCapture(rayTreeNode->childTransmit, receiver, rayTreeNode->ray.pathLength);
+		RayCapture(rayTreeNode->childTransmit, receiver, rayTreeNode->ray.pathLength, tessellation);
 	}
 
 	if (rayTreeNode->childReflect != nullptr)
 	{
-		RayCapture(rayTreeNode->childReflect, receiver, rayTreeNode->ray.pathLength);
+		RayCapture(rayTreeNode->childReflect, receiver, rayTreeNode->ray.pathLength, tessellation);
 	}
 }
 
-void RTSolver::ImagePathCorrection(int receiverId, const Vec3& txPoint, const std::vector<Triangle*>& triangleMesh)
+void RTSolver::ImagePathCorrection(int receiverId, const std::vector<Triangle*>& triangleMesh)
 {
 	for (int i = 0; i < _pathsCount; i++)
 	{
+		const Vec3& txPoint = _transmitters[_launchTx[i]].position;
 		auto it = _rayPaths[i][receiverId].rayPaths.begin();
 		bool pathCorrected = false;
 		while (it != _rayPaths[i][receiverId].rayPaths.end())
@@ -556,6 +573,8 @@ std::vector<std::pair<int, Vec3>> GetImageSources(const std::vector<Ray>& path, 
 
 void RTSolver::RemoveDuplicatePath(int receiverId)
 {
+	// A path is its transmitter and its sequence of surfaces: the same
+	// sequence from two transmitters is two paths.
 	std::map<std::vector<int>, int> surfaceIdMap;
 
 	// std::unordered_set<std::vector<int>> hitIdSet;
@@ -567,6 +586,7 @@ void RTSolver::RemoveDuplicatePath(int receiverId)
 		{
 			// std::vector<int> key = GetHitSurfaceIds(*it);
 			std::vector<int> key = GetHitCoplanarIds(*it);
+			key.insert(key.begin(), _launchTx[i]);
 			if (surfaceIdMap.count(key))
 			{
 				it = _rayPaths[i][receiverId].rayPaths.erase(it);
@@ -680,11 +700,17 @@ bool RTSolver::SavePathsAsVtk(std::string fname)
 	}
 
 	ofs << "CELL_DATA " << launchIds.size() << endl;
-	ofs << "FIELD FieldData 5" << endl;
+	ofs << "FIELD FieldData 6" << endl;
 	ofs << "LaunchID 1 " << launchIds.size() << " int" << endl;
 	for (int i = 0; i < launchIds.size(); i++)
 	{
 		ofs << " " << launchIds[i] << endl;
+	}
+
+	ofs << "TransmitterID 1 " << launchIds.size() << " int" << endl;
+	for (int i = 0; i < launchIds.size(); i++)
+	{
+		ofs << " " << _launchTx[launchIds[i]] << endl;
 	}
 
 	ofs << "ReceiverID 1 " << receiverIds.size() << " int" << endl;
@@ -827,7 +853,7 @@ bool RTSolver::SaveFieldAsCsv(std::string fname)
 	return true;
 }
 
-bool RTSolver::SaveIcosahedronAsVtk(std::string fname, Vec3 rayOrg, int tessellation)
+bool RTSolver::SaveIcosahedronAsVtk(std::string fname)
 {
 	using namespace std;
 
@@ -843,34 +869,46 @@ bool RTSolver::SaveIcosahedronAsVtk(std::string fname, Vec3 rayOrg, int tessella
 	ofs << "DATASET POLYDATA" << endl;
 	ofs << endl;
 
-	ofs << "POINTS " << _shootRayList->size() + 1 << " float" << endl;
-	ofs << " " << rayOrg.x() << " " << rayOrg.y() << " " << rayOrg.z() << endl;
-	for (const Vec3& v : *_shootRayList)
+	// The first points are the transmitters, then one point per launch
+	// direction at unit distance from its transmitter.
+	const size_t launches = _shootRayList->size();
+	const size_t origins = _transmitters.size();
+	ofs << "POINTS " << launches + origins << " float" << endl;
+	for (const TransmitterSource& tx : _transmitters)
 	{
+		ofs << " " << tx.position.x() << " " << tx.position.y() << " " << tx.position.z() << endl;
+	}
+	for (size_t i = 0; i < launches; i++)
+	{
+		const Vec3& origin = _transmitters[_launchTx[i]].position;
+		const Vec3& v = _shootRayList->at(i);
 		ofs << " "
-			<< rayOrg.x() + 1.0 * v.x() << " "
-			<< rayOrg.y() + 1.0 * v.y() << " "
-			<< rayOrg.z() + 1.0 * v.z() << endl;
+			<< origin.x() + 1.0 * v.x() << " "
+			<< origin.y() + 1.0 * v.y() << " "
+			<< origin.z() + 1.0 * v.z() << endl;
 	}
 
-	ofs << "LINES " << _shootRayList->size() << " " << 3 * _shootRayList->size() << endl;
-	for (int i = 1; i < _shootRayList->size() + 1; i++)
+	ofs << "LINES " << launches << " " << 3 * launches << endl;
+	for (size_t i = 0; i < launches; i++)
 	{
-		ofs << " 2"
-			<< " 0 "
-			<< i << endl;
+		ofs << " 2 " << _launchTx[i] << " " << origins + i << endl;
 	}
 
-	ofs << "CELL_DATA " << _shootRayList->size() << endl;
-	ofs << "FIELD FieldData 1" << endl;
-	ofs << "LaunchID 1 " << _shootRayList->size() << " int" << endl;
-	for (int i = 0; i < _shootRayList->size(); i++)
+	ofs << "CELL_DATA " << launches << endl;
+	ofs << "FIELD FieldData 2" << endl;
+	ofs << "LaunchID 1 " << launches << " int" << endl;
+	for (size_t i = 0; i < launches; i++)
 	{
 		ofs << " " << i << endl;
 	}
+	ofs << "TransmitterID 1 " << launches << " int" << endl;
+	for (size_t i = 0; i < launches; i++)
+	{
+		ofs << " " << _launchTx[i] << endl;
+	}
 
 	ofs.close();
-	cout << "\tSaved " << _shootRayList->size() << " ray paths into " << fname << endl;
+	cout << "\tSaved " << launches << " launch directions into " << fname << endl;
 	cout << "[Leaving] RTSolver::SaveIcosahedronAsVtk" << endl;
 
 	return true;

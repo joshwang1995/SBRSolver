@@ -96,7 +96,10 @@ VTK/CSV results. The configuration defaults to `ground.ini` in the data folder o
 (the path is baked in at build time, so the program can be started from any working directory);
 the output directory defaults to `output/` next to the configuration file and is created if missing.
 `SBRSolver_rev2/data/output` holds the committed reference results that `ctest` compares against, so run
-scenes other than `ground.ini` with an explicit output directory.
+scenes other than `ground.ini` with an explicit output directory. A configuration with several
+`[transmitter]` sections radiates them all at once: their rays are launched together, every path
+carries the id of its transmitter, and the field at a receiver is the sum of the fields from all of
+them. `office_two_tx.ini` shows this.
 
 ### Dense receiver layouts
 
@@ -123,9 +126,10 @@ Run them like any other scene, with an explicit output directory:
 The generator reads the STL files, rasterises the walls at the receiver height and flood-fills
 either the area reachable from the transmitter (`--region reachable`), everything inside the outer
 walls (`--region enclosure`) or a plain box (`--region bbox`), then drops candidates closer than
-`--margin` to a wall or `--tx-clearance` to the transmitter. `--spacing`, `--height`, `--bbox` and
-`--line` shape the grid; `--plot` writes a top-down PNG of walls, transmitter and receivers (needs
-Pillow). The first line of each `RX_*_fine.dat` records the command line it was made with. A denser
+`--margin` to a wall or `--tx-clearance` to a transmitter. `--tx` is repeated for a scene with
+several transmitters. `--spacing`, `--height`, `--bbox` and `--line` shape the grid; `--plot` writes
+a top-down PNG of walls, transmitters and receivers (needs Pillow). The first line of each
+`RX_*_fine.dat` records the command line it was made with. A denser
 layout costs memory: the solver keeps a path list per launched ray and receiver (24 bytes each), so
 the Bahen grid is 2562 × 6858 × 24 bytes, about 0.4 GB, and a 0.25 m grid would need four times
 that.
@@ -179,13 +183,14 @@ planes: 9 curtain-wall segments and 7 closures at the corner columns and piers. 
 existing wall and jamb polygons and 117 core and column polygons. Of the plan's three phone booths
 only the one next to the east lab bays is in the model, as partitions. The two pods at the south
 curtain wall have a door opening, so two of their pieces have a free end. No closed box is found and
-they are dropped. Two configurations put a 20 dBm, 2.44 GHz access point 0.2 m below the ceiling.
-One is in the centre of the lab (`large_office_lab.ini`), the other above the east open workstations
-(`large_office_east.ini`). Both use a 0.5 m receiver grid at 1.5 m over the reachable floor (7,227
-receivers), two reflections and six wall transmissions. A run takes 15 to 30 s on four cores.
+they are dropped. `large_office.ini` puts two 20 dBm, 2.44 GHz access points 0.2 m below the
+ceiling: `lab` in the centre of the lab and `east` above the east open workstations. Both radiate
+at once, so every receiver gets the sum of their fields. The scene uses a 0.5 m receiver grid at
+1.5 m over the reachable floor (7,227 receivers), two reflections and six wall transmissions. The
+run takes about 40 s on four cores.
 
 ```sh
-./build/sbrsolver SBRSolver_rev2/data/large_office/large_office_east.ini results/large_office_east --view
+./build/sbrsolver SBRSolver_rev2/data/large_office/large_office.ini results/large_office --view
 ```
 
 ### Results
@@ -197,7 +202,9 @@ receivers), two reflections and six wall transmissions. A run takes 15 to 30 s o
 `L`; reflections and transmissions act on the TE and TM components of the field in the plane of
 incidence with the Fresnel coefficients of the surface material. `RayPath.vtk` holds every path that
 was found (exact image-method paths, one per receiver and interaction sequence) and `RxLocations.vtk`
-the receivers with `|E|` and the field in dB(µV/m).
+the receivers with `|E|` and the field in dB(µV/m). With several transmitters the field at every
+receiver is the sum over all of them, and every path in `RayPath.vtk` and every launch direction in
+`Icosahedron.vtk` carries a `TransmitterID`.
 
 ### Viewer
 
@@ -212,11 +219,12 @@ overlay that can be switched on and off, in the *SBRSolver* panel or in Polyscop
   **Surface ID** (the coplanar surface ids used by `[surface_materials]`);
 * the mesh **edges**, with the **wedge edges** (two faces at an angle, the candidates for diffraction)
   highlighted; **diffracting edges** appear once the diffraction model exists;
-* the **transmitter** with its antenna axes and the **receivers**, coloured by any field quantity:
-  `|E|`, `|E|` in dBµV/m, received power in dBm (polarisation-matched isotropic antenna,
-  `|E|² λ² / 4π η₀`), the phase or the magnitude of `Ex`, `Ey`, `Ez`;
-* **all ray paths**, with a filter to show the paths of one receiver, coloured by receiver or by the
-  number of interactions;
+* the **transmitters** with their antenna axes and the **receivers**, coloured by any quantity of
+  the total field: `|E|`, `|E|` in dBµV/m, received power in dBm (polarisation-matched isotropic
+  antenna, `|E|² λ² / 4π η₀`), the phase or the magnitude of `Ex`, `Ey`, `Ez`;
+* **all ray paths**, with filters to show the paths of one receiver or of one transmitter, coloured
+  by receiver, by transmitter or by the number of interactions; with several transmitters the panel
+  also gives each transmitter's share of the field at the selected receiver;
 * a **2D interpolated view**: the field interpolated onto a regular grid in the receivers' plane
   (inverse-distance or nearest-neighbour interpolation of the complex components, then the chosen
   quantity);
@@ -267,19 +275,20 @@ required keys, values of the wrong type or range and missing files are reported 
 | | `material` | material of `stl_file` (default: the first `[material]`) |
 | | `save_edges`, `save_faces` | write `Edges.vtk` / `Faces.vtk` (default `true`); edge connectivity is computed per STL file, so an edge shared by two files appears once per file |
 | `[geometry]` (repeatable) | `file`, `material` | a further STL file whose triangles all get `material` |
-| `[transmitter]` | `position` | ray origin, `x y z` in metres |
+| `[transmitter]` (repeatable) | `position` | ray origin, `x y z` in metres. One section per transmitter; all radiate at once and their fields add up at every receiver. A later section takes the first one's values for every key it leaves out, except `name` and `position` |
+| | `name` | labels the transmitter's paths in the viewer and the log (one word of letters, digits, `_`, `-`, `.`, unique; default: the first unused of `tx0`, `tx1`, ...) |
 | | `coordinate_system` | three rows of the TX frame (its x, y and z axes in global coordinates), e.g. `0 1 0; 0 0 1; 1 0 0` (default identity); the rows must be unit length, perpendicular and right-handed |
-| | `power_watts`, `frequency_hz` | transmit power (default `1`) and frequency |
-| | `tessellation` | icosahedron subdivision level 0 to 8; launches 10·4ⁿ+2 rays (default `2`, 162 rays). A path is only found when a launched ray bounces close enough to it, so use the smallest level at which the number of paths stops changing: `ground.ini` and `office.ini` need `3`, `bahen.ini` `4` |
+| | `power_watts`, `frequency_hz` | transmit power (default `1`) and frequency; the frequency is one for the run (the fields are summed), so the first section sets it and a later one may only repeat it |
+| | `tessellation` | icosahedron subdivision level 0 to 8; launches 10·4ⁿ+2 rays per transmitter (default `2`, 162 rays). A path is only found when a launched ray bounces close enough to it, so use the smallest level at which the number of paths stops changing: `ground.ini` and `office.ini` need `3`, `bahen.ini` `4` |
 | | `antenna_type` | `isotropic`, `hertzian_dipole` (default) or `half_wave_dipole` |
 | | `pattern_file` | optional measured pattern; read and validated, not applied yet |
-| `[receivers]` | `layout = line` | `line_start`, `line_end`, `resolution` (generated layouts are limited to 100 million receiver × ray combinations, about 3 GB) |
+| `[receivers]` | `layout = line` | `line_start`, `line_end`, `resolution` (generated layouts are limited to 100 million receiver × launch-ray combinations, the launch rays of all transmitters added, about 3 GB) |
 | | `layout = plane` | `x_min`, `y_min`, `x_max`, `y_max`, `height`, `resolution` |
 | | `layout = file` | `file`, an `RX_*.dat` location file |
 | `[ray_tracing]` | `max_reflections`, `max_transmissions` | bounce limits (default `1` and `0`) |
 | | `use_fresnel_coefficients` | `true` (default): Fresnel reflection and transmission coefficients of a half space with the material's permittivity and conductivity; `false`: every surface is a perfect electric conductor (total reflection, no transmission) |
 | | `threads` | worker threads for ray launching and field computation; `0` (default) uses every hardware thread |
-| `[material]` (repeatable) | `name`, `reflection_loss`, `transmission_loss`, `rel_conductivity`, `rel_permittivity_re`, `rel_permittivity_im`, `frequency_hz` | one section per material with a unique name; the first is the default for `stl_file`. The field computation uses the complex permittivity `rel_permittivity_re - j rel_conductivity / (2π f ε₀)` at the transmitter frequency; the other values are read but not applied. `frequency_hz` defaults to the transmitter frequency |
+| `[material]` (repeatable) | `name`, `reflection_loss`, `transmission_loss`, `rel_conductivity`, `rel_permittivity_re`, `rel_permittivity_im`, `frequency_hz` | one section per material with a unique name; the first is the default for `stl_file`. The field computation uses the complex permittivity `rel_permittivity_re - j rel_conductivity / (2π f ε₀)` at the transmitter frequency; the other values are read but not applied. `frequency_hz` defaults to the first transmitter's frequency |
 | `[surface_materials]` | `<surface id> = <material name>` | override whole coplanar surfaces; ids are the `CoplanarID` field of `Faces.vtk`, written as plain decimal numbers, each at most once |
 | `[outputs]` | `ray_paths`, `receivers`, `field_csv`, `icosahedron` | which result files to write (defaults `true`, `true`, `true`, `false`) |
 | | `viewer` | open the built-in viewer after the run (default `false`; `--view` does the same) |
@@ -306,11 +315,15 @@ This runs the four scenes in `SBRSolver_rev2/data` (`ground`, `corner`, `office`
 dense receiver layouts in `data/fine` (`sbrsolver_run_<scene>_fine`). With a Python interpreter,
 `sbrsolver_fields_<scene>_fine` then checks with `tools/check_fields.py` that every receiver got one
 finite field at its own position. On the ground line and the corner floor every field is non-zero.
-`ctest` also runs the two access-point positions of the floor-plan scene in `data/large_office`
-(`sbrsolver_run_large_office_lab` and `sbrsolver_run_large_office_east`).
-`sbrsolver_fields_large_office_<tx>` applies the same check to each, with a bound on the receivers
-without a field. `ctest` checks
-`ground` and `office` twice and `corner` and `bahen` once:
+`ctest` also runs the floor-plan scene in `data/large_office` with its two access points radiating
+at once (`sbrsolver_run_large_office`), and `sbrsolver_fields_large_office` applies the same check
+to the result, with a bound on the receivers that neither access point reaches.
+`sbrsolver_run_office_two_tx` runs the office scene with two transmitters at once.
+`sbrsolver_two_tx_superposition` then runs each transmitter alone with
+`tools/check_superposition.py` and checks that the field of the full run is the sum of the two
+single fields and that every path carries its transmitter. `sbrsolver_fields_office_two_tx` applies
+`tools/check_fields.py` to the same result, with a bound on the receivers that neither transmitter
+reaches (21 of 108). `ctest` checks `ground` and `office` twice and `corner` and `bahen` once:
 
 * `sbrsolver_reference_*`: the `ground` and `office` fields against the results committed in
   `SBRSolver_rev2/data/output/ElectricField.csv` and `SBRSolver_rev2/data/reference/office_ElectricField.csv`
@@ -327,9 +340,10 @@ without a field. `ctest` checks
   the limits of the reference.
 
 The viewer has tests of its own: `viewer_unit_tests` (the scene data model and the field
-interpolation, no display needed), `viewer_smoke_mock` and `viewer_smoke_mock_volume` (a synthetic
-run through every overlay, with flat and with layered receivers, using the rendering-free mock
-backend), `viewer_mock_office` (the whole viewer on the office scene with the mock backend, every
+interpolation, no display needed), `viewer_smoke_mock`, `viewer_smoke_mock_volume` and
+`viewer_smoke_mock_two_tx` (a synthetic run through every overlay, with flat and with layered
+receivers and with two transmitters, using the rendering-free mock backend), `viewer_mock_office`
+(the whole viewer on the office scene with the mock backend, every
 platform), `viewer_cli_rejects_frames`, `viewer_cli_rejects_screenshot_type` and
 `viewer_cli_rejects_backend` (malformed viewer options are refused before the run) and, where
 `xvfb-run` exists, `viewer_screenshot_office` (a real

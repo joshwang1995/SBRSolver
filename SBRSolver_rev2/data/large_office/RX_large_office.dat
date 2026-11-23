@@ -1,4 +1,4 @@
-receiver positions: generate_receivers.py --stl SBRSolver_rev2/data/large_office/walls_partition.stl --stl SBRSolver_rev2/data/large_office/walls_exterior.stl --stl SBRSolver_rev2/data/large_office/glazing.stl --stl SBRSolver_rev2/data/large_office/core.stl --stl SBRSolver_rev2/data/large_office/screens.stl --stl SBRSolver_rev2/data/large_office/floor.stl --stl SBRSolver_rev2/data/large_office/ceiling.stl --tx 12.9 70.2 2.5 --height 1.5 --spacing 0.5 --margin 0.3 --region reachable --out SBRSolver_rev2/data/large_office/RX_large_office.dat
+receiver positions: generate_receivers.py --stl SBRSolver_rev2/data/large_office/walls_partition.stl --stl SBRSolver_rev2/data/large_office/walls_exterior.stl --stl SBRSolver_rev2/data/large_office/glazing.stl --stl SBRSolver_rev2/data/large_office/core.stl --stl SBRSolver_rev2/data/large_office/screens.stl --stl SBRSolver_rev2/data/large_office/floor.stl --stl SBRSolver_rev2/data/large_office/ceiling.stl --tx 12.9 70.2 2.5 --tx 33.49 39.07 2.5 --height 1.5 --spacing 0.5 --margin 0.3 --region reachable --out SBRSolver_rev2/data/large_office/RX_large_office.dat
 7227
 35.5941 3.31341 1.5
 36.0941 3.31341 1.5

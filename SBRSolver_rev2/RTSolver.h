@@ -21,28 +21,29 @@ public:
 	// Threads used by ExecuteRayTracing (0 = one per hardware thread).
 	void SetThreadCount(int threads) { _threadCount = threads; }
 	void Cleanup();
+	// Launches the rays of every transmitter together, finds the paths to
+	// every receiver and sums the fields of all transmitters at each one.
+	// Returns the number of (launch, receiver) path sets.
 	int ExecuteRayTracing
 	(
-		Vec3 sourcePoint,
-		const Mat3& txCoordSys,
+		const std::vector<TransmitterSource>& transmitters,
 		int maxReflectionCount,
 		int maxTransmissionCount,
 		double frequency,
-		double pt,
 		bool useFresnelCoeff,
-		int antennaType,
 		VecVec3& receivers,
-		std::vector<Triangle*>& triangleMesh,
-		int txTesslation
+		std::vector<Triangle*>& triangleMesh
 	);
 	// Results of the last ExecuteRayTracing for the viewer: the total field
-	// per receiver and every image-corrected path with its own field.
+	// per receiver and every image-corrected path with its own field and
+	// its transmitter.
 	const std::vector<Vec3c>& Fields() const;
 	std::vector<sbr::viewer::ScenePath> CollectPaths() const;
 	bool SavePathsAsVtk(std::string fname);
 	bool SaveReceiversAsVtk(std::string fname);
 	bool SaveFieldAsCsv(std::string fname);
-	bool SaveIcosahedronAsVtk(std::string fname, Vec3 rayOrg, int tessellation);
+	// The launch directions of every transmitter, as lines from its position.
+	bool SaveIcosahedronAsVtk(std::string fname);
 	void CmdLineDebug();
 protected:
 	MaterialProperties* _materialProperties = nullptr;
@@ -55,8 +56,12 @@ protected:
 	// visits them (launch, then path). Grows with the captured paths only.
 	std::vector<std::vector<Vec3c>> _pathFields;
 
+	// The transmitters of the last run and the transmitter of every launch
+	// direction in _shootRayList (the rows of _rayPaths).
+	std::vector<TransmitterSource> _transmitters;
+	std::vector<int> _launchTx;
+
 	bool _isSceneInitialized = false;
-	int _txTesslation = 0;
 	int _maxTransmissionCount = 0;
 	int _maxReflectionCount = 0;
 	int _pathsCount = 0;
@@ -78,17 +83,20 @@ private:
 		bool isRoot, 
 		double lastAnglefromN
 	);
+	// `tessellation` is the launching transmitter's level plus one; it sets
+	// the reception sphere.
 	void RayCapture
 	(
 		PathTreeNode* rayTreeNode,
 		const Vec3& receiver, 
-		double totalPathLength
+		double totalPathLength,
+		int tessellation
 	);
 	// Replaces every captured path of a receiver by the exact path with the
-	// same interaction sequence (image method) and drops the ones that do not
-	// exist: no intersection with the surface, or a segment blocked by another
-	// surface.
-	void ImagePathCorrection(int receiverId, const Vec3& txPoint, const std::vector<Triangle*>& triangleMesh);
+	// same interaction sequence (image method) from its own transmitter and
+	// drops the ones that do not exist: no intersection with the surface, or
+	// a segment blocked by another surface.
+	void ImagePathCorrection(int receiverId, const std::vector<Triangle*>& triangleMesh);
 	bool MultiPathCorrection(std::vector<Ray>& multiPath, int receiverId, const Vec3& txPoint, const std::vector<Triangle*>& triangleMesh);
 	bool DirectPathCorrection(std::vector<Ray>& directPath, int receiverId, const Vec3& txPoint);
 	// True when the open segment from `from` to `to` crosses a triangle that
