@@ -72,6 +72,7 @@ int RTSolver::ExecuteRayTracing
 	int maxTransmissionCount,
 	double frequency,
 	bool useFresnelCoeff,
+	bool powerSum,
 	VecVec3& receivers,
 	std::vector<Triangle*>& triangleMesh
 )
@@ -174,11 +175,14 @@ int RTSolver::ExecuteRayTracing
 			ImagePathCorrection(k, triangleMesh);
 			RemoveDuplicatePath(k);
 		}
-		// The field of every path is kept (the viewer shows it) and summed
-		// over the paths of every transmitter.
+		// The field of every path is kept (the viewer shows it). The paths
+		// of one transmitter add as phasors. Between transmitters the fields
+		// add as phasors too, or, for independent sources, the powers add
+		// and the field written is the root of the summed squared
+		// components, without phase.
 		std::vector<Vec3c>& fields = _pathFields[k];
 		fields.clear();
-		Vec3c total{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
+		std::vector<Vec3c> perTransmitter(_transmitters.size(), Vec3c::Zero());
 		for (int i = 0; i < _pathsCount; i++)
 		{
 			const FieldCompute& fieldCore = *fieldCores[_launchTx[i]];
@@ -186,8 +190,19 @@ int RTSolver::ExecuteRayTracing
 			{
 				const Vec3c field = fieldCore.FieldForPath(path);
 				fields.push_back(field);
-				total += field;
+				perTransmitter[_launchTx[i]] += field;
 			}
+		}
+		Vec3c total = Vec3c::Zero();
+		if (powerSum)
+		{
+			Vec3 power = Vec3::Zero();
+			for (const Vec3c& field : perTransmitter) power += field.cwiseAbs2();
+			total = power.cwiseSqrt().cast<cdouble>();
+		}
+		else
+		{
+			for (const Vec3c& field : perTransmitter) total += field;
 		}
 		(*_efield)[k] = total;
 	});

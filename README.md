@@ -99,7 +99,10 @@ the output directory defaults to `output/` next to the configuration file and is
 scenes other than `ground.ini` with an explicit output directory. A configuration with several
 `[transmitter]` sections radiates them all at once: their rays are launched together, every path
 carries the id of its transmitter, and the field at a receiver is the sum of the fields from all of
-them. `office_two_tx.ini` shows this.
+them. By default the fields add as phasors, which models antennas fed with one signal.
+`transmitter_sum = power` in `[ray_tracing]` adds their powers instead, for independent
+transmitters such as separate access points. `office_two_tx.ini` and `office_two_tx_power.ini`
+show both.
 
 ### Dense receiver layouts
 
@@ -204,7 +207,9 @@ incidence with the Fresnel coefficients of the surface material. `RayPath.vtk` h
 was found (exact image-method paths, one per receiver and interaction sequence) and `RxLocations.vtk`
 the receivers with `|E|` and the field in dB(µV/m). With several transmitters the field at every
 receiver is the sum over all of them, and every path in `RayPath.vtk` and every launch direction in
-`Icosahedron.vtk` carries a `TransmitterID`.
+`Icosahedron.vtk` carries a `TransmitterID`. With `transmitter_sum = power` the written field is the
+root of the summed squared components of the transmitters' fields. Then `|E|²` is the sum of their
+powers and the phase is zero.
 
 ### Viewer
 
@@ -288,6 +293,7 @@ required keys, values of the wrong type or range and missing files are reported 
 | `[ray_tracing]` | `max_reflections`, `max_transmissions` | bounce limits (default `1` and `0`) |
 | | `use_fresnel_coefficients` | `true` (default): Fresnel reflection and transmission coefficients of a half space with the material's permittivity and conductivity; `false`: every surface is a perfect electric conductor (total reflection, no transmission) |
 | | `threads` | worker threads for ray launching and field computation; `0` (default) uses every hardware thread |
+| | `transmitter_sum` | how several transmitters add at a receiver. `coherent` (default) adds their fields as phasors, which models antennas fed with one signal. `power` adds their powers, which models independent transmitters, and writes the root of the summed squared components as the field, with no phase |
 | `[material]` (repeatable) | `name`, `reflection_loss`, `transmission_loss`, `rel_conductivity`, `rel_permittivity_re`, `rel_permittivity_im`, `frequency_hz` | one section per material with a unique name; the first is the default for `stl_file`. The field computation uses the complex permittivity `rel_permittivity_re - j rel_conductivity / (2π f ε₀)` at the transmitter frequency; the other values are read but not applied. `frequency_hz` defaults to the first transmitter's frequency |
 | `[surface_materials]` | `<surface id> = <material name>` | override whole coplanar surfaces; ids are the `CoplanarID` field of `Faces.vtk`, written as plain decimal numbers, each at most once |
 | `[outputs]` | `ray_paths`, `receivers`, `field_csv`, `icosahedron` | which result files to write (defaults `true`, `true`, `true`, `false`) |
@@ -323,7 +329,10 @@ to the result, with a bound on the receivers that neither access point reaches.
 `tools/check_superposition.py` and checks that the field of the full run is the sum of the two
 single fields and that every path carries its transmitter. `sbrsolver_fields_office_two_tx` applies
 `tools/check_fields.py` to the same result, with a bound on the receivers that neither transmitter
-reaches (21 of 108). `ctest` checks `ground` and `office` twice and `corner` and `bahen` once:
+reaches (21 of 108). `sbrsolver_run_office_two_tx_power` and `sbrsolver_two_tx_power_sum` do the
+same with `transmitter_sum = power`, where the field of the full run is the root of the summed
+squares of the single fields. `ctest` checks `ground` and `office` twice and `corner` and `bahen`
+once:
 
 * `sbrsolver_reference_*`: the `ground` and `office` fields against the results committed in
   `SBRSolver_rev2/data/output/ElectricField.csv` and `SBRSolver_rev2/data/reference/office_ElectricField.csv`

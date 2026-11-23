@@ -269,6 +269,9 @@ set_tests_properties(sbrsolver_run_large_office PROPERTIES TIMEOUT 1800 FIXTURES
 add_test(NAME sbrsolver_run_office_two_tx
          COMMAND sbrsolver "${SBR_SRC_DIR}/data/office_two_tx.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_office_two_tx")
 set_tests_properties(sbrsolver_run_office_two_tx PROPERTIES TIMEOUT 600 FIXTURES_SETUP sbr_run_office_two_tx)
+add_test(NAME sbrsolver_run_office_two_tx_power
+         COMMAND sbrsolver "${SBR_SRC_DIR}/data/office_two_tx_power.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_office_two_tx_power")
+set_tests_properties(sbrsolver_run_office_two_tx_power PROPERTIES TIMEOUT 600 FIXTURES_SETUP sbr_run_office_two_tx_power)
 
 # Unit tests of the viewer's data model and field interpolation (no display).
 add_executable(sbr_viewer_tests
@@ -402,6 +405,14 @@ if(Python3_Interpreter_FOUND)
                      "${SBR_SRC_DIR}/data/RX_Office.dat" --max-zero 30)
     set_tests_properties(sbrsolver_two_tx_superposition sbrsolver_fields_office_two_tx
                          PROPERTIES FIXTURES_REQUIRED sbr_run_office_two_tx TIMEOUT 600)
+    # The same with the powers of the two transmitters added: the field of
+    # the full run is the root of the summed squares of the single fields.
+    add_test(NAME sbrsolver_two_tx_power_sum
+             COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_superposition.py"
+                     "$<TARGET_FILE:sbrsolver>" "${SBR_SRC_DIR}/data/office_two_tx_power.ini"
+                     "${CMAKE_CURRENT_BINARY_DIR}/test_output_office_two_tx_power"
+                     "${CMAKE_CURRENT_BINARY_DIR}/test_output_office_two_tx_power_single" --timeout 250)
+    set_tests_properties(sbrsolver_two_tx_power_sum PROPERTIES FIXTURES_REQUIRED sbr_run_office_two_tx_power TIMEOUT 600)
     foreach(_scene IN LISTS _sbr_scenes)
         add_test(NAME sbrsolver_fields_${_scene}_fine
                  COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_fields.py"

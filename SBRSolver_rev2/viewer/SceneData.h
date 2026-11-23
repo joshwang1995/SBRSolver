@@ -77,6 +77,7 @@ struct SceneData
 	std::vector<SceneEdge> edges;
 
 	double frequencyHz = 0.0;                 // one for the run
+	bool powerSum = false;                    // the transmitters' powers add at each receiver, not their fields
 	std::vector<SceneTransmitter> transmitters;
 
 	std::vector<Vec3> receivers;

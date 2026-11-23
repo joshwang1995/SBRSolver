@@ -656,6 +656,14 @@ namespace
 		if (r.Integer("max_transmissions", cfg.maxTransmissions, false) && cfg.maxTransmissions < 0)
 			diag.Add(r.Line("max_transmissions"), "max_transmissions must be 0 or greater");
 		r.Boolean("use_fresnel_coefficients", cfg.useFresnelCoefficients, false);
+		std::string sum;
+		if (r.String("transmitter_sum", sum, false))
+		{
+			const std::string v = ToLower(sum);
+			if (v == "coherent") cfg.powerSum = false;
+			else if (v == "power") cfg.powerSum = true;
+			else diag.Add(r.Line("transmitter_sum"), "transmitter_sum must be coherent or power; got '" + sum + "'");
+		}
 		if (r.Integer("threads", cfg.threads, false) && (cfg.threads < 0 || cfg.threads > kMaxThreads))
 			diag.Add(r.Line("threads"), "threads must be between 0 (all hardware threads) and " + std::to_string(kMaxThreads));
 	}
@@ -831,6 +839,7 @@ void PrintSimulationConfig(const SimulationConfig& c)
 	cout << "\t[ray_tracing] max_reflections   -> " << c.maxReflections << endl;
 	cout << "\t[ray_tracing] max_transmissions -> " << c.maxTransmissions << endl;
 	cout << "\t[ray_tracing] use_fresnel_coefficients -> " << (c.useFresnelCoefficients ? "true" : "false") << endl;
+	cout << "\t[ray_tracing] transmitter_sum   -> " << (c.powerSum ? "power" : "coherent") << endl;
 	cout << "\t[ray_tracing] threads           -> " << c.threads << (c.threads == 0 ? " (all hardware threads)" : "") << endl;
 	for (size_t i = 0; i < c.materials.size(); i++)
 	{

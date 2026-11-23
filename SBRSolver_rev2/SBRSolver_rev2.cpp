@@ -354,6 +354,7 @@ int main(int argc, char* argv[])
 			config.maxTransmissions,
 			config.frequencyHz,
 			config.useFresnelCoefficients,
+			config.powerSum,
 			rxLocation,
 			triangle_mesh
 		);
@@ -396,6 +397,7 @@ int main(int argc, char* argv[])
 		scene.mesh = sbr::viewer::BuildSceneMesh(triangle_mesh, materialNames);
 		scene.edges = sbr::viewer::BuildSceneEdges(scene.mesh);
 		scene.frequencyHz = config.frequencyHz;
+		scene.powerSum = config.powerSum;
 		for (const TransmitterConfig& tx : config.transmitters)
 		{
 			sbr::viewer::SceneTransmitter transmitter;

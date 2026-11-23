@@ -970,7 +970,8 @@ namespace
 		ImGui::Text("Frequency: %s", FormatFrequency(_scene.frequencyHz).c_str());
 		if (_scene.transmitters.size() > 1)
 		{
-			ImGui::Text("Transmitters: %zu, radiating at once", _scene.transmitters.size());
+			ImGui::Text("Transmitters: %zu, radiating at once, %s", _scene.transmitters.size(),
+			            _scene.powerSum ? "powers added" : "fields added as phasors");
 		}
 		for (size_t t = 0; t < _scene.transmitters.size(); ++t)
 		{
