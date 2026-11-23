@@ -40,7 +40,7 @@ namespace
 	const char* const kEdgesName = "Edges";
 	const char* const kWedgeEdgesName = "Wedge edges";
 	const char* const kDiffractingEdgesName = "Diffracting edges";
-	const char* const kTransmitterName = "Transmitter";
+	const char* const kTransmitterName = "Transmitters";
 	const char* const kTransmitterAxesName = "Transmitter axes";
 	const char* const kReceiversName = "Receivers";
 	const char* const kPathsName = "Ray paths";
@@ -211,7 +211,7 @@ namespace
 		std::vector<Vec3c> _receiverFields;   // scene.fields padded to the receiver count
 		std::vector<int> _pathsPerReceiver;
 
-		Vec3 _boundMin = Vec3::Zero();         // everything shown: mesh, receivers, transmitter
+		Vec3 _boundMin = Vec3::Zero();         // everything shown: mesh, receivers, transmitters
 		Vec3 _boundMax = Vec3::Zero();
 		double _boundDiagonal = 1.0;
 
@@ -248,6 +248,7 @@ namespace
 		float _sceneTransparency = 0.5f;
 		int _faceCulling = kCullNone;
 		int _pathReceiverFilter = -1;
+		int _pathTransmitterFilter = -1;   // -1: every transmitter
 		size_t _pathsShown = 0;
 		std::string _pathQuantity = "Path |E| [dBuV/m]";   // quantity shown on the paths, kept across re-registrations
 		InterpolationSettings _interpolation;
@@ -314,7 +315,10 @@ namespace
 		{
 			extend(r);
 		}
-		extend(_scene.txPosition);
+		for (const SceneTransmitter& tx : _scene.transmitters)
+		{
+			extend(tx.position);
+		}
 		_boundDiagonal = std::max((_boundMax - _boundMin).norm(), 1e-3);
 	}
 
@@ -448,42 +452,63 @@ namespace
 		                                   0.004f, glm::vec3(0.9f, 0.1f, 0.9f), _showDiffractingEdges);
 	}
 
-	// 3a. Transmitter position and antenna axes
+	// 3a. Every transmitter's position and antenna axes
 	void ViewerSession::RegisterTransmitter()
 	{
-		const std::vector<glm::vec3> position{ ToGlm(_scene.txPosition) };
-		_transmitter = polyscope::registerPointCloud(kTransmitterName, position);
+		if (_scene.transmitters.empty())
+		{
+			return;
+		}
+		std::vector<glm::vec3> positions;
+		std::vector<int> index;
+		for (size_t t = 0; t < _scene.transmitters.size(); ++t)
+		{
+			positions.push_back(ToGlm(_scene.transmitters[t].position));
+			index.push_back(static_cast<int>(t));
+		}
+		_transmitter = polyscope::registerPointCloud(kTransmitterName, positions);
 		_transmitter->setPointColor(glm::vec3(0.9f, 0.1f, 0.1f));
 		_transmitter->setPointRadius(0.012);
+		_transmitter->addScalarQuantity("Transmitter", index, polyscope::DataType::CATEGORICAL)
+		    ->setEnabled(_scene.transmitters.size() > 1);
 		_transmitter->setEnabled(_showTransmitter);
 
-		// The antenna frame: rows of txCoordSys are its x, y, z axes.
+		// The antenna frames: rows of coordSys are the x, y, z axes.
 		const double length = std::max(0.08 * _boundDiagonal, 0.05);
-		std::vector<glm::vec3> nodes{ ToGlm(_scene.txPosition) };
+		std::vector<glm::vec3> nodes;
 		std::vector<std::array<size_t, 2>> edges;
 		std::vector<glm::vec3> colours;
 		const glm::vec3 axisColours[3] = { glm::vec3(0.9f, 0.2f, 0.2f), glm::vec3(0.2f, 0.8f, 0.2f), glm::vec3(0.2f, 0.3f, 0.95f) };
 		std::vector<int> axisId;
-		for (int axis = 0; axis < 3; ++axis)
+		std::vector<int> axisTx;
+		for (size_t t = 0; t < _scene.transmitters.size(); ++t)
 		{
-			Vec3 direction = _scene.txCoordSys.row(axis).transpose();
-			if (direction.norm() > 0.0)
+			const SceneTransmitter& tx = _scene.transmitters[t];
+			const size_t centre = nodes.size();
+			nodes.push_back(ToGlm(tx.position));
+			for (int axis = 0; axis < 3; ++axis)
 			{
-				direction.normalize();
+				Vec3 direction = tx.coordSys.row(axis).transpose();
+				if (direction.norm() > 0.0)
+				{
+					direction.normalize();
+				}
+				nodes.push_back(ToGlm(tx.position + length * direction));
+				edges.push_back({ centre, nodes.size() - 1 });
+				colours.push_back(axisColours[axis]);
+				axisId.push_back(axis);
+				axisTx.push_back(static_cast<int>(t));
 			}
-			nodes.push_back(ToGlm(_scene.txPosition + length * direction));
-			edges.push_back({ size_t(0), size_t(axis + 1) });
-			colours.push_back(axisColours[axis]);
-			axisId.push_back(axis);
 		}
 		_transmitterAxes = polyscope::registerCurveNetwork(kTransmitterAxesName, nodes, edges);
 		_transmitterAxes->addEdgeColorQuantity("Axis colour (x red, y green, z blue)", colours)->setEnabled(true);
 		_transmitterAxes->addEdgeScalarQuantity("Axis", axisId, polyscope::DataType::CATEGORICAL);
+		_transmitterAxes->addEdgeScalarQuantity("Transmitter", axisTx, polyscope::DataType::CATEGORICAL);
 		_transmitterAxes->setRadius(0.004f);
 		_transmitterAxes->setEnabled(_showTransmitterAxes);
 	}
 
-	// 3b. Receivers coloured by any field quantity
+	// 3b. Receivers coloured by any quantity of the total field
 	void ViewerSession::RegisterReceivers()
 	{
 		if (_scene.receivers.empty())
@@ -502,12 +527,13 @@ namespace
 		_receivers->setEnabled(_showReceivers);
 	}
 
-	// 4. Ray paths: one polyline per path, filtered by receiver
+	// 4. Ray paths: one polyline per path, filtered by receiver and transmitter
 	void ViewerSession::RegisterPaths()
 	{
 		std::vector<glm::vec3> nodes;
 		std::vector<std::array<size_t, 2>> edges;
 		std::vector<int> receiverId;
+		std::vector<int> transmitterId;
 		std::vector<int> interactions;
 		std::vector<int> launchId;
 		std::vector<double> edgeLength;
@@ -518,8 +544,8 @@ namespace
 
 		// Re-registration (a filter change) keeps the visibility and the
 		// quantity in use, also across a filter value without any path.
-		const char* const pathQuantities[] = { "Receiver", "Interactions", "Launch ID", "Segment length [m]", "Path |E| [V/m]",
-		                                       "Path |E| [dBuV/m]", "Node type (0 Tx, 1 refl, 2 trans, 3 Rx)" };
+		const char* const pathQuantities[] = { "Receiver", "Transmitter", "Interactions", "Launch ID", "Segment length [m]",
+		                                       "Path |E| [V/m]", "Path |E| [dBuV/m]", "Node type (0 Tx, 1 refl, 2 trans, 3 Rx)" };
 		if (_paths != nullptr)
 		{
 			_showPaths = _paths->isEnabled();
@@ -541,6 +567,10 @@ namespace
 				continue;
 			}
 			if (_pathReceiverFilter >= 0 && path.receiverId != _pathReceiverFilter)
+			{
+				continue;
+			}
+			if (_pathTransmitterFilter >= 0 && path.transmitterId != _pathTransmitterFilter)
 			{
 				continue;
 			}
@@ -573,6 +603,7 @@ namespace
 			{
 				edges.push_back({ first + i, first + i + 1 });
 				receiverId.push_back(path.receiverId);
+				transmitterId.push_back(path.transmitterId);
 				interactions.push_back(interior);
 				launchId.push_back(path.launchId);
 				edgeLength.push_back((path.points[i + 1] - path.points[i]).norm());
@@ -592,6 +623,7 @@ namespace
 		// Re-registering under the same name replaces the network.
 		_paths = polyscope::registerCurveNetwork(kPathsName, nodes, edges);
 		_paths->addEdgeScalarQuantity("Receiver", receiverId, polyscope::DataType::CATEGORICAL);
+		_paths->addEdgeScalarQuantity("Transmitter", transmitterId, polyscope::DataType::CATEGORICAL);
 		_paths->addEdgeScalarQuantity("Interactions", interactions, polyscope::DataType::CATEGORICAL);
 		_paths->addEdgeScalarQuantity("Launch ID", launchId, polyscope::DataType::CATEGORICAL);
 		_paths->addEdgeScalarQuantity("Segment length [m]", edgeLength);
@@ -936,16 +968,33 @@ namespace
 			ImGui::TextWrapped("Output: %s", _scene.outputDir.c_str());
 		}
 		ImGui::Text("Frequency: %s", FormatFrequency(_scene.frequencyHz).c_str());
-		if (_scene.txPowerWatts > 0.0)
+		if (_scene.transmitters.size() > 1)
 		{
-			ImGui::Text("Tx power: %.4g W (%.1f dBm)", _scene.txPowerWatts, 10.0 * std::log10(_scene.txPowerWatts * 1e3));
+			ImGui::Text("Transmitters: %zu, radiating at once", _scene.transmitters.size());
 		}
-		else
+		for (size_t t = 0; t < _scene.transmitters.size(); ++t)
 		{
-			ImGui::Text("Tx power: %.4g W", _scene.txPowerWatts);
+			const SceneTransmitter& tx = _scene.transmitters[t];
+			if (_scene.transmitters.size() > 1)
+			{
+				ImGui::BulletText("%d: %s", static_cast<int>(t), tx.name.c_str());
+				ImGui::Indent();
+			}
+			if (tx.powerWatts > 0.0)
+			{
+				ImGui::Text("Tx power: %.4g W (%.1f dBm)", tx.powerWatts, 10.0 * std::log10(tx.powerWatts * 1e3));
+			}
+			else
+			{
+				ImGui::Text("Tx power: %.4g W", tx.powerWatts);
+			}
+			ImGui::Text("Antenna: %s", tx.antennaType.empty() ? "-" : tx.antennaType.c_str());
+			ImGui::Text("Tx position: (%.3f, %.3f, %.3f) m", tx.position.x(), tx.position.y(), tx.position.z());
+			if (_scene.transmitters.size() > 1)
+			{
+				ImGui::Unindent();
+			}
 		}
-		ImGui::Text("Antenna: %s", _scene.antennaType.empty() ? "-" : _scene.antennaType.c_str());
-		ImGui::Text("Tx position: (%.3f, %.3f, %.3f) m", _scene.txPosition.x(), _scene.txPosition.y(), _scene.txPosition.z());
 		size_t wedges = 0;
 		size_t diffracting = 0;
 		for (const SceneEdge& e : _scene.edges)
@@ -969,7 +1018,7 @@ namespace
 		OverlayCheckbox("Edges", _edges, _showEdges);
 		OverlayCheckbox("Wedge edges", _wedgeEdges, _showWedgeEdges);
 		OverlayCheckbox("Diffracting edges", _diffractingEdges, _showDiffractingEdges);
-		OverlayCheckbox("Transmitter", _transmitter, _showTransmitter);
+		OverlayCheckbox("Transmitters", _transmitter, _showTransmitter);
 		OverlayCheckbox("Transmitter axes", _transmitterAxes, _showTransmitterAxes);
 		OverlayCheckbox("Receivers", _receivers, _showReceivers);
 		OverlayCheckbox("Ray paths", _paths, _showPaths);
@@ -1032,12 +1081,44 @@ namespace
 			_pathReceiverFilter = std::max(-1, std::min(maxReceiver, filter));
 			RegisterPaths();
 		}
+		if (_scene.transmitters.size() > 1)
+		{
+			std::vector<const char*> names{ "All transmitters" };
+			for (const SceneTransmitter& tx : _scene.transmitters)
+			{
+				names.push_back(tx.name.c_str());
+			}
+			int selected = _pathTransmitterFilter + 1;
+			if (ImGui::Combo("Transmitter filter", &selected, names.data(), static_cast<int>(names.size())))
+			{
+				_pathTransmitterFilter = selected - 1;
+				RegisterPaths();
+			}
+		}
 		if (_pathReceiverFilter >= 0 && _pathReceiverFilter < static_cast<int>(_scene.receivers.size()))
 		{
 			const Vec3& r = _scene.receivers[_pathReceiverFilter];
 			ImGui::Text("Receiver %d at (%.3f, %.3f, %.3f) m", _pathReceiverFilter, r.x(), r.y(), r.z());
 			ImGui::Text("|E| = %.4g V/m (%.1f dBuV/m)", _receiverFields[_pathReceiverFilter].norm(),
 			            EvaluateQuantity(_receiverFields[_pathReceiverFilter], FieldQuantity::MagnitudeDb, _scene.frequencyHz));
+			if (_scene.transmitters.size() > 1)
+			{
+				// Each transmitter's share: the sum of its paths' fields.
+				std::vector<Vec3c> share(_scene.transmitters.size(), Vec3c::Zero());
+				for (const ScenePath& path : _scene.paths)
+				{
+					if (path.receiverId == _pathReceiverFilter && path.transmitterId >= 0
+					    && path.transmitterId < static_cast<int>(share.size()))
+					{
+						share[static_cast<size_t>(path.transmitterId)] += path.field;
+					}
+				}
+				for (size_t t = 0; t < share.size(); ++t)
+				{
+					ImGui::BulletText("%s: |E| = %.4g V/m (%.1f dBuV/m)", _scene.transmitters[t].name.c_str(), share[t].norm(),
+					                  EvaluateQuantity(share[t], FieldQuantity::MagnitudeDb, _scene.frequencyHz));
+				}
+			}
 		}
 		ImGui::Text("Shown: %zu of %zu paths", _pathsShown, _scene.paths.size());
 	}

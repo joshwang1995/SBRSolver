@@ -52,6 +52,19 @@ struct GeometryConfig
 	int materialId = 0;   // resolved index into SimulationConfig::materials
 };
 
+// One [transmitter] section. Every transmitter radiates at once: their rays
+// are launched together and a receiver's field is the sum over all of them.
+struct TransmitterConfig
+{
+	std::string name;        // shown in the viewer and the log; default: the first unused of tx0, tx1, ...
+	Vec3 position = Vec3::Zero();
+	Mat3 coordSys = Mat3::Identity();
+	double powerWatts = 1.0;
+	int tessellation = 2;
+	AntennaType antennaType = AntennaType::HertzianDipole;
+	std::string patternFile; // optional, absolute path once loaded
+};
+
 // Every simulation setting that used to be hard-coded in main(), as read from
 // an INI-style file (see SBRSolver_rev2/data/ground.ini for the reference).
 struct SimulationConfig
@@ -71,14 +84,12 @@ struct SimulationConfig
 	// [surface_materials]: coplanar surface id (see Faces.vtk) -> material id
 	std::map<int, int> surfaceMaterials;
 
-	// [transmitter]
-	Vec3 txPosition = Vec3::Zero();
-	Mat3 txCoordSys = Mat3::Identity();
-	double txPowerWatts = 1.0;
+	// [transmitter] (one or more): a later section takes the first one's
+	// values for every key it leaves out, except name and position. The
+	// frequency is one for the run (the fields are summed), set by the first
+	// section.
+	std::vector<TransmitterConfig> transmitters;
 	double frequencyHz = 0.0;
-	int tessellation = 2;
-	AntennaType antennaType = AntennaType::HertzianDipole;
-	std::string patternFile; // optional, absolute path once loaded
 
 	// [receivers]
 	ReceiverConfig receivers;

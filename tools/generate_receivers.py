@@ -5,9 +5,9 @@ Reads the scene's STL file(s), lays a regular grid (or a line) of receivers and
 keeps only the points that make sense for a coverage map:
 
 * inside the region asked for (``--region``):
-  ``reachable`` (default)  the area the transmitter's rays can reach without
+  ``reachable`` (default)  the area the transmitters' rays can reach without
                             passing through a surface: a flood fill on a raster
-                            of the walls, seeded at the transmitter; the space
+                            of the walls, seeded at every transmitter; the space
                             outside the scene's extents and off the floor faces
                             is a barrier, so a wall that ends on the edge of the
                             floor is not bypassed;
@@ -18,7 +18,9 @@ keeps only the points that make sense for a coverage map:
                             (open scenes such as a ground plane or a corner);
 * at least ``--margin`` metres (2D) away from every wall that spans the
   receiver height, so no receiver sits on or inside a surface;
-* at least ``--tx-clearance`` metres (3D) away from the transmitter.
+* at least ``--tx-clearance`` metres (3D) away from every transmitter.
+
+``--tx`` can be repeated, one position per transmitter of the scene.
 
 The grid is offset by half a spacing from the scene's minimum corner, so a
 wall on a round coordinate (x = 2.0, y = 3.0 ...) never coincides with a
@@ -27,7 +29,7 @@ receiver. ``--line`` places receivers along a segment instead of a grid.
 Output: an SBRSolver receiver file (title line, count, then ``x y z`` per
 line) for ``[receivers] layout = file``; the title line records the command
 line that produced it. ``--plot`` also writes a top-down PNG of the walls, the
-transmitter and the receivers (needs Pillow).
+transmitters and the receivers (needs Pillow).
 
 Examples (run from the repository root):
 
@@ -261,7 +263,7 @@ def write_receivers(path, points, title):
             f.write(f'{x:.6g} {y:.6g} {z:.6g}\n')
 
 
-def plot(path, segs, bounds, tx, points, rejected, scale):
+def plot(path, segs, bounds, txs, points, rejected, scale):
     try:
         from PIL import Image, ImageDraw
     except ImportError:
@@ -285,20 +287,22 @@ def plot(path, segs, bounds, tx, points, rejected, scale):
         draw.ellipse([x - 1.2, y - 1.2, x + 1.2, y + 1.2], fill=(0, 120, 255))
     for sx0, sy0, sx1, sy1 in segs:
         draw.line([px((sx0, sy0)), px((sx1, sy1))], fill=(0, 0, 0), width=2)
-    x, y = px(tx)
-    draw.ellipse([x - 4, y - 4, x + 4, y + 4], fill=(255, 0, 0))
+    for tx in txs:
+        x, y = px(tx)
+        draw.ellipse([x - 4, y - 4, x + 4, y + 4], fill=(255, 0, 0))
     img.save(path)
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--stl', action='append', required=True, help='scene STL file (repeat for several)')
-    ap.add_argument('--tx', nargs=3, type=float, required=True, metavar=('X', 'Y', 'Z'), help='transmitter position')
+    ap.add_argument('--tx', nargs=3, type=float, required=True, action='append', metavar=('X', 'Y', 'Z'),
+                    help='transmitter position (repeat for several)')
     ap.add_argument('--height', type=float, default=1.5, help='receiver height for the grid [m] (default 1.5)')
     ap.add_argument('--spacing', type=float, default=0.25, help='grid or line spacing [m] (default 0.25)')
     ap.add_argument('--offset', type=float, default=None, help='grid offset from the minimum corner (default spacing/2)')
     ap.add_argument('--margin', type=float, default=0.25, help='minimum 2D distance from any wall [m] (default 0.25)')
-    ap.add_argument('--tx-clearance', type=float, default=0.5, help='minimum 3D distance from the transmitter [m] (default 0.5)')
+    ap.add_argument('--tx-clearance', type=float, default=0.5, help='minimum 3D distance from every transmitter [m] (default 0.5)')
     ap.add_argument('--region', choices=('reachable', 'enclosure', 'bbox'), default='reachable')
     ap.add_argument('--bbox', nargs=4, type=float, metavar=('XMIN', 'YMIN', 'XMAX', 'YMAX'),
                     help='restrict the grid to this box (default: the scene extents)')
@@ -307,7 +311,7 @@ def main():
     ap.add_argument('--cell', type=float, default=0.05, help='raster cell of the wall flood fill [m] (default 0.05)')
     ap.add_argument('--out', required=True, help='receiver file to write')
     ap.add_argument('--title', default=None, help='first line of the receiver file')
-    ap.add_argument('--plot', default=None, help='write a top-down PNG of walls, transmitter and receivers')
+    ap.add_argument('--plot', default=None, help='write a top-down PNG of walls, transmitters and receivers')
     ap.add_argument('--plot-scale', type=float, default=20.0, help='pixels per metre in the plot')
     args = ap.parse_args()
 
@@ -317,7 +321,7 @@ def main():
     allpts = tris.reshape(-1, 3)
     extents = (allpts[:, 0].min(), allpts[:, 1].min(), allpts[:, 0].max(), allpts[:, 1].max())
     bounds = tuple(args.bbox) if args.bbox else extents
-    tx = np.array(args.tx, dtype=float)
+    txs = np.array(args.tx, dtype=float)
 
     if args.line:
         candidates = line_points(args.line, args.spacing)
@@ -340,7 +344,7 @@ def main():
         if args.region == 'reachable':
             raster.block_outside(extents)
             raster.block_off_floor(floor_faces(tris, height))
-            reached = raster.flood([(tx[0], tx[1])])
+            reached = raster.flood([(tx[0], tx[1]) for tx in txs])
             inside = raster.lookup(reached, candidates[:, :2])
         else:
             outside = raster.flood([('cell', 0, 0)])
@@ -352,9 +356,10 @@ def main():
     near = dist < args.margin
     reasons['within %g m of a wall' % args.margin] = int((near & keep).sum())
     keep &= ~near
-    # 3. clearance from the transmitter
-    close = np.linalg.norm(candidates - tx[None, :], axis=1) < args.tx_clearance
-    reasons['within %g m of the transmitter' % args.tx_clearance] = int((close & keep).sum())
+    # 3. clearance from every transmitter
+    tx_dist = np.min(np.linalg.norm(candidates[:, None, :] - txs[None, :, :], axis=2), axis=1)
+    close = tx_dist < args.tx_clearance
+    reasons['within %g m of a transmitter' % args.tx_clearance] = int((close & keep).sum())
     keep &= ~close
 
     points = candidates[keep]
@@ -367,11 +372,10 @@ def main():
         print('  rejected %6d %s' % (count, reason))
     print('  extents x [%g, %g] y [%g, %g] z [%g, %g]' % (points[:, 0].min(), points[:, 0].max(), points[:, 1].min(),
                                                           points[:, 1].max(), points[:, 2].min(), points[:, 2].max()))
-    print('  closest wall %.3f m, closest to the transmitter %.3f m'
-          % (dist[keep].min() if np.isfinite(dist[keep]).any() else float('inf'),
-             np.linalg.norm(points - tx[None, :], axis=1).min()))
+    print('  closest wall %.3f m, closest to a transmitter %.3f m'
+          % (dist[keep].min() if np.isfinite(dist[keep]).any() else float('inf'), tx_dist[keep].min()))
     if args.plot:
-        plot(args.plot, segs, bounds, tx, points, candidates[~keep], args.plot_scale)
+        plot(args.plot, segs, bounds, txs, points, candidates[~keep], args.plot_scale)
         print('  plot written to', args.plot)
 
 

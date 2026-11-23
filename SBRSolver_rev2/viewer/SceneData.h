@@ -57,6 +57,16 @@ struct ScenePath
 	std::vector<InteractionType> interactions;  // one per interior point
 	Vec3c field = Vec3c::Zero();                // this path's contribution at the receiver [V/m]
 	double length = 0.0;                        // unfolded length [m]
+	int transmitterId = 0;                      // index into SceneData::transmitters
+};
+
+struct SceneTransmitter
+{
+	std::string name;
+	Vec3 position = Vec3::Zero();
+	Mat3 coordSys = Mat3::Identity();  // rows: antenna x, y, z axes in global coordinates
+	std::string antennaType;
+	double powerWatts = 0.0;
 };
 
 struct SceneData
@@ -66,14 +76,11 @@ struct SceneData
 	SceneMesh mesh;
 	std::vector<SceneEdge> edges;
 
-	Vec3 txPosition = Vec3::Zero();
-	Mat3 txCoordSys = Mat3::Identity();  // rows: antenna x, y, z axes in global coordinates
-	std::string antennaType;
-	double frequencyHz = 0.0;
-	double txPowerWatts = 0.0;
+	double frequencyHz = 0.0;                 // one for the run
+	std::vector<SceneTransmitter> transmitters;
 
 	std::vector<Vec3> receivers;
-	std::vector<Vec3c> fields;   // total field per receiver [V/m], same order as receivers
+	std::vector<Vec3c> fields;   // total field per receiver over every transmitter [V/m], same order as receivers
 	std::vector<ScenePath> paths;
 };
 

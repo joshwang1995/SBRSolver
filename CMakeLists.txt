@@ -260,12 +260,15 @@ foreach(_scene IN LISTS _sbr_scenes)
     set_tests_properties(sbrsolver_run_${_scene}_fine PROPERTIES TIMEOUT 600 FIXTURES_SETUP sbr_run_${_scene}_fine)
 endforeach()
 
-# The large-office plan scene, both access-point positions.
-foreach(_tx IN ITEMS lab east)
-    add_test(NAME sbrsolver_run_large_office_${_tx}
-             COMMAND sbrsolver "${SBR_SRC_DIR}/data/large_office/large_office_${_tx}.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_large_office_${_tx}")
-    set_tests_properties(sbrsolver_run_large_office_${_tx} PROPERTIES TIMEOUT 900 FIXTURES_SETUP sbr_run_large_office_${_tx})
-endforeach()
+# The large-office plan scene: both access points radiate at once.
+add_test(NAME sbrsolver_run_large_office
+         COMMAND sbrsolver "${SBR_SRC_DIR}/data/large_office/large_office.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_large_office")
+set_tests_properties(sbrsolver_run_large_office PROPERTIES TIMEOUT 1800 FIXTURES_SETUP sbr_run_large_office)
+
+# The office scene with two transmitters radiating at once.
+add_test(NAME sbrsolver_run_office_two_tx
+         COMMAND sbrsolver "${SBR_SRC_DIR}/data/office_two_tx.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_office_two_tx")
+set_tests_properties(sbrsolver_run_office_two_tx PROPERTIES TIMEOUT 600 FIXTURES_SETUP sbr_run_office_two_tx)
 
 # Unit tests of the viewer's data model and field interpolation (no display).
 add_executable(sbr_viewer_tests
@@ -305,7 +308,10 @@ if(SBR_BUILD_VIEWER)
     add_test(NAME viewer_smoke_mock COMMAND sbr_viewer_smoke --backend openGL_mock --frames 2 --runs 2)
     # Three receiver layers: the field volume (hex mesh) and the slice plane exist.
     add_test(NAME viewer_smoke_mock_volume COMMAND sbr_viewer_smoke --backend openGL_mock --frames 2 --receiver-layers 3)
-    set_tests_properties(viewer_smoke_mock viewer_smoke_mock_volume PROPERTIES TIMEOUT 300)
+    # Two transmitters: the overlays are built from a scene with two
+    # transmitters and paths tagged with them.
+    add_test(NAME viewer_smoke_mock_two_tx COMMAND sbr_viewer_smoke --backend openGL_mock --frames 2 --transmitters 2)
+    set_tests_properties(viewer_smoke_mock viewer_smoke_mock_volume viewer_smoke_mock_two_tx PROPERTIES TIMEOUT 300)
 endif()
 
 if(SBR_BUILD_VIEWER)
@@ -372,18 +378,30 @@ if(Python3_Interpreter_FOUND)
     set(_sbr_fine_check_corner --all-nonzero)
     set(_sbr_fine_check_office --max-zero 700)
     set(_sbr_fine_check_bahen --max-zero 10)
-    # The plan scene: one finite field per receiver. The rooms the access
-    # point cannot reach within six wall transmissions get no field: 3851
-    # receivers from the lab, 2348 from the east workstations.
-    set(_sbr_large_office_max_zero_lab 4050)
-    set(_sbr_large_office_max_zero_east 2500)
-    foreach(_tx IN ITEMS lab east)
-        add_test(NAME sbrsolver_fields_large_office_${_tx}
-                 COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_fields.py"
-                         "${CMAKE_CURRENT_BINARY_DIR}/test_output_large_office_${_tx}/ElectricField.csv"
-                         "${SBR_SRC_DIR}/data/large_office/RX_large_office.dat" --max-zero ${_sbr_large_office_max_zero_${_tx}})
-        set_tests_properties(sbrsolver_fields_large_office_${_tx} PROPERTIES FIXTURES_REQUIRED sbr_run_large_office_${_tx})
-    endforeach()
+    # The plan scene: one finite field per receiver. The rooms that neither
+    # access point reaches within six wall transmissions get no field:
+    # 1003 receivers.
+    add_test(NAME sbrsolver_fields_large_office
+             COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_fields.py"
+                     "${CMAKE_CURRENT_BINARY_DIR}/test_output_large_office/ElectricField.csv"
+                     "${SBR_SRC_DIR}/data/large_office/RX_large_office.dat" --max-zero 1100)
+    set_tests_properties(sbrsolver_fields_large_office PROPERTIES FIXTURES_REQUIRED sbr_run_large_office)
+    # Two transmitters radiating at once: the field of the full run is the
+    # sum of the two single-transmitter runs (which the check runs itself)
+    # and every path carries its transmitter. The second transmitter is at
+    # the other end of the room, so the total field is zero only where
+    # neither one reaches.
+    add_test(NAME sbrsolver_two_tx_superposition
+             COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_superposition.py"
+                     "$<TARGET_FILE:sbrsolver>" "${SBR_SRC_DIR}/data/office_two_tx.ini"
+                     "${CMAKE_CURRENT_BINARY_DIR}/test_output_office_two_tx"
+                     "${CMAKE_CURRENT_BINARY_DIR}/test_output_office_two_tx_single" --timeout 250)
+    add_test(NAME sbrsolver_fields_office_two_tx
+             COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_fields.py"
+                     "${CMAKE_CURRENT_BINARY_DIR}/test_output_office_two_tx/ElectricField.csv"
+                     "${SBR_SRC_DIR}/data/RX_Office.dat" --max-zero 30)
+    set_tests_properties(sbrsolver_two_tx_superposition sbrsolver_fields_office_two_tx
+                         PROPERTIES FIXTURES_REQUIRED sbr_run_office_two_tx TIMEOUT 600)
     foreach(_scene IN LISTS _sbr_scenes)
         add_test(NAME sbrsolver_fields_${_scene}_fine
                  COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_fields.py"

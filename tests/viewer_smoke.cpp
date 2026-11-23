@@ -70,9 +70,75 @@ namespace
 		return Vec3c(0.2 * phasor, 0.3 * phasor * std::polar(1.0, 0.5), 1.0 * phasor);
 	}
 
+	// Adds a transmitter at `position`: its synthetic field joins the total
+	// at every receiver, and a few paths tagged with it go to the first
+	// receiver of each row: direct, one floor reflection and one
+	// transmission through the partition.
+	void AddTransmitter(SceneData& scene, const std::string& name, const Vec3& position)
+	{
+		SceneTransmitter tx;
+		tx.name = name;
+		tx.position = position;
+		tx.coordSys = Mat3::Identity();
+		tx.antennaType = "Hertzian dipole (synthetic)";
+		tx.powerWatts = 0.1;
+		const int transmitterId = static_cast<int>(scene.transmitters.size());
+		scene.transmitters.push_back(tx);
+		const double k = 2.0 * kPi * scene.frequencyHz / 299792458.0;
+
+		scene.fields.resize(scene.receivers.size(), Vec3c::Zero());
+		for (size_t r = 0; r < scene.receivers.size(); ++r)
+		{
+			// a few receivers without any field, as behind an opaque wall
+			const bool shadowed = (r % 10 == 9 && (r / 10) % 8 >= 6);
+			if (!shadowed)
+			{
+				scene.fields[r] += SyntheticField(position, scene.receivers[r], k);
+			}
+		}
+
+		for (int receiver = 0; receiver < static_cast<int>(scene.receivers.size()); receiver += 10)
+		{
+			const Vec3& rx = scene.receivers[receiver];
+			ScenePath direct;
+			direct.receiverId = receiver;
+			direct.transmitterId = transmitterId;
+			direct.launchId = 0;
+			direct.points = { position, rx };
+			direct.field = SyntheticField(position, rx, k);
+			direct.length = (rx - position).norm();
+			scene.paths.push_back(direct);
+
+			ScenePath reflected;
+			reflected.receiverId = receiver;
+			reflected.transmitterId = transmitterId;
+			reflected.launchId = 1;
+			// image of the transmitter in the floor; the image ray crosses z = 0 at the bounce
+			const Vec3 image(position.x(), position.y(), -position.z());
+			const double t = position.z() / (position.z() + rx.z());
+			const Vec3 bounce = image + t * (rx - image);
+			reflected.points = { position, Vec3(bounce.x(), bounce.y(), 0.0), rx };
+			reflected.interactions = { InteractionType::Reflection };
+			reflected.field = 0.5 * SyntheticField(image, rx, k);
+			reflected.length = (rx - image).norm();
+			scene.paths.push_back(reflected);
+
+			ScenePath transmitted;
+			transmitted.receiverId = receiver;
+			transmitted.transmitterId = transmitterId;
+			transmitted.launchId = 2;
+			transmitted.points = { position, Vec3(3.0, 2.5, 0.5), rx };
+			transmitted.interactions = { InteractionType::Transmission };
+			transmitted.field = 0.1 * SyntheticField(position, rx, k);
+			transmitted.length = (Vec3(3.0, 2.5, 0.5) - position).norm() + (rx - Vec3(3.0, 2.5, 0.5)).norm();
+			scene.paths.push_back(transmitted);
+		}
+	}
+
 	// `layers` planes of 10 x 8 receivers, 0.5 m apart around z = 1.5 m; one
 	// layer is the flat layout (no field volume), three give a 3D one.
-	SceneData BuildScene(int layers)
+	// `transmitters` of them stand 1 m apart along x and radiate together.
+	SceneData BuildScene(int layers, int transmitters)
 	{
 		SceneData scene;
 		scene.title = "viewer_smoke (synthetic)";
@@ -88,13 +154,6 @@ namespace
 			}
 		}
 
-		scene.txPosition = Vec3(1.0, 1.0, 2.5);
-		scene.txCoordSys = Mat3::Identity();
-		scene.antennaType = "Hertzian dipole (synthetic)";
-		scene.frequencyHz = 2.4e9;
-		scene.txPowerWatts = 0.1;
-		const double k = 2.0 * kPi * scene.frequencyHz / 299792458.0;
-
 		// 10 x 8 receivers per layer, the single layer at z = 1.5 m
 		for (int layer = 0; layer < std::max(1, layers); ++layer)
 		{
@@ -103,49 +162,15 @@ namespace
 			{
 				for (int i = 0; i < 10; ++i)
 				{
-					const Vec3 rx(0.5 + 5.0 * i / 9.0, 0.5 + 4.0 * j / 7.0, z);
-					scene.receivers.push_back(rx);
-					// a few receivers without any field, as behind an opaque wall
-					const bool shadowed = (i == 9 && j >= 6);
-					scene.fields.push_back(shadowed ? Vec3c(Vec3c::Zero()) : SyntheticField(scene.txPosition, rx, k));
+					scene.receivers.push_back(Vec3(0.5 + 5.0 * i / 9.0, 0.5 + 4.0 * j / 7.0, z));
 				}
 			}
 		}
 
-		// A few paths: direct, one floor reflection and one transmission
-		// through the partition, to the first receivers of each row.
-		for (int receiver = 0; receiver < static_cast<int>(scene.receivers.size()); receiver += 10)
+		scene.frequencyHz = 2.4e9;
+		for (int t = 0; t < std::max(1, transmitters); ++t)
 		{
-			const Vec3& rx = scene.receivers[receiver];
-			ScenePath direct;
-			direct.receiverId = receiver;
-			direct.launchId = 0;
-			direct.points = { scene.txPosition, rx };
-			direct.field = SyntheticField(scene.txPosition, rx, k);
-			direct.length = (rx - scene.txPosition).norm();
-			scene.paths.push_back(direct);
-
-			ScenePath reflected;
-			reflected.receiverId = receiver;
-			reflected.launchId = 1;
-			// image of the transmitter in the floor; the image ray crosses z = 0 at the bounce
-			const Vec3 image(scene.txPosition.x(), scene.txPosition.y(), -scene.txPosition.z());
-			const double t = scene.txPosition.z() / (scene.txPosition.z() + rx.z());
-			const Vec3 bounce = image + t * (rx - image);
-			reflected.points = { scene.txPosition, Vec3(bounce.x(), bounce.y(), 0.0), rx };
-			reflected.interactions = { InteractionType::Reflection };
-			reflected.field = 0.5 * SyntheticField(image, rx, k);
-			reflected.length = (rx - image).norm();
-			scene.paths.push_back(reflected);
-
-			ScenePath transmitted;
-			transmitted.receiverId = receiver;
-			transmitted.launchId = 2;
-			transmitted.points = { scene.txPosition, Vec3(3.0, 2.5, 0.5), rx };
-			transmitted.interactions = { InteractionType::Transmission };
-			transmitted.field = 0.1 * SyntheticField(scene.txPosition, rx, k);
-			transmitted.length = (Vec3(3.0, 2.5, 0.5) - scene.txPosition).norm() + (rx - Vec3(3.0, 2.5, 0.5)).norm();
-			scene.paths.push_back(transmitted);
+			AddTransmitter(scene, "tx" + std::to_string(t), Vec3(1.0 + t, 1.0, 2.5));
 		}
 		return scene;
 	}
@@ -154,7 +179,7 @@ namespace
 	{
 		std::cerr << "usage: " << program
 		          << " [--backend NAME] [--frames N] [--runs N] [--screenshot FILE] [--receiver-layers N]"
-		             " [--plane-resolution N] [--volume-resolution N]\n";
+		             " [--transmitters N] [--plane-resolution N] [--volume-resolution N]\n";
 		return 2;
 	}
 } // namespace
@@ -166,6 +191,7 @@ int main(int argc, char** argv)
 	options.frames = 2;
 	int runs = 1;
 	int layers = 1;
+	int transmitters = 1;
 	bool backendGiven = false;
 
 	for (int i = 1; i < argc; ++i)
@@ -189,6 +215,10 @@ int main(int argc, char** argv)
 		{
 			layers = std::atoi(argv[++i]);
 		}
+		else if (arg == "--transmitters" && hasValue)
+		{
+			transmitters = std::atoi(argv[++i]);
+		}
 		else if (arg == "--screenshot" && hasValue)
 		{
 			options.screenshotFile = argv[++i];
@@ -211,10 +241,10 @@ int main(int argc, char** argv)
 		options.backend = "";   // a real backend: the window, or EGL without a display
 	}
 
-	const SceneData scene = BuildScene(layers);
+	const SceneData scene = BuildScene(layers, transmitters);
 	std::cout << "viewer_smoke: " << scene.mesh.faces.size() << " faces, " << scene.edges.size() << " edges, "
-	          << scene.receivers.size() << " receivers in " << std::max(1, layers) << " layer(s), " << scene.paths.size()
-	          << " paths; backend '"
+	          << scene.receivers.size() << " receivers in " << std::max(1, layers) << " layer(s), "
+	          << scene.transmitters.size() << " transmitter(s), " << scene.paths.size() << " paths; backend '"
 	          << options.backend << "', frames " << options.frames << ", runs " << runs << std::endl;
 
 	for (int run = 0; run < std::max(1, runs); ++run)

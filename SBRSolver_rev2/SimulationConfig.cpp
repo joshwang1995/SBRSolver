@@ -464,29 +464,80 @@ namespace
 		}
 	}
 
+	// A transmitter name labels its paths in the viewer and the log, so it is
+	// one word: letters, digits, '_', '-' and '.'.
+	bool ValidTransmitterName(const std::string& name)
+	{
+		if (name.empty()) return false;
+		return std::all_of(name.begin(), name.end(),
+			[](unsigned char c) { return std::isalnum(c) != 0 || c == '_' || c == '-' || c == '.'; });
+	}
+
+	// One [transmitter] section. A later section starts from the first
+	// one's values, so a second access point needs only its position. The
+	// frequency is one for the run, because the fields of all transmitters
+	// are summed at every receiver.
 	void ReadTransmitter(SectionReader& r, SimulationConfig& cfg, Diagnostics& diag)
 	{
-		r.Vector3("position", cfg.txPosition, true);
-		if (r.Matrix3("coordinate_system", cfg.txCoordSys, false))
+		const bool first = cfg.transmitters.empty();
+		TransmitterConfig tx = first ? TransmitterConfig() : cfg.transmitters.front();
+		tx.position = Vec3::Zero();
+		const auto nameUsed = [&cfg](const std::string& name)
+		{
+			return std::any_of(cfg.transmitters.begin(), cfg.transmitters.end(),
+				[&name](const TransmitterConfig& other) { return other.name == name; });
+		};
+		if (r.String("name", tx.name, false))
+		{
+			if (!ValidTransmitterName(tx.name))
+				diag.Add(r.Line("name"), "name must be one word of letters, digits, '_', '-' and '.'; got '" + tx.name + "'");
+			else if (nameUsed(tx.name))
+				diag.Add(r.Line("name"), "transmitter name '" + tx.name + "' is used more than once");
+		}
+		else
+		{
+			// The first unused default, so it never clashes with a given name.
+			for (int n = 0; ; n++)
+			{
+				tx.name = "tx" + std::to_string(n);
+				if (!nameUsed(tx.name)) break;
+			}
+		}
+		r.Vector3("position", tx.position, true);
+		if (r.Matrix3("coordinate_system", tx.coordSys, false))
 		{
 			// The rows are the antenna axes in global coordinates and are used
 			// as such (no normalisation), so they must form a right-handed
 			// orthonormal frame.
-			const Mat3 gram = cfg.txCoordSys * cfg.txCoordSys.transpose();
-			if ((gram - Mat3::Identity()).cwiseAbs().maxCoeff() > 1e-9 || cfg.txCoordSys.determinant() < 0.0)
+			const Mat3 gram = tx.coordSys * tx.coordSys.transpose();
+			if ((gram - Mat3::Identity()).cwiseAbs().maxCoeff() > 1e-9 || tx.coordSys.determinant() < 0.0)
 				diag.Add(r.Line("coordinate_system"), "coordinate_system rows must be unit length, mutually perpendicular and right-handed (x, y, z axes of the antenna in global coordinates)");
 		}
-		if (r.Double("power_watts", cfg.txPowerWatts, false) && cfg.txPowerWatts <= 0.0)
+		if (r.Double("power_watts", tx.powerWatts, false) && tx.powerWatts <= 0.0)
 			diag.Add(r.Line("power_watts"), "power_watts must be positive");
-		if (r.Double("frequency_hz", cfg.frequencyHz, true) && cfg.frequencyHz <= 0.0)
-			diag.Add(r.Line("frequency_hz"), "frequency_hz must be positive");
-		if (r.Integer("tessellation", cfg.tessellation, false) && (cfg.tessellation < 0 || cfg.tessellation > kMaxTessellation))
+		double frequency = cfg.frequencyHz;
+		if (r.Double("frequency_hz", frequency, first))
+		{
+			if (frequency <= 0.0)
+				diag.Add(r.Line("frequency_hz"), "frequency_hz must be positive");
+			else if (first)
+				cfg.frequencyHz = frequency;
+			else if (cfg.frequencyHz > 0.0 && frequency != cfg.frequencyHz)
+			{
+				// A bad first frequency is reported there, so compare only with a valid one.
+				std::ostringstream firstValue;
+				firstValue << cfg.frequencyHz;
+				diag.Add(r.Line("frequency_hz"), "frequency_hz must be the same for every transmitter, because their fields are summed at the receivers; the first transmitter has " + firstValue.str());
+			}
+		}
+		if (r.Integer("tessellation", tx.tessellation, false) && (tx.tessellation < 0 || tx.tessellation > kMaxTessellation))
 			diag.Add(r.Line("tessellation"), "tessellation must be between 0 and " + std::to_string(kMaxTessellation)
 				+ " (level " + std::to_string(kMaxTessellation) + " already launches " + std::to_string(LaunchRayCount(kMaxTessellation)) + " rays)");
 		std::string antenna;
-		if (r.String("antenna_type", antenna, false) && !ParseAntennaType(antenna, cfg.antennaType))
+		if (r.String("antenna_type", antenna, false) && !ParseAntennaType(antenna, tx.antennaType))
 			diag.Add(r.Line("antenna_type"), "antenna_type must be one of isotropic, hertzian_dipole, half_wave_dipole; got '" + antenna + "'");
-		r.Path("pattern_file", cfg.patternFile, false, true);
+		r.Path("pattern_file", tx.patternFile, false, true);
+		cfg.transmitters.push_back(tx);
 	}
 
 	// Checks that a generated line or plane has a sane, representable number
@@ -495,7 +546,7 @@ namespace
 	// floor(length / resolution) points, a plane (nx + 1) * (ny + 1) with
 	// nx = floor(dx / resolution) and ny = floor(dy / resolution). Only called
 	// when every value it uses parsed and passed its own range check.
-	void ValidateReceiverCount(SectionReader& r, const ReceiverConfig& rx, int tessellation, Diagnostics& diag)
+	void ValidateReceiverCount(SectionReader& r, const ReceiverConfig& rx, const std::vector<TransmitterConfig>& transmitters, Diagnostics& diag)
 	{
 		double count = 0.0;
 		if (rx.layout == ReceiverLayout::Line)
@@ -523,13 +574,22 @@ namespace
 		{
 			return;
 		}
-		const double rays = double(LaunchRayCount(tessellation));
+		// The rays of every transmitter are launched together, so their
+		// counts add up. A tessellation outside the range was reported in its
+		// section and has no ray count.
+		double rays = 0.0;
+		for (const TransmitterConfig& tx : transmitters)
+		{
+			if (tx.tessellation < 0 || tx.tessellation > kMaxTessellation) return;
+			rays += double(LaunchRayCount(tx.tessellation));
+		}
 		if (!std::isfinite(count) || count * rays > kMaxReceiverRayProducts)
 		{
 			std::ostringstream msg;
 			msg << "the receiver layout would generate " << std::fixed << std::setprecision(0) << count
-				<< " receivers, and with " << rays << " launch rays (tessellation " << tessellation
-				<< ") the solver would have to store " << count * rays << " path sets, more than the limit of "
+				<< " receivers, and with " << rays << " launch rays (" << transmitters.size() << " transmitter"
+				<< (transmitters.size() == 1 ? "" : "s") << ") the solver would have to store " << count * rays
+				<< " path sets, more than the limit of "
 				<< kMaxReceiverRayProducts << " (about 3 GB); increase resolution, shrink the extent or lower tessellation";
 			diag.Add(r.Line("resolution"), msg.str());
 		}
@@ -586,7 +646,7 @@ namespace
 			ok = false;
 			break;
 		}
-		if (ok) ValidateReceiverCount(r, rx, cfg.tessellation, diag);
+		if (ok) ValidateReceiverCount(r, rx, cfg.transmitters, diag);
 	}
 
 	void ReadRayTracing(SectionReader& r, SimulationConfig& cfg, Diagnostics& diag)
@@ -651,15 +711,17 @@ bool LoadSimulationConfig(const std::string& path, SimulationConfig& config, std
 	}
 
 	// Sections are read in a fixed order regardless of file order: [material]
-	// needs the transmitter frequency for its default, and [scene],
-	// [geometry] and [surface_materials] refer to materials by name.
+	// needs the transmitter frequency for its default, [scene], [geometry]
+	// and [surface_materials] refer to materials by name, and [receivers]
+	// needs the transmitters' tessellation. Repeated [transmitter] sections
+	// keep their file order.
 	const char* order[] = { "transmitter", "material", "scene", "geometry", "receivers", "ray_tracing", "surface_materials", "outputs" };
 	const int sectionCount = int(sizeof(order) / sizeof(order[0]));
 	std::vector<bool> seen(sectionCount, false);
 	for (int i = 0; i < sectionCount; i++)
 	{
 		const std::string name = order[i];
-		const bool repeatable = (name == "material" || name == "geometry");
+		const bool repeatable = (name == "material" || name == "geometry" || name == "transmitter");
 		for (Section& section : sections)
 		{
 			if (section.name != name) continue;
@@ -736,14 +798,18 @@ void PrintSimulationConfig(const SimulationConfig& c)
 		cout << "\t[surface_materials] surface " << kv.first << " -> material " << kv.second << ": " << c.materials[kv.second].name << endl;
 	cout << "\t[scene] save_edges       -> " << (c.saveEdges ? "true" : "false") << endl;
 	cout << "\t[scene] save_faces       -> " << (c.saveFaces ? "true" : "false") << endl;
-	cout << "\t[transmitter] position   -> " << c.txPosition.transpose().format(rowFmt) << endl;
-	cout << "\t[transmitter] coordinate_system -> " << c.txCoordSys.format(matFmt) << endl;
-	cout << "\t[transmitter] power_watts   -> " << c.txPowerWatts << endl;
 	cout << "\t[transmitter] frequency_hz  -> " << c.frequencyHz << endl;
-	cout << "\t[transmitter] tessellation  -> " << c.tessellation << endl;
-	cout << "\t[transmitter] antenna_type  -> " << AntennaTypeName(c.antennaType) << endl;
-	if (!c.patternFile.empty())
-		cout << "\t[transmitter] pattern_file  -> " << c.patternFile << endl;
+	for (const TransmitterConfig& tx : c.transmitters)
+	{
+		const std::string section = c.transmitters.size() > 1 ? "[transmitter " + tx.name + "]" : "[transmitter]";
+		cout << "\t" << section << " position   -> " << tx.position.transpose().format(rowFmt) << endl;
+		cout << "\t" << section << " coordinate_system -> " << tx.coordSys.format(matFmt) << endl;
+		cout << "\t" << section << " power_watts   -> " << tx.powerWatts << endl;
+		cout << "\t" << section << " tessellation  -> " << tx.tessellation << endl;
+		cout << "\t" << section << " antenna_type  -> " << AntennaTypeName(tx.antennaType) << endl;
+		if (!tx.patternFile.empty())
+			cout << "\t" << section << " pattern_file  -> " << tx.patternFile << endl;
+	}
 	cout << "\t[receivers] layout       -> " << ReceiverLayoutName(c.receivers.layout) << endl;
 	switch (c.receivers.layout)
 	{
