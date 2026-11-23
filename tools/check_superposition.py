@@ -13,7 +13,9 @@ and checks:
 * ``ElectricField.csv``: every run has the same receivers, and at each one the
   field of the full run equals the sum of the single-transmitter fields,
   within R (default 1e-9) times the largest single field at that receiver.
-  Every transmitter must reach at least one receiver.
+  With ``transmitter_sum = power`` in ``[ray_tracing]`` the expected field is
+  the root of the summed squared components instead. Every transmitter must
+  reach at least one receiver.
 * ``RayPath.vtk``: every path of the full run carries a ``TransmitterID``, and
   for every transmitter the full run holds as many paths with its id as the
   single run found, at least one.
@@ -22,6 +24,7 @@ Every check prints a ``RESULT`` line. The exit status is 0 only when every
 check passes. The generated configurations and results stay in WORK_DIR.
 """
 import argparse
+import math
 import os
 import re
 import subprocess
@@ -73,6 +76,14 @@ def transmitter_names(transmitters):
             name = 'tx%d' % n
         names.append(name)
     return names
+
+
+def power_sum(sections):
+    """True when [ray_tracing] transmitter_sum is power, so the powers add."""
+    for section, entries in sections:
+        if section == 'ray_tracing':
+            return dict(entries).get('transmitter_sum', 'coherent').lower() == 'power'
+    return False
 
 
 def absolute(key, value, base):
@@ -185,6 +196,7 @@ def main():
         raise SystemExit('FAIL: %s has %d [transmitter] section(s); the check needs at least two'
                          % (config, len(transmitters)))
     names = transmitter_names(transmitters)
+    powers_add = power_sum(sections)
     os.makedirs(args.work_dir, exist_ok=True)
 
     singles = []
@@ -201,41 +213,47 @@ def main():
             raise SystemExit('FAIL: %s has %d receivers, the full run %d' % (name, len(rows), len(full)))
     failures = 0
 
-    # 1. the field of the full run is the sum of the single fields, and every
-    # transmitter reaches at least one receiver
+    # 1. the field of the full run is the sum of the single fields (or the
+    # root of their summed squares), and every transmitter reaches at least
+    # one receiver
     worst = 0.0
     nonzero = 0
     reached = [0] * len(singles)
     for k, (position, field) in enumerate(full):
         total = [0j, 0j, 0j]
+        squares = [0.0, 0.0, 0.0]
         scale = 0.0
         for i, (name, rows, _) in enumerate(singles):
             if rows[k][0] != position:
                 raise SystemExit('FAIL: receiver %d of %s is at %s, in the full run at %s'
                                  % (k, name, rows[k][0], position))
             total = [t + f for t, f in zip(total, rows[k][1])]
+            squares = [s + abs(f) ** 2 for s, f in zip(squares, rows[k][1])]
             largest = max(abs(c) for c in rows[k][1])
             if largest > 0.0:
                 reached[i] += 1
             scale = max(scale, largest)
+        if powers_add:
+            total = [math.sqrt(s) for s in squares]
         error = max(abs(f - t) for f, t in zip(field, total))
         if scale > 0.0:
             nonzero += 1
             worst = max(worst, error / scale)
         elif error > 0.0:
             worst = float('inf')
-    detail = ', '.join('%s=%d' % (singles[i][0], reached[i]) for i in range(len(singles)))
+    detail = 'sum=%s, reached: %s' % ('power' if powers_add else 'coherent',
+                                      ', '.join('%s=%d' % (singles[i][0], reached[i]) for i in range(len(singles))))
     unreached = [singles[i][0] for i in range(len(singles)) if reached[i] == 0]
     if unreached:
-        print('RESULT superposition: FAIL (no field at any receiver from transmitter %s; receivers reached: %s)'
+        print('RESULT superposition: FAIL (no field at any receiver from transmitter %s; %s)'
               % (', '.join(unreached), detail))
         failures += 1
     elif worst > args.rtol:
-        print('RESULT superposition: FAIL (receivers=%d, nonzero=%d, max_rel_err=%.3g, rtol=%.3g, reached: %s)'
+        print('RESULT superposition: FAIL (receivers=%d, nonzero=%d, max_rel_err=%.3g, rtol=%.3g, %s)'
               % (len(full), nonzero, worst, args.rtol, detail))
         failures += 1
     else:
-        print('RESULT superposition: PASS (receivers=%d, nonzero=%d, max_rel_err=%.3g, rtol=%.3g, reached: %s)'
+        print('RESULT superposition: PASS (receivers=%d, nonzero=%d, max_rel_err=%.3g, rtol=%.3g, %s)'
               % (len(full), nonzero, worst, args.rtol, detail))
 
     # 2. every path of the full run carries its transmitter, and each

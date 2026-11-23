@@ -22,8 +22,9 @@ public:
 	void SetThreadCount(int threads) { _threadCount = threads; }
 	void Cleanup();
 	// Launches the rays of every transmitter together, finds the paths to
-	// every receiver and sums the fields of all transmitters at each one.
-	// Returns the number of (launch, receiver) path sets.
+	// every receiver and sums the fields of all transmitters at each one,
+	// as phasors or, with powerSum, as powers. Returns the number of
+	// (launch, receiver) path sets.
 	int ExecuteRayTracing
 	(
 		const std::vector<TransmitterSource>& transmitters,
@@ -31,6 +32,7 @@ public:
 		int maxTransmissionCount,
 		double frequency,
 		bool useFresnelCoeff,
+		bool powerSum,
 		VecVec3& receivers,
 		std::vector<Triangle*>& triangleMesh
 	);

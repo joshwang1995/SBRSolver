@@ -98,6 +98,7 @@ struct SimulationConfig
 	int maxReflections = 1;
 	int maxTransmissions = 0;
 	bool useFresnelCoefficients = true;
+	bool powerSum = false;       // transmitter_sum = power: the transmitters' powers add, not their fields
 	int threads = 0; // 0 = one per hardware thread
 
 	// [material] (one section per material, in order of material id; names are unique)
