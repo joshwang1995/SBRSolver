@@ -132,10 +132,9 @@ walls (`--region enclosure`) or a plain box (`--region bbox`), then drops candid
 `--margin` to a wall or `--tx-clearance` to a transmitter. `--tx` is repeated for a scene with
 several transmitters. `--spacing`, `--height`, `--bbox` and `--line` shape the grid; `--plot` writes
 a top-down PNG of walls, transmitters and receivers (needs Pillow). The first line of each
-`RX_*_fine.dat` records the command line it was made with. A denser
-layout costs memory: the solver keeps a path list per launched ray and receiver (24 bytes each), so
-the Bahen grid is 2562 × 6858 × 24 bytes, about 0.4 GB, and a 0.25 m grid would need four times
-that.
+`RX_*_fine.dat` records the command line it was made with. A denser layout costs little memory:
+the solver stores one record of about 100 bytes per traced ray segment and 8 bytes per candidate
+path, so the Bahen grid needs a few megabytes.
 
 ### A floor plan as a scene
 
@@ -287,7 +286,7 @@ required keys, values of the wrong type or range and missing files are reported 
 | | `tessellation` | icosahedron subdivision level 0 to 8; launches 10·4ⁿ+2 rays per transmitter (default `2`, 162 rays). A path is only found when a launched ray bounces close enough to it, so use the smallest level at which the number of paths stops changing: `ground.ini` and `office.ini` need `3`, `bahen.ini` `4` |
 | | `antenna_type` | `isotropic`, `hertzian_dipole` (default) or `half_wave_dipole` |
 | | `pattern_file` | optional measured pattern; read and validated, not applied yet |
-| `[receivers]` | `layout = line` | `line_start`, `line_end`, `resolution` (generated layouts are limited to 100 million receiver × launch-ray combinations, the launch rays of all transmitters added, about 3 GB) |
+| `[receivers]` | `layout = line` | `line_start`, `line_end`, `resolution` (generated layouts are limited to 100 million receivers) |
 | | `layout = plane` | `x_min`, `y_min`, `x_max`, `y_max`, `height`, `resolution` |
 | | `layout = file` | `file`, an `RX_*.dat` location file |
 | `[ray_tracing]` | `max_reflections`, `max_transmissions` | bounce limits (default `1` and `0`) |

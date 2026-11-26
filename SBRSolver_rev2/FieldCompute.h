@@ -24,10 +24,8 @@ public:
 	FieldCompute();
 	FieldCompute
 	(
-		Paths** rayPaths,
 		std::vector<Triangle*>& triangleMesh,
 		VecVec3& receivers,
-		int pathsCount,
 		MaterialProperties* materials,
 		Mat3 txCoordSys,
 		double frequency,
@@ -36,10 +34,8 @@ public:
 		int antennaType
 	)
 		:
-		_rayPaths(rayPaths),
 		_triangleMesh(&triangleMesh),
 		_receivers(&receivers),
-		_pathsCount(pathsCount),
 		_materials(materials),
 		_txCoordSys(txCoordSys),
 		_frequency(frequency),
@@ -48,9 +44,8 @@ public:
 		_antennaType(antennaType)
 	{};
 	~FieldCompute();
-	Vec3c FieldAtReceiver(int receiverId);
 
-	// Field of one path (the sum over a receiver's paths is FieldAtReceiver).
+	// Field of one path; a receiver's field is the sum over its paths.
 	Vec3c FieldForPath(const std::vector<Ray>& path) const;
 
 	// Amplitude pattern sqrt(gain(theta)) of the analytic antennas (see
@@ -69,10 +64,8 @@ public:
 	static void FresnelTransmission(double theta, cdouble eps, cdouble& tPerp, cdouble& tPar);
 
 protected:
-	Paths** _rayPaths;
 	std::vector<Triangle*>* _triangleMesh;
 	VecVec3* _receivers;
-	int _pathsCount;
 	MaterialProperties* _materials;
 	Mat3 _txCoordSys;
 	double _frequency;

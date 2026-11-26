@@ -142,7 +142,6 @@ add_executable(sbrsolver
     ${SBR_SRC_DIR}/FieldCompute.cpp
     ${SBR_SRC_DIR}/Icosahedron.cpp
     ${SBR_SRC_DIR}/Preprocessor.cpp
-    ${SBR_SRC_DIR}/Ray.cpp
     ${SBR_SRC_DIR}/ReceiverGrid.cpp
     ${SBR_SRC_DIR}/RTSolver.cpp
     ${SBR_SRC_DIR}/SimulationConfig.cpp
@@ -250,7 +249,7 @@ enable_testing()
 set(_sbr_scenes ground corner office bahen)
 foreach(_scene IN LISTS _sbr_scenes)
     add_test(NAME sbrsolver_run_${_scene}
-             COMMAND sbrsolver "${SBR_SRC_DIR}/data/${_scene}.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_${_scene}")
+             COMMAND sbrsolver "${SBR_SRC_DIR}/data/${_scene}.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_${_scene}" ${_sbr_run_options})
     # Fixtures (not DEPENDS) so the run always precedes its comparisons, even
     # when only a comparison test is selected with ctest -R.
     set_tests_properties(sbrsolver_run_${_scene} PROPERTIES TIMEOUT 600 FIXTURES_SETUP sbr_run_${_scene})

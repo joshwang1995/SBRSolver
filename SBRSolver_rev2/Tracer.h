@@ -34,6 +34,14 @@ struct TracerInput
 	int threads = 1;
 };
 
+// One candidate path of a receiver: the rays from the transmitter to the
+// receiver, and the launch it came from.
+struct ReceiverPath
+{
+	int launch = 0;
+	std::vector<Ray> rays;
+};
+
 // What a tracer produces: every segment, and every (receiver, segment) pair
 // whose reception sphere the segment crosses, sorted by receiver, then by
 // segment index.

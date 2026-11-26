@@ -16,14 +16,4 @@ struct Ray
 	int hitCoplanarId = -1;
 	double angleFromSurfaceNormal = INF;
 	double pathLength = INF;
-	bool captured = false;
-	int id = -1;
-};
-
-class Paths
-{
-public:
-	std::vector<std::vector<Ray>> rayPaths;
-	Paths();
-	~Paths();
 };

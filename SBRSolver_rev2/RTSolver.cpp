@@ -40,11 +40,7 @@ int RTSolver::Init(MaterialProperties materialProperties[], int materialProperti
 
 void RTSolver::Cleanup()
 {
-	if (_rayPaths != nullptr)
-	{
-		DeleteRayPaths();
-		_rayPaths = nullptr;
-	}
+	_receiverPaths.clear();
 
 	if (_materialProperties != nullptr)
 	{
@@ -66,7 +62,7 @@ void RTSolver::Cleanup()
 	_isSceneInitialized = false;
 }
 
-int RTSolver::ExecuteRayTracing
+size_t RTSolver::ExecuteRayTracing
 (
 	const std::vector<TransmitterSource>& transmitters,
 	int maxReflectionCount,
@@ -96,7 +92,6 @@ int RTSolver::ExecuteRayTracing
 	}
 	_receivers = &receivers;
 	_receiverCount = int(receivers.size());
-	_pathsCount = int(_shootRayList->size());
 	_efield = new std::vector<Vec3c>;
 
 	_coplanarGroups.clear();
@@ -107,7 +102,7 @@ int RTSolver::ExecuteRayTracing
 		_coplanarGroups[t->coplanarId].push_back(t);
 	}
 
-	InitRayPaths();
+	_receiverPaths.assign(_receiverCount, std::vector<ReceiverPath>());
 
 	const int threads = (_threadCount > 0) ? _threadCount : DefaultThreadCount();
 	std::cout << "\tThreads                  -> " << threads << std::endl;
@@ -143,7 +138,7 @@ int RTSolver::ExecuteRayTracing
 		// The last ray ends at the receiver now, not at the surface it hit.
 		path.back().hitSurfaceID = -1;
 		path.back().hitCoplanarId = -1;
-		_rayPaths[trace.segments[candidate.second].launch][candidate.first].rayPaths.push_back(std::move(path));
+		_receiverPaths[candidate.first].push_back({ trace.segments[candidate.second].launch, std::move(path) });
 	}
 	std::cout << "\tSegments                 -> " << trace.segments.size() << std::endl;
 	std::cout << "\tCandidates               -> " << trace.candidates.size() << std::endl;
@@ -156,10 +151,8 @@ int RTSolver::ExecuteRayTracing
 	{
 		fieldCores.emplace_back(new FieldCompute
 		(
-			_rayPaths,
 			triangleMesh,
 			receivers,
-			_pathsCount,
 			_materialProperties,
 			tx.coordSys,
 			frequency,
@@ -169,8 +162,8 @@ int RTSolver::ExecuteRayTracing
 		));
 	}
 
-	// Each receiver only touches its own column of _rayPaths and its own
-	// entry of _efield, so the receivers run independently as well.
+	// Each receiver only touches its own path list and its own entry of
+	// _efield, so the receivers run independently as well.
 	_efield->assign(_receiverCount, Vec3c{ cdouble(0,0), cdouble(0,0), cdouble(0,0) });
 	_pathFields.assign(_receiverCount, std::vector<Vec3c>());
 	timer.restart();
@@ -190,15 +183,12 @@ int RTSolver::ExecuteRayTracing
 		std::vector<Vec3c>& fields = _pathFields[k];
 		fields.clear();
 		std::vector<Vec3c> perTransmitter(_transmitters.size(), Vec3c::Zero());
-		for (int i = 0; i < _pathsCount; i++)
+		for (const ReceiverPath& path : _receiverPaths[k])
 		{
-			const FieldCompute& fieldCore = *fieldCores[_launchTx[i]];
-			for (const std::vector<Ray>& path : _rayPaths[i][k].rayPaths)
-			{
-				const Vec3c field = fieldCore.FieldForPath(path);
-				fields.push_back(field);
-				perTransmitter[_launchTx[i]] += field;
-			}
+			const int tx = _launchTx[path.launch];
+			const Vec3c field = fieldCores[tx]->FieldForPath(path.rays);
+			fields.push_back(field);
+			perTransmitter[tx] += field;
 		}
 		Vec3c total = Vec3c::Zero();
 		if (powerSum)
@@ -215,7 +205,23 @@ int RTSolver::ExecuteRayTracing
 	});
 	std::cout << "\tTotal Time in field computation -> " << timer.getTime() << std::endl;
 
-	return _pathsCount * _receiverCount;
+	return trace.candidates.size();
+}
+
+std::vector<RTSolver::PathIndex> RTSolver::OutputOrder() const
+{
+	std::vector<PathIndex> order;
+	for (size_t j = 0; j < _receiverPaths.size(); j++)
+	{
+		for (size_t p = 0; p < _receiverPaths[j].size(); p++)
+		{
+			order.push_back({ _receiverPaths[j][p].launch, int(j), p });
+		}
+	}
+	// Every receiver's list is in launch order already, so a stable sort by
+	// launch alone gives launch, then receiver, then the list's own order.
+	std::stable_sort(order.begin(), order.end(), [](const PathIndex& a, const PathIndex& b) { return a.launch < b.launch; });
+	return order;
 }
 
 const std::vector<Vec3c>& RTSolver::Fields() const
@@ -229,73 +235,53 @@ std::vector<sbr::viewer::ScenePath> RTSolver::CollectPaths() const
 	using sbr::viewer::InteractionType;
 	using sbr::viewer::ScenePath;
 	std::vector<ScenePath> result;
-	if (_rayPaths == nullptr) return result;
-	// _pathFields[j] holds the fields in (launch, path) order: the order of
-	// the loops below for a fixed receiver j.
-	std::vector<size_t> nextField(_receiverCount, 0);
-	for (int i = 0; i < _pathsCount; i++)
+	// _pathFields[j] holds the fields of receiver j in its list's order.
+	for (const PathIndex& index : OutputOrder())
 	{
-		for (int j = 0; j < _receiverCount; j++)
+		const std::vector<Ray>& rays = _receiverPaths[index.receiver][index.position].rays;
+		ScenePath sp;
+		sp.receiverId = index.receiver;
+		sp.launchId = index.launch;
+		sp.transmitterId = _launchTx[index.launch];
+		sp.points.reserve(rays.size() + 1);
+		sp.points.push_back(rays[0].sourcePoint);
+		for (size_t r = 0; r < rays.size(); r++)
 		{
-			const Paths& paths = _rayPaths[i][j];
-			for (size_t p = 0; p < paths.rayPaths.size(); p++)
+			sp.points.push_back(rays[r].targetPoint);
+			sp.length += (rays[r].targetPoint - rays[r].sourcePoint).norm();
+			if (r > 0)
 			{
-				const std::vector<Ray>& rays = paths.rayPaths[p];
-				const size_t fieldIndex = nextField[j]++;
-				if (rays.empty()) continue;
-				ScenePath sp;
-				sp.receiverId = j;
-				sp.launchId = i;
-				sp.transmitterId = _launchTx[i];
-				sp.points.reserve(rays.size() + 1);
-				sp.points.push_back(rays[0].sourcePoint);
-				for (size_t r = 0; r < rays.size(); r++)
-				{
-					sp.points.push_back(rays[r].targetPoint);
-					sp.length += (rays[r].targetPoint - rays[r].sourcePoint).norm();
-					if (r > 0)
-					{
-						sp.interactions.push_back(rays[r].reflectionMaterialId >= 0 ? InteractionType::Reflection : InteractionType::Transmission);
-					}
-				}
-				if (j < int(_pathFields.size()) && fieldIndex < _pathFields[j].size()) sp.field = _pathFields[j][fieldIndex];
-				result.push_back(sp);
+				sp.interactions.push_back(rays[r].reflectionMaterialId >= 0 ? InteractionType::Reflection : InteractionType::Transmission);
 			}
 		}
+		if (index.receiver < int(_pathFields.size()) && index.position < _pathFields[index.receiver].size())
+		{
+			sp.field = _pathFields[index.receiver][index.position];
+		}
+		result.push_back(sp);
 	}
 	return result;
 }
 
 void RTSolver::ImagePathCorrection(int receiverId, const std::vector<Triangle*>& triangleMesh)
 {
-	for (int i = 0; i < _pathsCount; i++)
+	std::vector<ReceiverPath>& paths = _receiverPaths[receiverId];
+	auto it = paths.begin();
+	while (it != paths.end())
 	{
-		const Vec3& txPoint = _transmitters[_launchTx[i]].position;
-		auto it = _rayPaths[i][receiverId].rayPaths.begin();
-		bool pathCorrected = false;
-		while (it != _rayPaths[i][receiverId].rayPaths.end())
+		const Vec3& txPoint = _transmitters[_launchTx[it->launch]].position;
+		const bool pathCorrected = (it->rays.size() == 1)
+			? DirectPathCorrection(it->rays, receiverId, txPoint)
+			: MultiPathCorrection(it->rays, receiverId, txPoint, triangleMesh);
+		if (pathCorrected)
 		{
-			if (it->size() == 1)
-			{
-				pathCorrected = DirectPathCorrection(*it, receiverId, txPoint);
-			}
-			else
-			{
-				pathCorrected = MultiPathCorrection(*it, receiverId, txPoint, triangleMesh);
-			}
-			
-			if (!pathCorrected)
-			{
-				// Delete iterator and retreat the next item
-				it = _rayPaths[i][receiverId].rayPaths.erase(it);
-			}
-			else
-			{
-				it++;
-			}
+			it++;
+		}
+		else
+		{
+			it = paths.erase(it);
 		}
 	}
-	return;
 }
 
 bool RTSolver::MultiPathCorrection(std::vector<Ray>& multiPath, int receiverId, const Vec3& txPoint, const std::vector<Triangle*>& triangleMesh)
@@ -442,43 +428,23 @@ void RTSolver::RemoveDuplicatePath(int receiverId)
 
 	// std::unordered_set<std::vector<int>> hitIdSet;
 
-	for (int i = 0; i < _pathsCount; i++)
+	std::vector<ReceiverPath>& paths = _receiverPaths[receiverId];
+	auto it = paths.begin();
+	while (it != paths.end())
 	{
-		auto it = _rayPaths[i][receiverId].rayPaths.begin();
-		while (it != _rayPaths[i][receiverId].rayPaths.end())
+		// std::vector<int> key = GetHitSurfaceIds(it->rays);
+		std::vector<int> key = GetHitCoplanarIds(it->rays);
+		key.insert(key.begin(), _launchTx[it->launch]);
+		if (surfaceIdMap.count(key))
 		{
-			// std::vector<int> key = GetHitSurfaceIds(*it);
-			std::vector<int> key = GetHitCoplanarIds(*it);
-			key.insert(key.begin(), _launchTx[i]);
-			if (surfaceIdMap.count(key))
-			{
-				it = _rayPaths[i][receiverId].rayPaths.erase(it);
-			}
-			else
-			{
-				surfaceIdMap.insert(std::make_pair(key,0));
-				it++;
-			}
+			it = paths.erase(it);
+		}
+		else
+		{
+			surfaceIdMap.insert(std::make_pair(key,0));
+			it++;
 		}
 	}
-}
-
-void RTSolver::InitRayPaths()
-{
-	_rayPaths = new Paths* [_pathsCount];
-	for (int i = 0; i < _pathsCount; i++)
-	{
-		_rayPaths[i] = new Paths[_receiverCount];
-	}
-}
-
-void RTSolver::DeleteRayPaths()
-{ 
-	for (int i = 0; i < _pathsCount; i++)
-	{
-		delete[] _rayPaths[i];
-	}
-	delete[] _rayPaths;
 }
 
 void RTSolver::CmdLineDebug()
@@ -486,27 +452,22 @@ void RTSolver::CmdLineDebug()
 	using namespace std;
 	Eigen::IOFormat CommaInitFmt(Eigen::StreamPrecision, Eigen::DontAlignCols, " ", " ", "", "", "", "");
 
-	for (int i = 0; i < _pathsCount; i++)
+	for (size_t j = 0; j < _receiverPaths.size(); j++)
 	{
-		cout << "Launch ID: " << i << endl;
-		for (int j = 0; j < _receiverCount; j++)
+		cout << "Receiver ID: " << j << endl;
+		for (size_t k = 0; k < _receiverPaths[j].size(); k++)
 		{
-			cout << "\tReceiver ID: " << j << endl;
-			for (int k = 0; k < _rayPaths[i][j].rayPaths.size(); k++)
+			const ReceiverPath& path = _receiverPaths[j][k];
+			cout << "\tPath " << k + 1 << " (launch " << path.launch << ")" << endl;
+			for (const Ray& ray : path.rays)
 			{
-				cout << "\t\tPath " << k + 1 << endl;
-				for (int l = 0; l < _rayPaths[i][j].rayPaths[k].size(); l++)
-				{
-					cout << "\t\t\t Ray ID: " << _rayPaths[i][j].rayPaths[k][l].id << endl;
-					cout << "\t\t\t\t Source Point: " << _rayPaths[i][j].rayPaths[k][l].sourcePoint.format(CommaInitFmt) << endl;
-					cout << "\t\t\t\t Target Point: " << _rayPaths[i][j].rayPaths[k][l].targetPoint.format(CommaInitFmt) << endl;
-					cout << "\t\t\t\t Reflection Material: " << _rayPaths[i][j].rayPaths[k][l].reflectionMaterialId << endl;
-					cout << "\t\t\t\t Penetration Material: " << _rayPaths[i][j].rayPaths[k][l].penetrationMaterialId << endl;
-					cout << "\t\t\t\t Path Length: " << _rayPaths[i][j].rayPaths[k][l].pathLength << endl;
-					cout << "\t\t\t\t Hit Triangle ID: " << _rayPaths[i][j].rayPaths[k][l].hitSurfaceID << endl;
-					cout << "\t\t\t\t Angle From Surface Normal: " << _rayPaths[i][j].rayPaths[k][l].angleFromSurfaceNormal << endl;
-					cout << "\t\t\t\t Captured: " << _rayPaths[i][j].rayPaths[k][l].captured << endl;
-				}
+				cout << "\t\t Source Point: " << ray.sourcePoint.format(CommaInitFmt) << endl;
+				cout << "\t\t Target Point: " << ray.targetPoint.format(CommaInitFmt) << endl;
+				cout << "\t\t Reflection Material: " << ray.reflectionMaterialId << endl;
+				cout << "\t\t Penetration Material: " << ray.penetrationMaterialId << endl;
+				cout << "\t\t Path Length: " << ray.pathLength << endl;
+				cout << "\t\t Hit Triangle ID: " << ray.hitSurfaceID << endl;
+				cout << "\t\t Angle From Surface Normal: " << ray.angleFromSurfaceNormal << endl;
 			}
 		}
 	}
@@ -534,12 +495,9 @@ bool RTSolver::SavePathsAsVtk(std::string fname)
 	vector<int> receiverIds;
 	int totalLines = 0;
 
-	for (int i = 0; i < _pathsCount; i++)
+	for (const PathIndex& index : OutputOrder())
 	{
-		for (int j = 0; j < _receiverCount; j++)
-		{
-			PathsToVector(_rayPaths[i][j].rayPaths, vertex, lineIdx, launchIds, receiverIds, i, j, totalLines);
-		}
+		PathToVector(_receiverPaths[index.receiver][index.position].rays, vertex, lineIdx, launchIds, receiverIds, index.launch, index.receiver, totalLines);
 	}
 
 	ofs << "POINTS " << vertex.size() << " float" << endl;
@@ -777,9 +735,9 @@ bool RTSolver::SaveIcosahedronAsVtk(std::string fname)
 	return true;
 }
 
-void PathsToVector
+void PathToVector
 (
-	const std::vector<std::vector<Ray>>& rayPaths,
+	const std::vector<Ray>& path,
 	std::vector<Vec3>& vertices,
 	std::vector<std::vector<int>>& lineIndex,
 	std::vector<int>& launchIds,
@@ -789,29 +747,21 @@ void PathsToVector
 	int& totalLines
 )
 {
-	for (int i = 0; i < rayPaths.size(); i++)
+	std::vector<int> lines;
+	for (size_t j = 0; j < path.size(); j++)
 	{
-		std::vector<int> lines;
-		for (int j = 0; j < rayPaths[i].size(); j++)
+		if (j == 0)
 		{
-			if (j == 0)
-			{
-				vertices.push_back(rayPaths[i][j].sourcePoint);
-				lines.push_back(int(vertices.size() - 1));
-				vertices.push_back(rayPaths[i][j].targetPoint);
-				lines.push_back(int(vertices.size() - 1));
-			}
-			else
-			{
-				vertices.push_back(rayPaths[i][j].targetPoint);
-				lines.push_back(int(vertices.size() - 1));
-			}
+			vertices.push_back(path[j].sourcePoint);
+			lines.push_back(int(vertices.size() - 1));
 		}
-		totalLines += int(lines.size()) + 1;
-		lineIndex.push_back(lines);
-		launchIds.push_back(launchId);
-		receiverIds.push_back(receiverId);
+		vertices.push_back(path[j].targetPoint);
+		lines.push_back(int(vertices.size() - 1));
 	}
+	totalLines += int(lines.size()) + 1;
+	lineIndex.push_back(lines);
+	launchIds.push_back(launchId);
+	receiverIds.push_back(receiverId);
 }
 
 std::vector<int> GetHitSurfaceIds(const std::vector<Ray>& rayPaths)

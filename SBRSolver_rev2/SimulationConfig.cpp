@@ -15,13 +15,11 @@ namespace fs = std::filesystem;
 
 namespace
 {
-	// Sanity limits. The solver stores one path set per receiver and per
-	// launch ray (measured at roughly 30 bytes each before any path is
-	// found), so the budget is on the product; 1e8 is about 3 GB. It also
-	// keeps the generators' int conversions in range.
+	// Sanity limits. The receiver limit keeps the generators' int
+	// conversions in range and the per-receiver vectors in memory.
 	const int kMaxTessellation = 8;                      // 655,362 launch directions
 	const int kMaxThreads = 1024;
-	const double kMaxReceiverRayProducts = 100000000.0;  // receivers x rays
+	const double kMaxReceivers = 100000000.0;
 
 	int LaunchRayCount(int tessellation)
 	{
@@ -546,7 +544,7 @@ namespace
 	// floor(length / resolution) points, a plane (nx + 1) * (ny + 1) with
 	// nx = floor(dx / resolution) and ny = floor(dy / resolution). Only called
 	// when every value it uses parsed and passed its own range check.
-	void ValidateReceiverCount(SectionReader& r, const ReceiverConfig& rx, const std::vector<TransmitterConfig>& transmitters, Diagnostics& diag)
+	void ValidateReceiverCount(SectionReader& r, const ReceiverConfig& rx, Diagnostics& diag)
 	{
 		double count = 0.0;
 		if (rx.layout == ReceiverLayout::Line)
@@ -574,23 +572,11 @@ namespace
 		{
 			return;
 		}
-		// The rays of every transmitter are launched together, so their
-		// counts add up. A tessellation outside the range was reported in its
-		// section and has no ray count.
-		double rays = 0.0;
-		for (const TransmitterConfig& tx : transmitters)
-		{
-			if (tx.tessellation < 0 || tx.tessellation > kMaxTessellation) return;
-			rays += double(LaunchRayCount(tx.tessellation));
-		}
-		if (!std::isfinite(count) || count * rays > kMaxReceiverRayProducts)
+		if (!std::isfinite(count) || count > kMaxReceivers)
 		{
 			std::ostringstream msg;
 			msg << "the receiver layout would generate " << std::fixed << std::setprecision(0) << count
-				<< " receivers, and with " << rays << " launch rays (" << transmitters.size() << " transmitter"
-				<< (transmitters.size() == 1 ? "" : "s") << ") the solver would have to store " << count * rays
-				<< " path sets, more than the limit of "
-				<< kMaxReceiverRayProducts << " (about 3 GB); increase resolution, shrink the extent or lower tessellation";
+				<< " receivers, more than the limit of " << kMaxReceivers << "; increase resolution or shrink the extent";
 			diag.Add(r.Line("resolution"), msg.str());
 		}
 	}
@@ -646,7 +632,7 @@ namespace
 			ok = false;
 			break;
 		}
-		if (ok) ValidateReceiverCount(r, rx, cfg.transmitters, diag);
+		if (ok) ValidateReceiverCount(r, rx, diag);
 	}
 
 	void ReadRayTracing(SectionReader& r, SimulationConfig& cfg, Diagnostics& diag)
@@ -719,10 +705,9 @@ bool LoadSimulationConfig(const std::string& path, SimulationConfig& config, std
 	}
 
 	// Sections are read in a fixed order regardless of file order: [material]
-	// needs the transmitter frequency for its default, [scene], [geometry]
-	// and [surface_materials] refer to materials by name, and [receivers]
-	// needs the transmitters' tessellation. Repeated [transmitter] sections
-	// keep their file order.
+	// needs the transmitter frequency for its default, and [scene],
+	// [geometry] and [surface_materials] refer to materials by name.
+	// Repeated [transmitter] sections keep their file order.
 	const char* order[] = { "transmitter", "material", "scene", "geometry", "receivers", "ray_tracing", "surface_materials", "outputs" };
 	const int sectionCount = int(sizeof(order) / sizeof(order[0]));
 	std::vector<bool> seen(sectionCount, false);

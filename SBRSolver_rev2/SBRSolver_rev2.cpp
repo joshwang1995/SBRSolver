@@ -344,7 +344,7 @@ int main(int argc, char* argv[])
 	rayTracer->Init(materials.data(), int(materials.size()), bvh);
 	rayTracer->SetThreadCount(config.threads);
 
-	int totalPaths = 0;
+	size_t totalPaths = 0;
 	try
 	{
 		totalPaths = rayTracer->ExecuteRayTracing
@@ -361,9 +361,9 @@ int main(int argc, char* argv[])
 	}
 	catch (const std::bad_alloc&)
 	{
-		std::cerr << "Error: out of memory while tracing " << rxLocation.size() << " receivers x "
-			<< launchRays << " launch rays; reduce the receiver count, "
-			<< "the tessellation, the number of transmitters or the number of threads" << std::endl;
+		std::cerr << "Error: out of memory while tracing " << launchRays << " launch rays towards "
+			<< rxLocation.size() << " receivers; reduce the tessellation, the bounce limits, "
+			<< "the number of transmitters or the receiver count" << std::endl;
 		return 1;
 	}
 	catch (const std::exception& e)
@@ -372,7 +372,7 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 
-	std::cout << "Total ray paths traced -> " << totalPaths << std::endl;
+	std::cout << "Total candidate paths -> " << totalPaths << std::endl;
 
 	{
 		SBR_ZONE_NAMED("Outputs");

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Ray.h"
+#include "Tracer.h"
 #include "timer/Timer.h"
 #include "common/VecMatDef.h"
 #include "common/Constants.h"
@@ -24,8 +25,8 @@ public:
 	// Launches the rays of every transmitter together, finds the paths to
 	// every receiver and sums the fields of all transmitters at each one,
 	// as phasors or, with powerSum, as powers. Returns the number of
-	// (launch, receiver) path sets.
-	int ExecuteRayTracing
+	// candidate paths before the image-method correction.
+	size_t ExecuteRayTracing
 	(
 		const std::vector<TransmitterSource>& transmitters,
 		int maxReflectionCount,
@@ -49,7 +50,10 @@ public:
 	void CmdLineDebug();
 protected:
 	MaterialProperties* _materialProperties = nullptr;
-	Paths** _rayPaths = nullptr;
+	// The paths of every receiver, in launch order and then in the order of
+	// the ray tree; the image-method correction and the duplicate removal
+	// prune them in place.
+	std::vector<std::vector<ReceiverPath>> _receiverPaths;
 	BVH<Triangle>* _bvh = nullptr;
 	std::vector<Vec3>* _shootRayList = nullptr;
 	VecVec3* _receivers = nullptr;
@@ -59,14 +63,13 @@ protected:
 	std::vector<std::vector<Vec3c>> _pathFields;
 
 	// The transmitters of the last run and the transmitter of every launch
-	// direction in _shootRayList (the rows of _rayPaths).
+	// direction in _shootRayList.
 	std::vector<TransmitterSource> _transmitters;
 	std::vector<int> _launchTx;
 
 	bool _isSceneInitialized = false;
 	int _maxTransmissionCount = 0;
 	int _maxReflectionCount = 0;
-	int _pathsCount = 0;
 	int _receiverCount = 0;
 	int _threadCount = 0;
 	// Triangles of every coplanar surface, indexed by Triangle::coplanarId.
@@ -86,13 +89,21 @@ private:
 	// surface; returns the triangle hit (or nullptr) and the point.
 	Triangle* IntersectSurface(int coplanarId, const Vec3& origin, const Vec3& target, Vec3& point) const;
 	void RemoveDuplicatePath(int receiverId);
-	void InitRayPaths();
-	void DeleteRayPaths();
+	// One path of _receiverPaths, as the outputs address it.
+	struct PathIndex
+	{
+		int launch;
+		int receiver;
+		size_t position;
+	};
+	// Every path of the run in the order the outputs list them: by launch,
+	// then by receiver, then in the receiver's own order.
+	std::vector<PathIndex> OutputOrder() const;
 };
 
-void PathsToVector
+void PathToVector
 (
-	const std::vector<std::vector<Ray>>& rayPaths,
+	const std::vector<Ray>& path,
 	std::vector<Vec3>& vertices,
 	std::vector<std::vector<int>>& lineIndex,
 	std::vector<int>& launchIds,
