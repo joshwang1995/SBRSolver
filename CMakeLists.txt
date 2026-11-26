@@ -209,6 +209,7 @@ if(SBR_BUILD_GPU)
     endfunction()
     sbr_add_shader(probe)
     sbr_add_shader(trace)
+    sbr_add_shader(capture)
     add_custom_target(sbr_shaders DEPENDS ${SBR_SHADER_HEADERS})
 endif()
 
@@ -343,9 +344,9 @@ enable_testing()
 # and with the RayTubeTracing reference solver (physics, tools/raytube).
 set(_sbr_scenes ground corner office bahen)
 foreach(_scene IN LISTS _sbr_scenes)
-    # The office run also writes Paths.csv and Segments.csv for the
-    # comparison tool tests.
-    set(_sbr_run_options "")
+    # Every run writes Paths.csv for the GPU comparisons; the office run
+    # also writes Segments.csv for the comparison tool tests.
+    set(_sbr_run_options --paths-csv)
     if(_scene STREQUAL "office")
         set(_sbr_run_options --paths-csv --segments-csv)
     endif()
@@ -361,13 +362,13 @@ endforeach()
 # when a Python interpreter is available).
 foreach(_scene IN LISTS _sbr_scenes)
     add_test(NAME sbrsolver_run_${_scene}_fine
-             COMMAND sbrsolver "${SBR_SRC_DIR}/data/fine/${_scene}.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_${_scene}_fine")
+             COMMAND sbrsolver "${SBR_SRC_DIR}/data/fine/${_scene}.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_${_scene}_fine" --paths-csv)
     set_tests_properties(sbrsolver_run_${_scene}_fine PROPERTIES TIMEOUT 600 FIXTURES_SETUP sbr_run_${_scene}_fine)
 endforeach()
 
 # The large-office plan scene: both access points radiate at once.
 add_test(NAME sbrsolver_run_large_office
-         COMMAND sbrsolver "${SBR_SRC_DIR}/data/large_office/large_office.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_large_office")
+         COMMAND sbrsolver "${SBR_SRC_DIR}/data/large_office/large_office.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_large_office" --paths-csv)
 set_tests_properties(sbrsolver_run_large_office PROPERTIES TIMEOUT 1800 FIXTURES_SETUP sbr_run_large_office)
 
 # The office scene with two transmitters radiating at once.
@@ -438,6 +439,51 @@ if(SBR_BUILD_GPU)
     endif()
     add_test(NAME gpu_unit_tests COMMAND sbr_gpu_tests)
     set_tests_properties(gpu_unit_tests PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300)
+
+    # The scenes on the GPU tracer, in both precisions, each compared with
+    # the CPU run of the same scene below. Without a Vulkan device the runs
+    # exit with 77 and every test that depends on them skips too.
+    set(_sbr_gpu_scenes ground corner office bahen office_two_tx)
+    foreach(_scene IN LISTS _sbr_gpu_scenes)
+        foreach(_precision double single)
+            add_test(NAME gpu_run_${_scene}_${_precision}
+                     COMMAND sbrsolver "${SBR_SRC_DIR}/data/${_scene}.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_${_scene}_gpu_${_precision}"
+                             --device gpu --gpu-precision ${_precision} --paths-csv)
+            set_tests_properties(gpu_run_${_scene}_${_precision} PROPERTIES
+                                 SKIP_RETURN_CODE 77 TIMEOUT 600 FIXTURES_SETUP sbr_gpu_${_scene}_${_precision})
+        endforeach()
+    endforeach()
+    foreach(_scene office bahen)
+        add_test(NAME gpu_run_${_scene}_fine_double
+                 COMMAND sbrsolver "${SBR_SRC_DIR}/data/fine/${_scene}.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_${_scene}_fine_gpu_double"
+                         --device gpu --gpu-precision double --paths-csv)
+        set_tests_properties(gpu_run_${_scene}_fine_double PROPERTIES
+                             SKIP_RETURN_CODE 77 TIMEOUT 1800 FIXTURES_SETUP sbr_gpu_${_scene}_fine_double)
+    endforeach()
+    # The plan scene with its two access points, 74,181 segments and 3.8
+    # million candidates: about 11 s on lavapipe with four cores.
+    foreach(_precision double single)
+        add_test(NAME gpu_run_large_office_${_precision}
+                 COMMAND sbrsolver "${SBR_SRC_DIR}/data/large_office/large_office.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_large_office_gpu_${_precision}"
+                         --device gpu --gpu-precision ${_precision} --paths-csv)
+        set_tests_properties(gpu_run_large_office_${_precision} PROPERTIES
+                             SKIP_RETURN_CODE 77 TIMEOUT 1800 FIXTURES_SETUP sbr_gpu_large_office_${_precision})
+    endforeach()
+    # A second single-precision office run, to compare with the first.
+    add_test(NAME gpu_run_office_single_repeat
+             COMMAND sbrsolver "${SBR_SRC_DIR}/data/office.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_office_gpu_single_repeat"
+                     --device gpu --gpu-precision single --paths-csv)
+    set_tests_properties(gpu_run_office_single_repeat PROPERTIES
+                         SKIP_RETURN_CODE 77 TIMEOUT 600 FIXTURES_SETUP sbr_gpu_office_single_repeat)
+    # The office in small batches with a small candidate buffer: 642
+    # launches of at most 2 segments of 96 bytes at 40,000 bytes per batch
+    # give four batches, and 500 pairs for 1,687 candidates force reruns.
+    add_test(NAME gpu_run_office_batches
+             COMMAND sbrsolver "${SBR_SRC_DIR}/data/office.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_office_gpu_batches"
+                     --device gpu --gpu-precision double --paths-csv)
+    set_tests_properties(gpu_run_office_batches PROPERTIES
+                         SKIP_RETURN_CODE 77 TIMEOUT 600 FIXTURES_SETUP sbr_gpu_office_batches
+                         ENVIRONMENT "SBR_GPU_BATCH_BYTES=40000;SBR_GPU_CANDIDATE_CAPACITY=500")
 endif()
 
 # Smoke test of the viewer itself: a synthetic run goes through every overlay
@@ -539,6 +585,62 @@ if(Python3_Interpreter_FOUND)
              COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/compare_segments.py"
                      "${CMAKE_CURRENT_BINARY_DIR}/test_output_office/Segments.csv" "${CMAKE_CURRENT_BINARY_DIR}/test_output_office_two_tx/Segments.csv")
     set_tests_properties(segments_tool_fail PROPERTIES FIXTURES_REQUIRED "sbr_run_office;sbr_run_office_two_tx" WILL_FAIL TRUE)
+    if(SBR_BUILD_GPU)
+        # The GPU runs against the CPU runs. In double precision the paths
+        # must be the same at every receiver; in single precision a bounded
+        # number of receivers may differ. The single bounds are twice the
+        # counts measured on lavapipe (Mesa 25.2.8), at least 5.
+        set(_sbr_single_bound_ground 5)
+        set(_sbr_single_bound_corner 5)
+        set(_sbr_single_bound_office 5)
+        set(_sbr_single_bound_bahen 5)
+        set(_sbr_single_bound_office_two_tx 5)
+        foreach(_scene IN LISTS _sbr_gpu_scenes)
+            add_test(NAME gpu_paths_${_scene}_double
+                     COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/compare_paths.py"
+                             "${CMAKE_CURRENT_BINARY_DIR}/test_output_${_scene}" "${CMAKE_CURRENT_BINARY_DIR}/test_output_${_scene}_gpu_double")
+            set_tests_properties(gpu_paths_${_scene}_double PROPERTIES SKIP_RETURN_CODE 77
+                                 FIXTURES_REQUIRED "sbr_gpu_${_scene}_double;sbr_run_${_scene}")
+            add_test(NAME gpu_paths_${_scene}_single
+                     COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/compare_paths.py"
+                             "${CMAKE_CURRENT_BINARY_DIR}/test_output_${_scene}" "${CMAKE_CURRENT_BINARY_DIR}/test_output_${_scene}_gpu_single"
+                             --max-differing ${_sbr_single_bound_${_scene}})
+            set_tests_properties(gpu_paths_${_scene}_single PROPERTIES SKIP_RETURN_CODE 77
+                                 FIXTURES_REQUIRED "sbr_gpu_${_scene}_single;sbr_run_${_scene}")
+        endforeach()
+        foreach(_scene office bahen)
+            add_test(NAME gpu_paths_${_scene}_fine_double
+                     COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/compare_paths.py"
+                             "${CMAKE_CURRENT_BINARY_DIR}/test_output_${_scene}_fine" "${CMAKE_CURRENT_BINARY_DIR}/test_output_${_scene}_fine_gpu_double")
+            set_tests_properties(gpu_paths_${_scene}_fine_double PROPERTIES SKIP_RETURN_CODE 77
+                                 FIXTURES_REQUIRED "sbr_gpu_${_scene}_fine_double;sbr_run_${_scene}_fine")
+        endforeach()
+        add_test(NAME gpu_paths_large_office_double
+                 COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/compare_paths.py"
+                         "${CMAKE_CURRENT_BINARY_DIR}/test_output_large_office" "${CMAKE_CURRENT_BINARY_DIR}/test_output_large_office_gpu_double")
+        set_tests_properties(gpu_paths_large_office_double PROPERTIES SKIP_RETURN_CODE 77
+                             FIXTURES_REQUIRED "sbr_gpu_large_office_double;sbr_run_large_office")
+        add_test(NAME gpu_paths_large_office_single
+                 COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/compare_paths.py"
+                         "${CMAKE_CURRENT_BINARY_DIR}/test_output_large_office" "${CMAKE_CURRENT_BINARY_DIR}/test_output_large_office_gpu_single"
+                         --max-differing 5)
+        set_tests_properties(gpu_paths_large_office_single PROPERTIES SKIP_RETURN_CODE 77
+                             FIXTURES_REQUIRED "sbr_gpu_large_office_single;sbr_run_large_office")
+        # Two single-precision runs give the same file, and the batched run
+        # gives the same paths and fields as the run in one batch.
+        add_test(NAME gpu_repeat_office
+                 COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/compare_paths.py"
+                         "${CMAKE_CURRENT_BINARY_DIR}/test_output_office_gpu_single" "${CMAKE_CURRENT_BINARY_DIR}/test_output_office_gpu_single_repeat"
+                         --field-rtol 0)
+        set_tests_properties(gpu_repeat_office PROPERTIES SKIP_RETURN_CODE 77
+                             FIXTURES_REQUIRED "sbr_gpu_office_single;sbr_gpu_office_single_repeat")
+        add_test(NAME gpu_batches_office
+                 COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/compare_paths.py"
+                         "${CMAKE_CURRENT_BINARY_DIR}/test_output_office_gpu_double" "${CMAKE_CURRENT_BINARY_DIR}/test_output_office_gpu_batches"
+                         --field-rtol 0)
+        set_tests_properties(gpu_batches_office PROPERTIES SKIP_RETURN_CODE 77
+                             FIXTURES_REQUIRED "sbr_gpu_office_double;sbr_gpu_office_batches")
+    endif()
     # Dense layouts: one finite field per receiver. Every receiver of the
     # ground line and the corner floor sees the transmitter. In the office
     # the room closed by the glass panel and the rooms without a line of

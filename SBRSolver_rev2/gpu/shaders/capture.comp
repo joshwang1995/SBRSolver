@@ -1,0 +1,74 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+
+// Capture stage: one thread per (segment, receiver) pair. It runs the
+// reception sphere test of HitReceptionSphere (CpuTracer.cpp) in the CPU's
+// operation order and appends every capture as a (receiver, segment) pair.
+// Past the capacity it only counts, so the host can rerun with a larger
+// buffer.
+layout(local_size_x = 64, local_size_y = 1) in;
+
+layout(push_constant) uniform Push
+{
+	SBR_DISPATCH_BASE
+	uint segmentCount;    // segments of this batch
+	uint receiverFirst;   // first receiver of this range
+	uint receiverCount;   // receivers of this range
+	uint capacity;        // pairs the candidate buffer holds
+} push;
+
+layout(std430, set = 0, binding = 0) readonly buffer Segments { Segment segments[]; };
+layout(std430, set = 0, binding = 1) readonly buffer Receivers { Receiver receivers[]; };
+layout(std430, set = 0, binding = 2) readonly buffer Slopes { real launchTanBeta[]; };
+layout(std430, set = 0, binding = 3) buffer Candidates { uint pairs[]; };
+layout(std430, set = 0, binding = 4) buffer Counter { uint candidateCount; };
+
+void main()
+{
+	const uint s = gl_GlobalInvocationID.x + push.firstX;
+	const uint r = gl_GlobalInvocationID.y + push.firstY;
+	if (s >= push.segmentCount || r >= push.receiverCount) return;
+	const Segment seg = segments[s];
+	const uint receiver = push.receiverFirst + r;
+	const Receiver rx = receivers[receiver];
+
+	// The segment as the CPU sees it: the target point o + d t and the
+	// unnormalized rayDir = target - source (HitReceptionSphere).
+	precise real tx = seg.ox + seg.dx * seg.t;
+	precise real ty = seg.oy + seg.dy * seg.t;
+	precise real tz = seg.oz + seg.dz * seg.t;
+	precise real rdx = tx - seg.ox;
+	precise real rdy = ty - seg.oy;
+	precise real rdz = tz - seg.oz;
+	precise real cx = rx.x - seg.ox;
+	precise real cy = rx.y - seg.oy;
+	precise real cz = rx.z - seg.oz;
+	precise real t0 = ((rdx * cx + rdy * cy) + rdz * cz) / ((rdx * rdx + rdy * rdy) + rdz * rdz);
+	if (t0 < real(0.0)) return;
+	if (t0 >= real(1.0)) t0 = real(1.0);
+
+	// The sphere grows with the unfolded length from the transmitter to the
+	// closest point of the segment.
+	precise real sx = t0 * rdx;
+	precise real sy = t0 * rdy;
+	precise real sz = t0 * rdz;
+	precise real unfoldedLength = seg.unfoldedStart + sqrt((sx * sx + sy * sy) + sz * sz);
+	precise real sphereRadius = unfoldedLength * launchTanBeta[seg.launch];
+	precise real px = seg.ox + t0 * rdx;
+	precise real py = seg.oy + t0 * rdy;
+	precise real pz = seg.oz + t0 * rdz;
+	precise real ex = rx.x - px;
+	precise real ey = rx.y - py;
+	precise real ez = rx.z - pz;
+	precise real distance = sqrt((ex * ex + ey * ey) + ez * ez);
+	if (distance <= sphereRadius)
+	{
+		const uint slot = atomicAdd(candidateCount, 1u);
+		if (slot < push.capacity)
+		{
+			pairs[2u * slot] = receiver;
+			pairs[2u * slot + 1u] = s;
+		}
+	}
+}

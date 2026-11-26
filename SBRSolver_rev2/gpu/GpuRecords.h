@@ -37,6 +37,12 @@ struct GpuTriangle
 	int32_t id, coplanar, material, pad;
 };
 
+template <typename Real>
+struct GpuReceiver
+{
+	Real x, y, z;
+};
+
 // The kinds of a segment, as the shaders write them.
 const int32_t kKindRoot = 0;
 const int32_t kKindReflect = 1;
@@ -51,6 +57,7 @@ static_assert(sizeof(GpuNode<float>) == 40 && sizeof(GpuNode<double>) == 64, "BV
 static_assert(offsetof(GpuNode<float>, left) == 24 && offsetof(GpuNode<double>, left) == 48, "BVH node offsets");
 static_assert(sizeof(GpuTriangle<float>) == 64 && sizeof(GpuTriangle<double>) == 112, "triangle record");
 static_assert(offsetof(GpuTriangle<float>, id) == 48 && offsetof(GpuTriangle<double>, id) == 96, "triangle offsets");
+static_assert(sizeof(GpuReceiver<float>) == 12 && sizeof(GpuReceiver<double>) == 24, "receiver record");
 
 } // namespace gpu
 } // namespace sbr

@@ -61,3 +61,11 @@ struct Triangle
 	int material;
 	int pad;
 };
+
+// A receiver position; three scalars, so the array stride is 3 reals.
+struct Receiver
+{
+	real x;
+	real y;
+	real z;
+};

@@ -118,8 +118,9 @@ floats when the device supports them, else in 32-bit floats. `device = auto` tak
 machine has one and otherwise the CPU tracer. `SBR_VULKAN_DEVICE=<index or part of the name>` picks
 one of several Vulkan devices, and `SBR_VULKAN_VALIDATION=1` loads the Vulkan validation layer when
 it is installed. Without a usable device, `--device gpu` stops with exit code 77, so a test runner
-reports the run as skipped. The GPU tracer is under construction: it traces the rays on the device,
-while the capture stage still runs on the CPU, and the run says so.
+reports the run as skipped. The device traces the rays and finds the segments that reach each
+receiver; the image-method correction, the duplicate removal and the field stay on the CPU in double
+precision, so a path found by either tracer gives the same field.
 
 ### Dense receiver layouts
 
@@ -361,9 +362,15 @@ itself: the office run against itself passes, and against the two-transmitter ru
 must. `segments_tool_pass` and `segments_tool_fail` do the same for `tools/compare_segments.py`.
 `tracer_unit_tests` checks that the receiver grid of the capture stage finds the same
 candidates as a test of every receiver against every segment. `gpu_unit_tests` runs a probe shader
-through the Vulkan host layer in both precisions, with more items than one dispatch may hold; without
-a Vulkan device it reports itself as skipped. `ctest` checks `ground` and `office` twice and `corner`
-and `bahen` once:
+through the Vulkan host layer in both precisions, with more items than one dispatch may hold. The
+`gpu_run_*` tests run the four scenes, `office_two_tx` and the dense `office` and `bahen` layouts on
+the GPU tracer, and the `gpu_paths_*` tests compare each run with the CPU run of the same scene: in
+double precision every receiver must get the same paths and the same field, in single precision a few
+receivers may differ. `gpu_repeat_office` checks that two GPU runs give the same file, and
+`gpu_batches_office` that a run in four small batches with a candidate buffer that overflows
+(`SBR_GPU_BATCH_BYTES` and `SBR_GPU_CANDIDATE_CAPACITY` shrink them) gives the same result as a run in
+one batch. Without a Vulkan device every `gpu_*` test reports itself as skipped. `ctest` checks
+`ground` and `office` twice and `corner` and `bahen` once:
 
 * `sbrsolver_reference_*`: the `ground` and `office` fields against the results committed in
   `SBRSolver_rev2/data/output/ElectricField.csv` and `SBRSolver_rev2/data/reference/office_ElectricField.csv`
