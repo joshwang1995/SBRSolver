@@ -2,6 +2,9 @@
 #include "CpuTracer.h"
 #include "common/ParallelFor.h"
 #include "common/Profiling.h"
+#if defined(SBR_HAS_GPU)
+#include "gpu/GpuTracer.h"
+#endif
 
 #include <algorithm>
 #include <iomanip>
@@ -41,6 +44,7 @@ int RTSolver::Init(MaterialProperties materialProperties[], int materialProperti
 void RTSolver::Cleanup()
 {
 	_receiverPaths.clear();
+	_trace = TraceResult();
 
 	if (_materialProperties != nullptr)
 	{
@@ -114,6 +118,8 @@ size_t RTSolver::ExecuteRayTracing
 	// of segments from the root of its launch to the captured one.
 	TracerInput input;
 	input.bvh = _bvh;
+	input.triangles = &triangleMesh;
+	_triangleMesh = &triangleMesh;
 	input.transmitters = &_transmitters;
 	input.launches = _shootRayList;
 	input.launchTx = &_launchTx;
@@ -125,8 +131,16 @@ size_t RTSolver::ExecuteRayTracing
 	input.maxReflections = _maxReflectionCount;
 	input.maxTransmissions = _maxTransmissionCount;
 	input.threads = threads;
-	TraceResult trace;
-	TraceAndCapture(input, trace);
+	TraceResult& trace = _trace;
+	bool traced = false;
+#if defined(SBR_HAS_GPU)
+	if (_gpu != nullptr)
+	{
+		sbr::gpu::TraceAndCapture(input, *_gpu, _gpuPrecision, trace);
+		traced = true;
+	}
+#endif
+	if (!traced) TraceAndCapture(input, trace);
 	for (const std::pair<int, int>& candidate : trace.candidates)
 	{
 		std::vector<Ray> path;
@@ -708,6 +722,43 @@ bool RTSolver::SavePathsAsCsv(std::string fname)
 
 	cout << "\tSaved " << rows << " paths into " << fname << endl;
 	cout << "[Leaving] RTSolver::SavePathsAsCsv" << endl;
+	return true;
+}
+
+bool RTSolver::SaveSegmentsAsCsv(std::string fname)
+{
+	using namespace std;
+	cout << "[Entering] RTSolver::SaveSegmentsAsCsv ..." << endl;
+
+	ofstream ofs;
+	ofs.open(fname);
+	// Index and Parent count within the launch. Kind is 0 for a launch ray,
+	// 1 for a reflected and 2 for a transmitted child. Length is the
+	// segment's own length, UnfoldedStart the unfolded length from the
+	// transmitter to its origin.
+	ofs << "LaunchID,Index,Parent,Kind,TriangleID,CoplanarID,MaterialID,Length,UnfoldedStart,Ox,Oy,Oz,Dx,Dy,Dz" << endl;
+	ofs << std::setprecision(12);
+	for (size_t s = 0; s < _trace.segments.size(); s++)
+	{
+		const Segment& segment = _trace.segments[s];
+		const Ray& ray = segment.ray;
+		const int first = _trace.launchFirst[segment.launch];
+		const int kind = ray.reflectionMaterialId >= 0 ? 1 : (ray.penetrationMaterialId >= 0 ? 2 : 0);
+		const int material = ray.hitSurfaceID >= 0 ? (*_triangleMesh)[ray.hitSurfaceID]->materialId : -1;
+		const Vec3 direction = ray.targetPoint - ray.sourcePoint;
+		const double length = direction.norm();
+		const double unfoldedStart = segment.parent >= 0 ? _trace.segments[segment.parent].ray.pathLength : 0.0;
+		const Vec3 unit = direction / length;
+		ofs << segment.launch << "," << int(s) - first << "," << (segment.parent >= 0 ? segment.parent - first : -1) << ","
+			<< kind << "," << ray.hitSurfaceID << "," << ray.hitCoplanarId << "," << material << ","
+			<< length << "," << unfoldedStart << ","
+			<< ray.sourcePoint.x() << "," << ray.sourcePoint.y() << "," << ray.sourcePoint.z() << ","
+			<< unit.x() << "," << unit.y() << "," << unit.z() << endl;
+	}
+	ofs.close();
+
+	cout << "\tSaved " << _trace.segments.size() << " segments into " << fname << endl;
+	cout << "[Leaving] RTSolver::SaveSegmentsAsCsv" << endl;
 	return true;
 }
 

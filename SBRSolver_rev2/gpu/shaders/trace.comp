@@ -1,0 +1,221 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+
+// Trace stage: one thread per pending segment. It finds the first surface
+// the segment hits in the flat BVH, writes the hit into the segment, and
+// appends the transmitted and the reflected child for the next level. The
+// steps mirror TraceLaunch (CpuTracer.cpp), BVH::RayIntersects (BVH.h) and
+// Triangle::RayIntersects (Triangle.cpp), in the CPU's operation order.
+layout(local_size_x = 64) in;
+
+layout(push_constant) uniform Push
+{
+	SBR_DISPATCH_BASE
+	uint pendingFirst;   // first segment of this level
+	uint pendingCount;   // segments of this level
+	int maxReflections;
+	int maxTransmissions;
+} push;
+
+layout(std430, set = 0, binding = 0) readonly buffer Nodes { BvhNode nodes[]; };
+layout(std430, set = 0, binding = 1) readonly buffer Triangles { Triangle triangles[]; };
+layout(std430, set = 0, binding = 2) readonly buffer Leaves { uint leafTriangles[]; };
+layout(std430, set = 0, binding = 3) buffer Segments { Segment segments[]; };
+layout(std430, set = 0, binding = 4) buffer Counter { uint segmentCount; };
+
+// The host refuses a BVH deeper than this (see FlattenBvh).
+const int kStackSize = 64;
+
+// Same steps as BVHNode::IntersectsAABB (BVHNode.h). For a zero direction
+// component the CPU's std::min and std::max keep the node when the origin
+// lies inside or on the slab and reject it otherwise.
+bool HitsBox(uint node, rvec3 o, rvec3 d)
+{
+	precise real tMax = SBR_INFINITY;
+	precise real tMin = -SBR_INFINITY;
+	for (int axis = 0; axis < 3; axis++)
+	{
+		if (d[axis] == real(0.0))
+		{
+			if (o[axis] < nodes[node].bmin[axis] || o[axis] > nodes[node].bmax[axis]) return false;
+			continue;
+		}
+		precise real t1 = (nodes[node].bmin[axis] - o[axis]) / d[axis];
+		precise real t2 = (nodes[node].bmax[axis] - o[axis]) / d[axis];
+		precise real tNear = min(t1, t2);
+		precise real tFar = max(t1, t2);
+		tMax = min(tMax, tFar);
+		tMin = max(tMin, tNear);
+		if (tMin > tMax) return false;
+	}
+	return true;
+}
+
+// Same steps as Triangle::RayIntersects (Triangle.cpp): Moller-Trumbore,
+// then the hit point o + d t and its distance from the origin, which is
+// what the CPU compares hits by.
+bool HitsTriangle(uint index, rvec3 o, rvec3 d, out real tOut, out real lengthOut)
+{
+	Triangle tri = triangles[index];
+	precise real hx = d.y * tri.e2[2] - d.z * tri.e2[1];
+	precise real hy = d.z * tri.e2[0] - d.x * tri.e2[2];
+	precise real hz = d.x * tri.e2[1] - d.y * tri.e2[0];
+	precise real a = (tri.e1[0] * hx + tri.e1[1] * hy) + tri.e1[2] * hz;
+	if (a > -kEpsilon && a < kEpsilon) return false;
+	precise real f = real(1.0) / a;
+	precise real sx = o.x - tri.v1[0];
+	precise real sy = o.y - tri.v1[1];
+	precise real sz = o.z - tri.v1[2];
+	precise real u = f * ((sx * hx + sy * hy) + sz * hz);
+	if (u < real(0.0) || u > real(1.0)) return false;
+	precise real qx = sy * tri.e1[2] - sz * tri.e1[1];
+	precise real qy = sz * tri.e1[0] - sx * tri.e1[2];
+	precise real qz = sx * tri.e1[1] - sy * tri.e1[0];
+	precise real v = f * ((d.x * qx + d.y * qy) + d.z * qz);
+	if (v < real(0.0) || u + v > real(1.0)) return false;
+	precise real t = f * ((tri.e2[0] * qx + tri.e2[1] * qy) + tri.e2[2] * qz);
+	if (!(t > kEpsilon)) return false;
+	precise real px = o.x + d.x * t;
+	precise real py = o.y + d.y * t;
+	precise real pz = o.z + d.z * t;
+	precise real ex = px - o.x;
+	precise real ey = py - o.y;
+	precise real ez = pz - o.z;
+	lengthOut = sqrt((ex * ex + ey * ey) + ez * ez);
+	tOut = t;
+	return true;
+}
+
+void main()
+{
+	const uint item = gl_GlobalInvocationID.x + push.firstX;
+	if (item >= push.pendingCount) return;
+	const uint s = push.pendingFirst + item;
+	Segment seg = segments[s];
+	const rvec3 o = rvec3(seg.ox, seg.oy, seg.oz);
+	const rvec3 d = rvec3(seg.dx, seg.dy, seg.dz);
+
+#if SBR_DOUBLE
+	// The double build mirrors the CPU, which rejects a re-hit of the start
+	// surface by t > kEpsilon alone.
+	const int skipCoplanar = -1;
+#else
+	// In single precision the start point carries an error far above
+	// kEpsilon, so the surface the segment starts from is skipped by id.
+	const int skipCoplanar = (seg.parent >= 0) ? segments[seg.parent].coplanar : -1;
+#endif
+
+	// Same visit order as BVH::RayIntersects: the left child, then the
+	// right one, the triangles of a leaf in stored order, no pruning, and
+	// the first strictly closer hit wins.
+	precise real bestLength = SBR_INFINITY;
+	precise real bestT = kMissT;
+	int bestTriangle = -1;
+	uint stack[kStackSize];
+	int top = 0;
+	stack[top++] = 0u;
+	while (top > 0)
+	{
+		const uint node = stack[--top];
+		if (!HitsBox(node, o, d)) continue;
+		if (nodes[node].count > 0)
+		{
+			const uint first = uint(nodes[node].first);
+			const uint end = first + uint(nodes[node].count);
+			for (uint i = first; i < end; i++)
+			{
+				const uint triangle = leafTriangles[i];
+				if (triangles[triangle].coplanar == skipCoplanar) continue;
+				precise real t;
+				precise real length;
+				if (HitsTriangle(triangle, o, d, t, length) && length < bestLength)
+				{
+					bestLength = length;
+					bestT = t;
+					bestTriangle = int(triangle);
+				}
+			}
+		}
+		else
+		{
+			stack[top++] = uint(nodes[node].right);
+			stack[top++] = uint(nodes[node].left);
+		}
+	}
+
+	if (bestTriangle < 0)
+	{
+		seg.t = kMissT;
+		seg.triangle = -1;
+		seg.coplanar = -1;
+		seg.material = -1;
+		segments[s] = seg;
+		return;
+	}
+
+	Triangle hit = triangles[bestTriangle];
+	seg.t = bestT;
+	seg.triangle = hit.id;
+	seg.coplanar = hit.coplanar;
+	seg.material = hit.material;
+	segments[s] = seg;
+
+	// The children start at the hit point o + d t (Triangle.cpp) with the
+	// unfolded length grown by the segment's length (RayLaunch).
+	precise real px = o.x + d.x * bestT;
+	precise real py = o.y + d.y * bestT;
+	precise real pz = o.z + d.z * bestT;
+	precise real unfoldedEnd = seg.unfoldedStart + bestLength;
+
+	Segment child;
+	child.ox = px;
+	child.oy = py;
+	child.oz = pz;
+	child.unfoldedStart = unfoldedEnd;
+	child.t = real(0.0);
+	child.parent = int(s);
+	child.launch = seg.launch;
+	child.triangle = -1;
+	child.coplanar = -1;
+	child.material = -1;
+	if (seg.transmissions < push.maxTransmissions)
+	{
+		child.dx = d.x;
+		child.dy = d.y;
+		child.dz = d.z;
+		child.kind = 2;
+		child.reflections = seg.reflections;
+		child.transmissions = seg.transmissions + 1;
+		const uint slot = atomicAdd(segmentCount, 1u);
+		segments[slot] = child;
+	}
+	if (seg.reflections < push.maxReflections)
+	{
+		// Reflect (VecMatDef.h): i - (2 n) (n . i), then Eigen's normalized():
+		// the division by the norm.
+		precise real nx = hit.n[0];
+		precise real ny = hit.n[1];
+		precise real nz = hit.n[2];
+		precise real dot = (nx * d.x + ny * d.y) + nz * d.z;
+		precise real rx = d.x - (real(2.0) * nx) * dot;
+		precise real ry = d.y - (real(2.0) * ny) * dot;
+		precise real rz = d.z - (real(2.0) * nz) * dot;
+		precise real norm2 = (rx * rx + ry * ry) + rz * rz;
+		if (norm2 > real(0.0))
+		{
+			precise real norm = sqrt(norm2);
+			rx = rx / norm;
+			ry = ry / norm;
+			rz = rz / norm;
+		}
+		child.dx = rx;
+		child.dy = ry;
+		child.dz = rz;
+		child.kind = 1;
+		child.reflections = seg.reflections + 1;
+		child.transmissions = seg.transmissions;
+		const uint slot = atomicAdd(segmentCount, 1u);
+		segments[slot] = child;
+	}
+}

@@ -112,7 +112,8 @@ struct SimulationConfig
 	bool writeReceivers = true;
 	bool writeFieldCsv = true;
 	bool writeIcosahedron = false;
-	bool writePathsCsv = false;  // Paths.csv: every path with its key and field (also --paths-csv)
+	bool writePathsCsv = false;     // Paths.csv: every path with its key and field (also --paths-csv)
+	bool writeSegmentsCsv = false;  // Segments.csv: every traced segment (also --segments-csv)
 	bool viewer = false;         // open the built-in viewer after the run (also --view)
 };
 

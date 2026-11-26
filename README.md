@@ -118,8 +118,8 @@ floats when the device supports them, else in 32-bit floats. `device = auto` tak
 machine has one and otherwise the CPU tracer. `SBR_VULKAN_DEVICE=<index or part of the name>` picks
 one of several Vulkan devices, and `SBR_VULKAN_VALIDATION=1` loads the Vulkan validation layer when
 it is installed. Without a usable device, `--device gpu` stops with exit code 77, so a test runner
-reports the run as skipped. The GPU tracer is under construction: its trace and capture stages still
-run on the CPU, and the run says so.
+reports the run as skipped. The GPU tracer is under construction: it traces the rays on the device,
+while the capture stage still runs on the CPU, and the run says so.
 
 ### Dense receiver layouts
 
@@ -228,7 +228,11 @@ root of the summed squared components of the transmitters' fields. Then `|E|²` 
 powers and the phase is zero. `Paths.csv` (`paths_csv = true` or `--paths-csv`) lists every path of
 `RayPath.vtk` as one row: receiver, launch, transmitter, the sequence of surfaces and interactions
 (`12:R;7:T` is a reflection at surface 12 and then a transmission through surface 7, `-` a direct
-path) and the path's field. `tools/compare_paths.py` compares two runs by these rows.
+path) and the path's field. `tools/compare_paths.py` compares two runs by these rows. `Segments.csv`
+(`segments_csv = true` or `--segments-csv`) lists every traced ray segment before the capture, launch
+by launch in tree order, with the surface it hit, its length and its unfolded start length;
+`tools/compare_segments.py` compares the segments of two runs, which tells a tracing difference from
+a capture difference.
 
 ### Viewer
 
@@ -317,7 +321,7 @@ required keys, values of the wrong type or range and missing files are reported 
 | | `gpu_precision` | `auto` (default: 64-bit floats when the device supports them), `single` or `double`; `--gpu-precision` overrides it |
 | `[material]` (repeatable) | `name`, `reflection_loss`, `transmission_loss`, `rel_conductivity`, `rel_permittivity_re`, `rel_permittivity_im`, `frequency_hz` | one section per material with a unique name; the first is the default for `stl_file`. The field computation uses the complex permittivity `rel_permittivity_re - j rel_conductivity / (2π f ε₀)` at the transmitter frequency; the other values are read but not applied. `frequency_hz` defaults to the first transmitter's frequency |
 | `[surface_materials]` | `<surface id> = <material name>` | override whole coplanar surfaces; ids are the `CoplanarID` field of `Faces.vtk`, written as plain decimal numbers, each at most once |
-| `[outputs]` | `ray_paths`, `receivers`, `field_csv`, `icosahedron`, `paths_csv` | which result files to write (defaults `true`, `true`, `true`, `false`, `false`); `--paths-csv` on the command line also writes `Paths.csv` |
+| `[outputs]` | `ray_paths`, `receivers`, `field_csv`, `icosahedron`, `paths_csv`, `segments_csv` | which result files to write (defaults `true`, `true`, `true`, `false`, `false`, `false`); `--paths-csv` and `--segments-csv` on the command line also write `Paths.csv` and `Segments.csv` |
 | | `viewer` | open the built-in viewer after the run (default `false`; `--view` does the same) |
 
 The scene, receiver layout and material parameters are no longer set in the source code.
@@ -354,7 +358,8 @@ reaches (21 of 108). `sbrsolver_run_office_two_tx_power` and `sbrsolver_two_tx_p
 same with `transmitter_sum = power`, where the field of the full run is the root of the summed
 squares of the single fields. `paths_tool_pass` and `paths_tool_fail` check `tools/compare_paths.py`
 itself: the office run against itself passes, and against the two-transmitter run it fails, as it
-must. `tracer_unit_tests` checks that the receiver grid of the capture stage finds the same
+must. `segments_tool_pass` and `segments_tool_fail` do the same for `tools/compare_segments.py`.
+`tracer_unit_tests` checks that the receiver grid of the capture stage finds the same
 candidates as a test of every receiver against every segment. `gpu_unit_tests` runs a probe shader
 through the Vulkan host layer in both precisions, with more items than one dispatch may hold; without
 a Vulkan device it reports itself as skipped. `ctest` checks `ground` and `office` twice and `corner`

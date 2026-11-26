@@ -687,6 +687,7 @@ namespace
 		r.Boolean("field_csv", cfg.writeFieldCsv, false);
 		r.Boolean("icosahedron", cfg.writeIcosahedron, false);
 		r.Boolean("paths_csv", cfg.writePathsCsv, false);
+		r.Boolean("segments_csv", cfg.writeSegmentsCsv, false);
 		r.Boolean("viewer", cfg.viewer, false);
 	}
 } // namespace
@@ -868,5 +869,6 @@ void PrintSimulationConfig(const SimulationConfig& c)
 		<< " field_csv=" << (c.writeFieldCsv ? "true" : "false")
 		<< " icosahedron=" << (c.writeIcosahedron ? "true" : "false")
 		<< " paths_csv=" << (c.writePathsCsv ? "true" : "false")
+		<< " segments_csv=" << (c.writeSegmentsCsv ? "true" : "false")
 		<< " viewer=" << (c.viewer ? "true" : "false") << endl;
 }

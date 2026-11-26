@@ -57,6 +57,8 @@ static void PrintUsage(const char* program)
 		<< "                         precision of the GPU shaders (same as gpu_precision)\n"
 		<< "  --paths-csv            write Paths.csv, every path with its key and field\n"
 		<< "                         (same as paths_csv = true in [outputs])\n"
+		<< "  --segments-csv         write Segments.csv, every traced segment\n"
+		<< "                         (same as segments_csv = true in [outputs])\n"
 		<< "  --view                 open the built-in 3D viewer on the results\n"
 		<< "                         (same as viewer = true in [outputs])\n"
 		<< "  --screenshot FILE      render the viewer once into FILE (.png, .jpg or .jpeg) and exit\n"
@@ -75,6 +77,7 @@ struct CommandLine
 	bool precisionSet = false;
 	GpuPrecision precision = GpuPrecision::Auto;
 	bool pathsCsv = false;
+	bool segmentsCsv = false;
 	bool view = false;
 	std::string screenshotFile;
 	long viewerFrames = -1;
@@ -94,6 +97,7 @@ static bool ParseCommandLine(int argc, char* argv[], CommandLine& cl, std::strin
 		};
 		if (arg == "--view") cl.view = true;
 		else if (arg == "--paths-csv") cl.pathsCsv = true;
+		else if (arg == "--segments-csv") cl.segmentsCsv = true;
 		else if (arg == "--device")
 		{
 			std::string text;
@@ -284,6 +288,7 @@ int main(int argc, char* argv[])
 	const std::string icosahedronFileName = PathString(outputDir / "Icosahedron.vtk");
 	const std::string csvFieldFileName = PathString(outputDir / "ElectricField.csv");
 	const std::string csvPathsFileName = PathString(outputDir / "Paths.csv");
+	const std::string csvSegmentsFileName = PathString(outputDir / "Segments.csv");
 
 	// A run that stops early must not leave the results of an earlier run
 	// behind for a comparison to pick up.
@@ -298,8 +303,9 @@ int main(int argc, char* argv[])
 
 #if defined(SBR_HAS_GPU)
 	// The GPU context opens the Vulkan device now, so a run without one
-	// stops before any work; the tracer uses it once the GPU stages exist.
+	// stops before any work.
 	std::unique_ptr<sbr::gpu::GpuContext> gpu;
+	GpuPrecision gpuPrecision = GpuPrecision::Single;
 	if (config.device != TracerDevice::Cpu)
 	{
 		try
@@ -328,7 +334,6 @@ int main(int argc, char* argv[])
 		std::cout << "\tGPU device -> " << info.name << " (" << info.type << ", Vulkan " << VK_VERSION_MAJOR(info.apiVersion)
 			<< "." << VK_VERSION_MINOR(info.apiVersion) << ", driver " << info.driver << ", storage range "
 			<< (info.storageRange >> 20) << " MiB, heap " << (info.heapBytes >> 30) << " GiB)" << std::endl;
-		GpuPrecision gpuPrecision = GpuPrecision::Single;
 		try
 		{
 			gpuPrecision = gpu->Resolve(config.gpuPrecision);
@@ -339,7 +344,6 @@ int main(int argc, char* argv[])
 			return 1;
 		}
 		std::cout << "\tGPU precision -> " << GpuPrecisionName(gpuPrecision) << " (" << gpu->PrecisionReason(config.gpuPrecision) << ")" << std::endl;
-		std::cout << "\tnote: the GPU tracer is not built yet, tracing on the CPU" << std::endl;
 	}
 #else
 	if (config.device == TracerDevice::Gpu)
@@ -454,6 +458,9 @@ int main(int argc, char* argv[])
 	std::unique_ptr<RTSolver> rayTracer(new RTSolver());
 	rayTracer->Init(materials.data(), int(materials.size()), bvh);
 	rayTracer->SetThreadCount(config.threads);
+#if defined(SBR_HAS_GPU)
+	if (gpu) rayTracer->SetGpu(gpu.get(), gpuPrecision);
+#endif
 
 	size_t totalPaths = 0;
 	try
@@ -493,6 +500,7 @@ int main(int argc, char* argv[])
 		if (config.writeReceivers) rayTracer->SaveReceiversAsVtk(rxLocationOutputFileName);
 		if (config.writeFieldCsv) rayTracer->SaveFieldAsCsv(csvFieldFileName);
 		if (config.writePathsCsv || cl.pathsCsv) rayTracer->SavePathsAsCsv(csvPathsFileName);
+		if (config.writeSegmentsCsv || cl.segmentsCsv) rayTracer->SaveSegmentsAsCsv(csvSegmentsFileName);
 	}
 
 #if defined(SBR_HAS_VIEWER)

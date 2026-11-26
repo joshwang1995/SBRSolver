@@ -208,6 +208,7 @@ if(SBR_BUILD_GPU)
         set(SBR_SHADER_HEADERS "${SBR_SHADER_HEADERS}" PARENT_SCOPE)
     endfunction()
     sbr_add_shader(probe)
+    sbr_add_shader(trace)
     add_custom_target(sbr_shaders DEPENDS ${SBR_SHADER_HEADERS})
 endif()
 
@@ -270,8 +271,11 @@ endif()
 if(SBR_BUILD_GPU)
     target_sources(sbrsolver PRIVATE
         ${SBR_SRC_DIR}/gpu/GpuContext.cpp
+        ${SBR_SRC_DIR}/gpu/GpuTracer.cpp
         ${SBR_SRC_DIR}/gpu/VolkImpl.cpp
-        ${SBR_SRC_DIR}/gpu/GpuContext.h)
+        ${SBR_SRC_DIR}/gpu/GpuContext.h
+        ${SBR_SRC_DIR}/gpu/GpuRecords.h
+        ${SBR_SRC_DIR}/gpu/GpuTracer.h)
     target_include_directories(sbrsolver PRIVATE "${SBR_SHADER_OUT}")
     target_link_libraries(sbrsolver PRIVATE sbr_vulkan ${CMAKE_DL_LIBS})
     target_compile_definitions(sbrsolver PRIVATE SBR_HAS_GPU=1)
@@ -339,10 +343,11 @@ enable_testing()
 # and with the RayTubeTracing reference solver (physics, tools/raytube).
 set(_sbr_scenes ground corner office bahen)
 foreach(_scene IN LISTS _sbr_scenes)
-    # The office run also writes Paths.csv for the path comparison tests.
+    # The office run also writes Paths.csv and Segments.csv for the
+    # comparison tool tests.
     set(_sbr_run_options "")
     if(_scene STREQUAL "office")
-        set(_sbr_run_options --paths-csv)
+        set(_sbr_run_options --paths-csv --segments-csv)
     endif()
     add_test(NAME sbrsolver_run_${_scene}
              COMMAND sbrsolver "${SBR_SRC_DIR}/data/${_scene}.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_${_scene}" ${_sbr_run_options})
@@ -367,7 +372,7 @@ set_tests_properties(sbrsolver_run_large_office PROPERTIES TIMEOUT 1800 FIXTURES
 
 # The office scene with two transmitters radiating at once.
 add_test(NAME sbrsolver_run_office_two_tx
-         COMMAND sbrsolver "${SBR_SRC_DIR}/data/office_two_tx.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_office_two_tx" --paths-csv)
+         COMMAND sbrsolver "${SBR_SRC_DIR}/data/office_two_tx.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_office_two_tx" --paths-csv --segments-csv)
 set_tests_properties(sbrsolver_run_office_two_tx PROPERTIES TIMEOUT 600 FIXTURES_SETUP sbr_run_office_two_tx)
 add_test(NAME sbrsolver_run_office_two_tx_power
          COMMAND sbrsolver "${SBR_SRC_DIR}/data/office_two_tx_power.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_office_two_tx_power")
@@ -524,6 +529,16 @@ if(Python3_Interpreter_FOUND)
              COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/compare_paths.py"
                      "${CMAKE_CURRENT_BINARY_DIR}/test_output_office" "${CMAKE_CURRENT_BINARY_DIR}/test_output_office_two_tx")
     set_tests_properties(paths_tool_fail PROPERTIES FIXTURES_REQUIRED "sbr_run_office;sbr_run_office_two_tx" WILL_FAIL TRUE)
+    # The same for tools/compare_segments.py: the two-transmitter run has
+    # more launches, so the comparison must fail.
+    add_test(NAME segments_tool_pass
+             COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/compare_segments.py"
+                     "${CMAKE_CURRENT_BINARY_DIR}/test_output_office/Segments.csv" "${CMAKE_CURRENT_BINARY_DIR}/test_output_office/Segments.csv")
+    set_tests_properties(segments_tool_pass PROPERTIES FIXTURES_REQUIRED sbr_run_office)
+    add_test(NAME segments_tool_fail
+             COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/compare_segments.py"
+                     "${CMAKE_CURRENT_BINARY_DIR}/test_output_office/Segments.csv" "${CMAKE_CURRENT_BINARY_DIR}/test_output_office_two_tx/Segments.csv")
+    set_tests_properties(segments_tool_fail PROPERTIES FIXTURES_REQUIRED "sbr_run_office;sbr_run_office_two_tx" WILL_FAIL TRUE)
     # Dense layouts: one finite field per receiver. Every receiver of the
     # ground line and the corner floor sees the transmitter. In the office
     # the room closed by the glass panel and the rooms without a line of

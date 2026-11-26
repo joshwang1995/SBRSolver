@@ -10,8 +10,11 @@
 #include "Triangle.h"
 #include "Preprocessor.h"
 #include "FieldCompute.h"
+#include "gpu/GpuTypes.h"
 #include "viewer/SceneData.h"
 #include <mutex>
+
+namespace sbr { namespace gpu { class GpuContext; } }
 
 class RTSolver
 {
@@ -21,6 +24,9 @@ public:
 	int Init(MaterialProperties materialProperties[], int materialPropertiesCount, BVH<Triangle>& triangles);
 	// Threads used by ExecuteRayTracing (0 = one per hardware thread).
 	void SetThreadCount(int threads) { _threadCount = threads; }
+	// Traces on this Vulkan device instead of the CPU; the context must
+	// outlive the run.
+	void SetGpu(sbr::gpu::GpuContext* gpu, GpuPrecision precision) { _gpu = gpu; _gpuPrecision = precision; }
 	void Cleanup();
 	// Launches the rays of every transmitter together, finds the paths to
 	// every receiver and sums the fields of all transmitters at each one,
@@ -48,6 +54,9 @@ public:
 	// One row per path in the order of RayPath.vtk: receiver, launch,
 	// transmitter, the sequence of surfaces and interactions, the field.
 	bool SavePathsAsCsv(std::string fname);
+	// One row per traced segment, launch by launch in tree order, from
+	// whichever tracer ran; tools/compare_segments.py compares two runs.
+	bool SaveSegmentsAsCsv(std::string fname);
 	// The launch directions of every transmitter, as lines from its position.
 	bool SaveIcosahedronAsVtk(std::string fname);
 	void CmdLineDebug();
@@ -57,7 +66,12 @@ protected:
 	// the ray tree; the image-method correction and the duplicate removal
 	// prune them in place.
 	std::vector<std::vector<ReceiverPath>> _receiverPaths;
+	// Every segment and candidate of the last run, for Segments.csv.
+	TraceResult _trace;
 	BVH<Triangle>* _bvh = nullptr;
+	const std::vector<Triangle*>* _triangleMesh = nullptr;
+	sbr::gpu::GpuContext* _gpu = nullptr;
+	GpuPrecision _gpuPrecision = GpuPrecision::Single;
 	std::vector<Vec3>* _shootRayList = nullptr;
 	VecVec3* _receivers = nullptr;
 	std::vector<Vec3c>* _efield = nullptr;

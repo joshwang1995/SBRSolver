@@ -24,6 +24,7 @@ struct Segment
 struct TracerInput
 {
 	BVH<Triangle>* bvh = nullptr;
+	const std::vector<Triangle*>* triangles = nullptr;  // indexed by Triangle::triangleId
 	const std::vector<TransmitterSource>* transmitters = nullptr;
 	const std::vector<Vec3>* launches = nullptr;  // unit direction of every launch
 	const std::vector<int>* launchTx = nullptr;   // transmitter of every launch
