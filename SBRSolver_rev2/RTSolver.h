@@ -45,6 +45,9 @@ public:
 	bool SavePathsAsVtk(std::string fname);
 	bool SaveReceiversAsVtk(std::string fname);
 	bool SaveFieldAsCsv(std::string fname);
+	// One row per path in the order of RayPath.vtk: receiver, launch,
+	// transmitter, the sequence of surfaces and interactions, the field.
+	bool SavePathsAsCsv(std::string fname);
 	// The launch directions of every transmitter, as lines from its position.
 	bool SaveIcosahedronAsVtk(std::string fname);
 	void CmdLineDebug();

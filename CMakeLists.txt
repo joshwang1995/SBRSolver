@@ -248,6 +248,11 @@ enable_testing()
 # and with the RayTubeTracing reference solver (physics, tools/raytube).
 set(_sbr_scenes ground corner office bahen)
 foreach(_scene IN LISTS _sbr_scenes)
+    # The office run also writes Paths.csv for the path comparison tests.
+    set(_sbr_run_options "")
+    if(_scene STREQUAL "office")
+        set(_sbr_run_options --paths-csv)
+    endif()
     add_test(NAME sbrsolver_run_${_scene}
              COMMAND sbrsolver "${SBR_SRC_DIR}/data/${_scene}.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_${_scene}" ${_sbr_run_options})
     # Fixtures (not DEPENDS) so the run always precedes its comparisons, even
@@ -271,7 +276,7 @@ set_tests_properties(sbrsolver_run_large_office PROPERTIES TIMEOUT 1800 FIXTURES
 
 # The office scene with two transmitters radiating at once.
 add_test(NAME sbrsolver_run_office_two_tx
-         COMMAND sbrsolver "${SBR_SRC_DIR}/data/office_two_tx.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_office_two_tx")
+         COMMAND sbrsolver "${SBR_SRC_DIR}/data/office_two_tx.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_office_two_tx" --paths-csv)
 set_tests_properties(sbrsolver_run_office_two_tx PROPERTIES TIMEOUT 600 FIXTURES_SETUP sbr_run_office_two_tx)
 add_test(NAME sbrsolver_run_office_two_tx_power
          COMMAND sbrsolver "${SBR_SRC_DIR}/data/office_two_tx_power.ini" "${CMAKE_CURRENT_BINARY_DIR}/test_output_office_two_tx_power")
@@ -391,6 +396,18 @@ if(Python3_Interpreter_FOUND)
                      "${SBR_SRC_DIR}/data/reference/office_ElectricField.csv"
                      "${CMAKE_CURRENT_BINARY_DIR}/test_output_office/ElectricField.csv")
     set_tests_properties(sbrsolver_reference_office PROPERTIES FIXTURES_REQUIRED sbr_run_office)
+    # tools/compare_paths.py matches the paths of two runs by receiver and
+    # key. The office run against itself passes; against the two-transmitter
+    # run it must fail, because the second transmitter's paths exist on one
+    # side only. The failing run is the proof that the tool sees a difference.
+    add_test(NAME paths_tool_pass
+             COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/compare_paths.py"
+                     "${CMAKE_CURRENT_BINARY_DIR}/test_output_office" "${CMAKE_CURRENT_BINARY_DIR}/test_output_office")
+    set_tests_properties(paths_tool_pass PROPERTIES FIXTURES_REQUIRED sbr_run_office)
+    add_test(NAME paths_tool_fail
+             COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tools/compare_paths.py"
+                     "${CMAKE_CURRENT_BINARY_DIR}/test_output_office" "${CMAKE_CURRENT_BINARY_DIR}/test_output_office_two_tx")
+    set_tests_properties(paths_tool_fail PROPERTIES FIXTURES_REQUIRED "sbr_run_office;sbr_run_office_two_tx" WILL_FAIL TRUE)
     # Dense layouts: one finite field per receiver. Every receiver of the
     # ground line and the corner floor sees the transmitter. In the office
     # the room closed by the glass panel and the rooms without a line of

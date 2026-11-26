@@ -44,6 +44,8 @@ static void PrintUsage(const char* program)
 		<< "  output_dir   directory for the generated VTK/CSV files\n"
 		<< "               (default: <config_file directory>/output, created if missing)\n"
 		<< "Options:\n"
+		<< "  --paths-csv            write Paths.csv, every path with its key and field\n"
+		<< "                         (same as paths_csv = true in [outputs])\n"
 		<< "  --view                 open the built-in 3D viewer on the results\n"
 		<< "                         (same as viewer = true in [outputs])\n"
 		<< "  --screenshot FILE      render the viewer once into FILE (.png, .jpg or .jpeg) and exit\n"
@@ -57,6 +59,7 @@ static void PrintUsage(const char* program)
 struct CommandLine
 {
 	std::vector<std::string> positional;
+	bool pathsCsv = false;
 	bool view = false;
 	std::string screenshotFile;
 	long viewerFrames = -1;
@@ -75,6 +78,7 @@ static bool ParseCommandLine(int argc, char* argv[], CommandLine& cl, std::strin
 			return true;
 		};
 		if (arg == "--view") cl.view = true;
+		else if (arg == "--paths-csv") cl.pathsCsv = true;
 		else if (arg == "--screenshot")
 		{
 			if (!value(cl.screenshotFile)) return false;
@@ -238,6 +242,7 @@ int main(int argc, char* argv[])
 	const std::string rayPathFileName = PathString(outputDir / "RayPath.vtk");
 	const std::string icosahedronFileName = PathString(outputDir / "Icosahedron.vtk");
 	const std::string csvFieldFileName = PathString(outputDir / "ElectricField.csv");
+	const std::string csvPathsFileName = PathString(outputDir / "Paths.csv");
 
 	std::cout << "\tOutput Directory         -> " << PathString(outputDir) << std::endl;
 	PrintSimulationConfig(config);
@@ -381,6 +386,7 @@ int main(int argc, char* argv[])
 		if (config.writeIcosahedron) rayTracer->SaveIcosahedronAsVtk(icosahedronFileName);
 		if (config.writeReceivers) rayTracer->SaveReceiversAsVtk(rxLocationOutputFileName);
 		if (config.writeFieldCsv) rayTracer->SaveFieldAsCsv(csvFieldFileName);
+		if (config.writePathsCsv || cl.pathsCsv) rayTracer->SavePathsAsCsv(csvPathsFileName);
 	}
 
 #if defined(SBR_HAS_VIEWER)

@@ -674,6 +674,43 @@ bool RTSolver::SaveFieldAsCsv(std::string fname)
 	return true;
 }
 
+bool RTSolver::SavePathsAsCsv(std::string fname)
+{
+	using namespace std;
+	cout << "[Entering] RTSolver::SavePathsAsCsv ..." << endl;
+
+	ofstream ofs;
+	ofs.open(fname);
+	// Interactions lists every surface a path meets and what happens there
+	// (R: reflection, T: transmission), from the transmitter to the
+	// receiver. With the transmitter it is the key tools/compare_paths.py
+	// matches paths by.
+	ofs << "ReceiverID,LaunchID,TransmitterID,Interactions,Ex,Ey,Ez" << endl;
+	ofs << std::setprecision(12);
+	size_t rows = 0;
+	for (const PathIndex& index : OutputOrder())
+	{
+		const std::vector<Ray>& rays = _receiverPaths[index.receiver][index.position].rays;
+		ofs << index.receiver << "," << index.launch << "," << _launchTx[index.launch] << ",";
+		if (rays.size() == 1) ofs << "-";
+		for (size_t r = 1; r < rays.size(); r++)
+		{
+			ofs << (r > 1 ? ";" : "") << rays[r - 1].hitCoplanarId << ":" << (rays[r].reflectionMaterialId >= 0 ? "R" : "T");
+		}
+		const Vec3c& field = _pathFields[index.receiver][index.position];
+		ofs << "," << showpos
+			<< field.x().real() << field.x().imag() << "i,"
+			<< field.y().real() << field.y().imag() << "i,"
+			<< field.z().real() << field.z().imag() << "i" << noshowpos << endl;
+		rows++;
+	}
+	ofs.close();
+
+	cout << "\tSaved " << rows << " paths into " << fname << endl;
+	cout << "[Leaving] RTSolver::SavePathsAsCsv" << endl;
+	return true;
+}
+
 bool RTSolver::SaveIcosahedronAsVtk(std::string fname)
 {
 	using namespace std;

@@ -208,7 +208,10 @@ the receivers with `|E|` and the field in dB(µV/m). With several transmitters t
 receiver is the sum over all of them, and every path in `RayPath.vtk` and every launch direction in
 `Icosahedron.vtk` carries a `TransmitterID`. With `transmitter_sum = power` the written field is the
 root of the summed squared components of the transmitters' fields. Then `|E|²` is the sum of their
-powers and the phase is zero.
+powers and the phase is zero. `Paths.csv` (`paths_csv = true` or `--paths-csv`) lists every path of
+`RayPath.vtk` as one row: receiver, launch, transmitter, the sequence of surfaces and interactions
+(`12:R;7:T` is a reflection at surface 12 and then a transmission through surface 7, `-` a direct
+path) and the path's field. `tools/compare_paths.py` compares two runs by these rows.
 
 ### Viewer
 
@@ -295,7 +298,7 @@ required keys, values of the wrong type or range and missing files are reported 
 | | `transmitter_sum` | how several transmitters add at a receiver. `coherent` (default) adds their fields as phasors, which models antennas fed with one signal. `power` adds their powers, which models independent transmitters, and writes the root of the summed squared components as the field, with no phase |
 | `[material]` (repeatable) | `name`, `reflection_loss`, `transmission_loss`, `rel_conductivity`, `rel_permittivity_re`, `rel_permittivity_im`, `frequency_hz` | one section per material with a unique name; the first is the default for `stl_file`. The field computation uses the complex permittivity `rel_permittivity_re - j rel_conductivity / (2π f ε₀)` at the transmitter frequency; the other values are read but not applied. `frequency_hz` defaults to the first transmitter's frequency |
 | `[surface_materials]` | `<surface id> = <material name>` | override whole coplanar surfaces; ids are the `CoplanarID` field of `Faces.vtk`, written as plain decimal numbers, each at most once |
-| `[outputs]` | `ray_paths`, `receivers`, `field_csv`, `icosahedron` | which result files to write (defaults `true`, `true`, `true`, `false`) |
+| `[outputs]` | `ray_paths`, `receivers`, `field_csv`, `icosahedron`, `paths_csv` | which result files to write (defaults `true`, `true`, `true`, `false`, `false`); `--paths-csv` on the command line also writes `Paths.csv` |
 | | `viewer` | open the built-in viewer after the run (default `false`; `--view` does the same) |
 
 The scene, receiver layout and material parameters are no longer set in the source code.
@@ -330,8 +333,11 @@ single fields and that every path carries its transmitter. `sbrsolver_fields_off
 `tools/check_fields.py` to the same result, with a bound on the receivers that neither transmitter
 reaches (21 of 108). `sbrsolver_run_office_two_tx_power` and `sbrsolver_two_tx_power_sum` do the
 same with `transmitter_sum = power`, where the field of the full run is the root of the summed
-squares of the single fields. `ctest` checks `ground` and `office` twice and `corner` and `bahen`
-once:
+squares of the single fields. `paths_tool_pass` and `paths_tool_fail` check `tools/compare_paths.py`
+itself: the office run against itself passes, and against the two-transmitter run it fails, as it
+must. `tracer_unit_tests` checks that the receiver grid of the capture stage finds the same
+candidates as a test of every receiver against every segment. `ctest` checks `ground` and `office`
+twice and `corner` and `bahen` once:
 
 * `sbrsolver_reference_*`: the `ground` and `office` fields against the results committed in
   `SBRSolver_rev2/data/output/ElectricField.csv` and `SBRSolver_rev2/data/reference/office_ElectricField.csv`
