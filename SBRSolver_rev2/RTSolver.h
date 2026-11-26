@@ -72,28 +72,6 @@ protected:
 	// Triangles of every coplanar surface, indexed by Triangle::coplanarId.
 	std::vector<std::vector<Triangle*>> _coplanarGroups;
 private:
-	void RayLaunch
-	(
-		PathTreeNode* rayTreeNode, 
-		Vec3& sourcePoint, 
-		Vec3& directionPoint, 
-		int transMaterialID,
-		int refMaterialID,
-		int reflectionCnt,
-		int transmissionCnt,
-		double totalPathLength,
-		bool isRoot, 
-		double lastAnglefromN
-	);
-	// `tessellation` is the launching transmitter's level plus one; it sets
-	// the reception sphere.
-	void RayCapture
-	(
-		PathTreeNode* rayTreeNode,
-		const Vec3& receiver, 
-		double totalPathLength,
-		int tessellation
-	);
 	// Replaces every captured path of a receiver by the exact path with the
 	// same interaction sequence (image method) from its own transmitter and
 	// drops the ones that do not exist: no intersection with the surface, or
@@ -122,16 +100,6 @@ void PathsToVector
 	int launchId,
 	int receiverId,
 	int& totalLines
-);
-
-bool HitReceptionSphere
-(
-	const Vec3& sourcePoint,
-	const Vec3& targetPoint,
-	const Vec3& sphereCenter,
-	double pathLength,
-	int txTesslation,
-	Vec3& capturePoint
 );
 
 std::vector<int> GetHitSurfaceIds(const std::vector<Ray>& rayPaths);

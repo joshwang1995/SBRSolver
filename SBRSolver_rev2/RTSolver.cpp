@@ -1,4 +1,5 @@
 #include "RTSolver.h"
+#include "CpuTracer.h"
 #include "common/ParallelFor.h"
 #include "common/Profiling.h"
 
@@ -78,7 +79,6 @@ int RTSolver::ExecuteRayTracing
 )
 {
 	SBR_ZONE_NAMED("ExecuteRayTracing");
-	RayGlobalId = 0;
 
 	_maxReflectionCount = maxReflectionCount;
 	_maxTransmissionCount = maxTransmissionCount;
@@ -114,32 +114,39 @@ int RTSolver::ExecuteRayTracing
 
 	Timer timer;
 	timer.start();
-	// Every launch direction builds its own ray tree and fills its own row of
-	// _rayPaths, so the launches run independently. Ray ids come from an
-	// atomic counter and are only used for debugging output.
-	ParallelFor(_pathsCount, threads, [&](int i)
+	// The tracer finds every segment of every launch and the segments that
+	// cross each receiver's reception sphere. A candidate path is the chain
+	// of segments from the root of its launch to the captured one.
+	TracerInput input;
+	input.bvh = _bvh;
+	input.transmitters = &_transmitters;
+	input.launches = _shootRayList;
+	input.launchTx = &_launchTx;
+	input.receivers = _receivers;
+	for (const TransmitterSource& tx : _transmitters)
 	{
-		SBR_ZONE_NAMED("RayLaunch");
-		const TransmitterSource& tx = _transmitters[_launchTx[i]];
-		Vec3 origin = tx.position;
-		PathTreeNode rootNode;
-		rootNode.ray.id = RayGlobalId++;
-		rootNode.childTransmit = nullptr;
-		rootNode.childReflect = nullptr;
-		RayLaunch(&rootNode, origin, _shootRayList->at(i), -1, -1, 0, 0, 0, true, INF);
-		for (int j = 0; j < _receiverCount; j++)
+		input.tanBeta.push_back(ReceptionSlope(tx.tessellation + 1)); // a user may give level 0
+	}
+	input.maxReflections = _maxReflectionCount;
+	input.maxTransmissions = _maxTransmissionCount;
+	input.threads = threads;
+	TraceResult trace;
+	TraceAndCapture(input, trace);
+	for (const std::pair<int, int>& candidate : trace.candidates)
+	{
+		std::vector<Ray> path;
+		for (int s = candidate.second; s >= 0; s = trace.segments[s].parent)
 		{
-			PathTreeNode* cloneRoot = CloneNode(&rootNode);
-			CloneTree(&rootNode, cloneRoot);
-			RayCapture(cloneRoot, receivers[j], 0.0, tx.tessellation + 1); // a user may give level 0
-			_rayPaths[i][j] = Paths(cloneRoot);
-			cloneRoot = DeleteChildNodes(cloneRoot);
-			delete cloneRoot;
+			path.push_back(trace.segments[s].ray);
 		}
-		// The per-launch tree has been cloned for every receiver; release it.
-		rootNode.childTransmit = DeleteChildNodes(rootNode.childTransmit);
-		rootNode.childReflect = DeleteChildNodes(rootNode.childReflect);
-	});
+		std::reverse(path.begin(), path.end());
+		// The last ray ends at the receiver now, not at the surface it hit.
+		path.back().hitSurfaceID = -1;
+		path.back().hitCoplanarId = -1;
+		_rayPaths[trace.segments[candidate.second].launch][candidate.first].rayPaths.push_back(std::move(path));
+	}
+	std::cout << "\tSegments                 -> " << trace.segments.size() << std::endl;
+	std::cout << "\tCandidates               -> " << trace.candidates.size() << std::endl;
 	std::cout << "\tTotal Time in ray launching -> " << timer.getTime() << std::endl;
 
 	// The source field differs per transmitter (power, antenna, frame); the
@@ -257,165 +264,6 @@ std::vector<sbr::viewer::ScenePath> RTSolver::CollectPaths() const
 		}
 	}
 	return result;
-}
-
-void RTSolver::RayLaunch
-(
-	PathTreeNode* rayTreeNode, 
-	Vec3& sourcePoint, 
-	Vec3& directionPoint, 
-	int transMaterialID,
-	int refMaterialID, 
-	int reflectionCnt, 
-	int transmissionCnt, 
-	double totalPathLength,
-	bool isRoot, 
-	double lastAnglefromN
-)
-{
-	if (reflectionCnt > _maxReflectionCount && transmissionCnt > _maxTransmissionCount)
-	{
-		return;
-	}
-
-	HitInfo hitResult;
-	bool hasHit = _bvh->RayIntersects(0, sourcePoint, directionPoint, hitResult);
-
-	if (hasHit)
-	{
-		double anglefromN = AngleBetween(hitResult.normal, directionPoint);
-		PathTreeNode* newRayTreeNode = rayTreeNode;
-		if (!isRoot)
-		{
-			PathTreeNode* newNode = newPathTreeNode
-			(
-				sourcePoint,
-				hitResult.pointIntersect,
-				transMaterialID,
-				refMaterialID,
-				hitResult.triangelId,
-				hitResult.coplanarId,
-				totalPathLength + hitResult.distance,
-				lastAnglefromN
-			);
-
-			if (refMaterialID >= 0)
-				rayTreeNode->childReflect = newNode;
-			else
-				rayTreeNode->childTransmit = newNode;
-			newRayTreeNode = newNode;
-		}
-		else //it is the root
-		{
-			rayTreeNode->ray.sourcePoint = sourcePoint;
-			rayTreeNode->ray.targetPoint = hitResult.pointIntersect;
-			rayTreeNode->ray.penetrationMaterialId = transMaterialID;
-			rayTreeNode->ray.reflectionMaterialId = refMaterialID;
-			rayTreeNode->ray.hitSurfaceID = hitResult.triangelId;
-			rayTreeNode->ray.hitCoplanarId = hitResult.coplanarId;
-			rayTreeNode->ray.pathLength = hitResult.distance;
-			rayTreeNode->ray.angleFromSurfaceNormal = lastAnglefromN;
-		}
-
-		if (reflectionCnt < _maxReflectionCount)
-		{
-			Vec3 newDirectionPoint = Reflect(directionPoint, hitResult.normal).normalized();
-			// Rebounce ray
-			RayLaunch
-			(
-				newRayTreeNode, 
-				hitResult.pointIntersect, 
-				newDirectionPoint, 
-				-1, 
-				hitResult.materialId, 
-				reflectionCnt + 1,
-				transmissionCnt,
-				totalPathLength + hitResult.distance,
-				false, 
-				anglefromN
-			);
-		}
-
-		if (transmissionCnt < _maxTransmissionCount)
-		{
-			// Forward ray
-			RayLaunch
-			(
-				newRayTreeNode,
-				hitResult.pointIntersect,
-				directionPoint,
-				hitResult.materialId,
-				-1,
-				reflectionCnt,
-				transmissionCnt + 1,
-				totalPathLength + hitResult.distance,
-				false,
-				anglefromN
-			);
-		}
-
-	}
-	else
-	{
-		if (reflectionCnt > 0 || transmissionCnt > 0)
-		{
-			// A ray that leaves the scene keeps going (as far as the direct
-			// ray) so that receivers far away can still capture it.
-			PathTreeNode* newNode = newPathTreeNode
-			(
-				sourcePoint, 
-				sourcePoint + (directionPoint * 1E10), 
-				transMaterialID,
-				refMaterialID,
-				-1,
-				-1,
-				INF,
-				lastAnglefromN
-			);
-			if (refMaterialID >= 0)
-				rayTreeNode->childReflect = newNode;
-			else if (transMaterialID >= 0)
-				rayTreeNode->childTransmit = newNode;
-		}
-
-		if (isRoot)
-		{
-			// Direct Ray
-			rayTreeNode->ray.sourcePoint = sourcePoint;
-			rayTreeNode->ray.targetPoint = sourcePoint + (directionPoint * 1E10);
-			rayTreeNode->ray.reflectionMaterialId = -1;
-			rayTreeNode->ray.penetrationMaterialId = -1;
-			rayTreeNode->ray.hitSurfaceID = -1;
-			rayTreeNode->ray.hitCoplanarId = -1;
-			rayTreeNode->ray.pathLength = INF;
-		}
-	}
-}
-
-void RTSolver::RayCapture(PathTreeNode* rayTreeNode, const Vec3& receiver, double totalPathLength, int tessellation)
-{
-	// Marks every ray whose segment passes through the receiver's reception
-	// sphere. The children of a captured ray are still visited: a ray that
-	// passes the receiver and then bounces back to it carries two paths
-	// (the direct one and the reflected one), and dropping the subtree lost
-	// the second. Paths::Paths turns the marks into candidate paths, which
-	// ImagePathCorrection then verifies.
-	Vec3 capturePoint;
-	if (HitReceptionSphere(rayTreeNode->ray.sourcePoint, rayTreeNode->ray.targetPoint, receiver, totalPathLength, tessellation, capturePoint))
-	{
-		rayTreeNode->ray.captured = true;
-	}
-	// RayLaunch stores the unfolded length from the transmitter to the end
-	// of every ray in pathLength, so that is the children's starting length.
-	if (rayTreeNode->childTransmit != nullptr)
-	{
-		RayCapture(rayTreeNode->childTransmit, receiver, rayTreeNode->ray.pathLength, tessellation);
-	}
-
-	if (rayTreeNode->childReflect != nullptr)
-	{
-		RayCapture(rayTreeNode->childReflect, receiver, rayTreeNode->ray.pathLength, tessellation);
-	}
 }
 
 void RTSolver::ImagePathCorrection(int receiverId, const std::vector<Triangle*>& triangleMesh)
@@ -964,67 +812,6 @@ void PathsToVector
 		launchIds.push_back(launchId);
 		receiverIds.push_back(receiverId);
 	}
-}
-
-bool HitReceptionSphere
-(
-	const Vec3& sourcePoint,
-	const Vec3& targetPoint,
-	const Vec3& sphereCenter,
-	double pathLength,
-	int txTesslation,
-	Vec3& capturePoint
-)
-{
-	// Find the closest distance between the ray and the sphere center
-	// Reference: https://www.geometrictools.com/Documentation/DistancePointLine.pdf
-	Vec3 rayDir = targetPoint - sourcePoint; // Do not normalize, this is a line segment
-	double t0 = rayDir.dot(sphereCenter - sourcePoint) / rayDir.squaredNorm();
-
-	if (t0 < 0)
-	{
-		// Projection is negative, receiver is in the opposite direction of the ray direction
-		return false;
-	}
-	else if (t0 >= 1)
-	{
-		// We can choose to clamp t0 to 1 here. This means that the closest point is the target point
-		// However, I choose to ignore it because the reception sphere algorithm checks to see if the capture\
-		// point is in LOS of the receiver.
-		t0 = 1; // Clamp t0 to 1 because the closest point is the target point
-	}
-
-	// Find the optimal reception sphere radius
-	// Reference: 191115_Ray_Launching.pdf
-	// Note: the unfolded path length is the path length from previous ray segments plus the distance
-	//  the point of intersection and the receiver
-
-	// Takahiro's method: the sphere grows with the unfolded path length from
-	// the transmitter to the closest point of this segment.
-	double beta = 1.0 / (3.0 * txTesslation) * acos(-1.0 / sqrt(5.0));
-	double unfoldedLength = pathLength + (t0 * rayDir).norm();
-	double sphereRadius = unfoldedLength * tan(beta);
-
-	// Rappaport's approximation
-	// double unfoldedLength = pathLength + (sourcePoint + t0 * rayDir).norm();
-	// double alpha = (69.0 * PI / 180.0) / txTesslation;
-	// double sphereRadius = alpha * unfoldedLength / sqrt(3.0);
-
-	// double unfoldedLength = pathLength + (t0 * rayDir).norm();
-	// double phi = (sqrt(5) + 1) / 2;
-	// double alpha = acos(phi / (phi * phi + 1)) / (pow(2, txTesslation - 1)) / sqrt(3);
-	// double sphereRadius = alpha * unfoldedLength;
-
-
-	double distance = (sphereCenter - (sourcePoint + t0 * rayDir)).norm();
-	if (distance <= sphereRadius)
-	{
-		// Distance from closest point on the ray to sphere center is smaller
-		// than the sphere radius, therefore it is not captured
-		capturePoint = sourcePoint + t0 * rayDir;
-		return true;
-	}
-	return false;
 }
 
 std::vector<int> GetHitSurfaceIds(const std::vector<Ray>& rayPaths)

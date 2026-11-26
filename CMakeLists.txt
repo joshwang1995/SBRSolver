@@ -138,10 +138,12 @@ set(SBR_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/SBRSolver_rev2")
 
 add_executable(sbrsolver
     ${SBR_SRC_DIR}/SBRSolver_rev2.cpp
+    ${SBR_SRC_DIR}/CpuTracer.cpp
     ${SBR_SRC_DIR}/FieldCompute.cpp
     ${SBR_SRC_DIR}/Icosahedron.cpp
     ${SBR_SRC_DIR}/Preprocessor.cpp
     ${SBR_SRC_DIR}/Ray.cpp
+    ${SBR_SRC_DIR}/ReceiverGrid.cpp
     ${SBR_SRC_DIR}/RTSolver.cpp
     ${SBR_SRC_DIR}/SimulationConfig.cpp
     ${SBR_SRC_DIR}/Triangle.cpp
@@ -153,13 +155,16 @@ add_executable(sbrsolver
     ${SBR_SRC_DIR}/viewer/FieldGrid.h
     ${SBR_SRC_DIR}/viewer/Viewer.h
     ${SBR_SRC_DIR}/common/Profiling.h
+    ${SBR_SRC_DIR}/CpuTracer.h
     ${SBR_SRC_DIR}/FieldCompute.h
     ${SBR_SRC_DIR}/Icosahedron.h
     ${SBR_SRC_DIR}/Preprocessor.h
     ${SBR_SRC_DIR}/Ray.h
+    ${SBR_SRC_DIR}/ReceiverGrid.h
     ${SBR_SRC_DIR}/RTSolver.h
     ${SBR_SRC_DIR}/SimulationConfig.h
     ${SBR_SRC_DIR}/StlReader.h
+    ${SBR_SRC_DIR}/Tracer.h
     ${SBR_SRC_DIR}/Triangle.h
     ${SBR_SRC_DIR}/BVH/BVH.h
     ${SBR_SRC_DIR}/BVH/BVHNode.h
@@ -290,6 +295,25 @@ elseif(SBR_WARNINGS)
     target_compile_options(sbr_viewer_tests PRIVATE -Wall -Wextra)
 endif()
 add_test(NAME viewer_unit_tests COMMAND sbr_viewer_tests)
+
+# Unit tests of the capture stage: the receiver grid must find the same
+# candidates as a test of every receiver against every segment.
+add_executable(sbr_tracer_tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/tracer_tests.cpp
+    ${SBR_SRC_DIR}/CpuTracer.cpp
+    ${SBR_SRC_DIR}/ReceiverGrid.cpp
+    ${SBR_SRC_DIR}/Triangle.cpp)
+target_include_directories(sbr_tracer_tests PRIVATE "${SBR_SRC_DIR}")
+target_link_libraries(sbr_tracer_tests PRIVATE sbr_eigen Threads::Threads)
+if(MSVC)
+    target_compile_definitions(sbr_tracer_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
+    if(SBR_WARNINGS)
+        target_compile_options(sbr_tracer_tests PRIVATE /W4 /wd4267)
+    endif()
+elseif(SBR_WARNINGS)
+    target_compile_options(sbr_tracer_tests PRIVATE -Wall -Wextra)
+endif()
+add_test(NAME tracer_unit_tests COMMAND sbr_tracer_tests)
 
 # Smoke test of the viewer itself: a synthetic run goes through every overlay
 # with Polyscope's mock backend, so it needs no display. With a display (or
