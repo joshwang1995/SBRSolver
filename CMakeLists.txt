@@ -12,6 +12,15 @@ option(SBR_WARNINGS "Enable the compiler's standard warning set" ON)
 option(SBR_BUILD_VIEWER "Build the built-in 3D viewer (Polyscope, --view / [outputs] viewer = true)" ON)
 option(SBR_ENABLE_TRACY "Instrument the solver for the Tracy profiler (connect the Tracy GUI while it runs)" OFF)
 option(SBR_TRACY_ON_DEMAND "Tracy records only once the GUI connects; OFF records from start-up (run with TRACY_NO_EXIT=1 to wait for the GUI at exit)" ON)
+# The GPU tracer runs on Vulkan. macOS has no Vulkan driver with the
+# features it needs, so the option is off there.
+if(APPLE)
+    set(_sbr_gpu_default OFF)
+else()
+    set(_sbr_gpu_default ON)
+endif()
+option(SBR_BUILD_GPU "Build the Vulkan GPU tracer (--device gpu)" ${_sbr_gpu_default})
+option(SBR_BUILD_GLSLANG "Build the bundled glslang shader compiler even when one is installed" OFF)
 
 # Default to a Release build for single-config generators (Makefiles, Ninja).
 # Multi-config generators (Visual Studio, Xcode) pick the config at build time.
@@ -131,6 +140,77 @@ if(SBR_ENABLE_TRACY)
     endif()
 endif()
 
+if(SBR_BUILD_GPU)
+    foreach(_sbr_dep Vulkan-Headers volk glslang)
+        if(NOT EXISTS "${_sbr_third_party}/${_sbr_dep}/CMakeLists.txt")
+            message(FATAL_ERROR
+                "SBRSolver: the GPU tracer needs the ${_sbr_dep} submodule. Run\n"
+                "    git submodule update --init --recursive\n"
+                "or configure with -DSBR_BUILD_GPU=OFF.")
+        endif()
+    endforeach()
+    # The shaders are compiled to SPIR-V at build time, by an installed
+    # glslang (apt install glslang-tools, or the Vulkan SDK) or, without one,
+    # by the bundled glslang, which takes a few minutes to build.
+    if(NOT SBR_BUILD_GLSLANG)
+        find_program(SBR_GLSLANG NAMES glslang glslangValidator)
+    endif()
+    if(SBR_GLSLANG AND NOT SBR_BUILD_GLSLANG)
+        set(_sbr_glslang_command "${SBR_GLSLANG}")
+        set(_sbr_glslang_target "")
+        message(STATUS "SBRSolver: GPU tracer enabled, shaders compiled with ${SBR_GLSLANG}")
+    else()
+        set(ENABLE_OPT OFF CACHE BOOL "" FORCE)
+        set(ENABLE_HLSL OFF CACHE BOOL "" FORCE)
+        set(ENABLE_GLSLANG_BINARIES ON CACHE BOOL "" FORCE)
+        set(BUILD_EXTERNAL OFF CACHE BOOL "" FORCE)
+        set(GLSLANG_TESTS OFF CACHE BOOL "" FORCE)
+        set(GLSLANG_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+        add_subdirectory("${_sbr_third_party}/glslang" EXCLUDE_FROM_ALL)
+        set(_sbr_glslang_command "$<TARGET_FILE:glslang-standalone>")
+        set(_sbr_glslang_target glslang-standalone)
+        message(STATUS "SBRSolver: GPU tracer enabled, shaders compiled with the bundled glslang")
+    endif()
+    # The Vulkan headers and the volk loader. volk loads the driver's
+    # library at run time, so the solver starts without one and falls back
+    # to the CPU tracer.
+    add_library(sbr_vulkan INTERFACE)
+    target_include_directories(sbr_vulkan SYSTEM INTERFACE
+        "${_sbr_third_party}/Vulkan-Headers/include" "${_sbr_third_party}/volk")
+    target_compile_definitions(sbr_vulkan INTERFACE VK_NO_PROTOTYPES)
+    # Every shader is compiled twice, in single and in double precision, and
+    # embedded in the executable as a header (cmake/EmbedSpirv.cmake).
+    set(SBR_SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/SBRSolver_rev2/gpu/shaders")
+    set(SBR_SHADER_OUT "${CMAKE_CURRENT_BINARY_DIR}/shaders")
+    file(MAKE_DIRECTORY "${SBR_SHADER_OUT}")
+    set(SBR_SHADER_HEADERS "")
+    function(sbr_add_shader name)
+        foreach(_precision single double)
+            if(_precision STREQUAL "double")
+                set(_double 1)
+            else()
+                set(_double 0)
+            endif()
+            set(_spv "${SBR_SHADER_OUT}/${name}_${_precision}.spv")
+            set(_header "${SBR_SHADER_OUT}/${name}_${_precision}.spv.h")
+            add_custom_command(OUTPUT "${_spv}"
+                COMMAND ${_sbr_glslang_command} -V --target-env vulkan1.1 "-I${SBR_SHADER_DIR}"
+                        -DSBR_DOUBLE=${_double} -o "${_spv}" "${SBR_SHADER_DIR}/${name}.comp"
+                DEPENDS "${SBR_SHADER_DIR}/${name}.comp" "${SBR_SHADER_DIR}/common.glsl" ${_sbr_glslang_target}
+                COMMENT "Compiling shader ${name} (${_precision})")
+            add_custom_command(OUTPUT "${_header}"
+                COMMAND ${CMAKE_COMMAND} "-DINPUT=${_spv}" "-DOUTPUT=${_header}" "-DNAME=${name}_${_precision}"
+                        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedSpirv.cmake"
+                DEPENDS "${_spv}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedSpirv.cmake"
+                COMMENT "Embedding shader ${name} (${_precision})")
+            list(APPEND SBR_SHADER_HEADERS "${_header}")
+        endforeach()
+        set(SBR_SHADER_HEADERS "${SBR_SHADER_HEADERS}" PARENT_SCOPE)
+    endfunction()
+    sbr_add_shader(probe)
+    add_custom_target(sbr_shaders DEPENDS ${SBR_SHADER_HEADERS})
+endif()
+
 # ---------------------------------------------------------------------------
 # Executable
 # ---------------------------------------------------------------------------
@@ -154,6 +234,7 @@ add_executable(sbrsolver
     ${SBR_SRC_DIR}/viewer/FieldGrid.h
     ${SBR_SRC_DIR}/viewer/Viewer.h
     ${SBR_SRC_DIR}/common/Profiling.h
+    ${SBR_SRC_DIR}/gpu/GpuTypes.h
     ${SBR_SRC_DIR}/CpuTracer.h
     ${SBR_SRC_DIR}/FieldCompute.h
     ${SBR_SRC_DIR}/Icosahedron.h
@@ -185,6 +266,16 @@ endif()
 if(SBR_ENABLE_TRACY)
     target_link_libraries(sbrsolver PRIVATE Tracy::TracyClient)
     target_compile_definitions(sbrsolver PRIVATE SBR_HAS_TRACY=1)
+endif()
+if(SBR_BUILD_GPU)
+    target_sources(sbrsolver PRIVATE
+        ${SBR_SRC_DIR}/gpu/GpuContext.cpp
+        ${SBR_SRC_DIR}/gpu/VolkImpl.cpp
+        ${SBR_SRC_DIR}/gpu/GpuContext.h)
+    target_include_directories(sbrsolver PRIVATE "${SBR_SHADER_OUT}")
+    target_link_libraries(sbrsolver PRIVATE sbr_vulkan ${CMAKE_DL_LIBS})
+    target_compile_definitions(sbrsolver PRIVATE SBR_HAS_GPU=1)
+    add_dependencies(sbrsolver sbr_shaders)
 endif()
 
 # Where the shipped configuration files, scenes and receiver files live, so the
@@ -318,6 +409,31 @@ elseif(SBR_WARNINGS)
     target_compile_options(sbr_tracer_tests PRIVATE -Wall -Wextra)
 endif()
 add_test(NAME tracer_unit_tests COMMAND sbr_tracer_tests)
+
+# Unit tests of the Vulkan host layer with the probe shader. Without a
+# Vulkan device the test exits with 77 and ctest reports it as skipped.
+if(SBR_BUILD_GPU)
+    add_executable(sbr_gpu_tests
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/gpu_tests.cpp
+        ${SBR_SRC_DIR}/gpu/GpuContext.cpp
+        ${SBR_SRC_DIR}/gpu/VolkImpl.cpp)
+    target_include_directories(sbr_gpu_tests PRIVATE "${SBR_SRC_DIR}" "${SBR_SHADER_OUT}")
+    target_link_libraries(sbr_gpu_tests PRIVATE sbr_vulkan ${CMAKE_DL_LIBS})
+    add_dependencies(sbr_gpu_tests sbr_shaders)
+    if(WIN32)
+        target_compile_definitions(sbr_gpu_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+    if(MSVC)
+        target_compile_definitions(sbr_gpu_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
+        if(SBR_WARNINGS)
+            target_compile_options(sbr_gpu_tests PRIVATE /W4 /wd4267)
+        endif()
+    elseif(SBR_WARNINGS)
+        target_compile_options(sbr_gpu_tests PRIVATE -Wall -Wextra)
+    endif()
+    add_test(NAME gpu_unit_tests COMMAND sbr_gpu_tests)
+    set_tests_properties(gpu_unit_tests PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300)
+endif()
 
 # Smoke test of the viewer itself: a synthetic run goes through every overlay
 # with Polyscope's mock backend, so it needs no display. With a display (or

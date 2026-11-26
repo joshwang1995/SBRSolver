@@ -652,6 +652,12 @@ namespace
 		}
 		if (r.Integer("threads", cfg.threads, false) && (cfg.threads < 0 || cfg.threads > kMaxThreads))
 			diag.Add(r.Line("threads"), "threads must be between 0 (all hardware threads) and " + std::to_string(kMaxThreads));
+		std::string device;
+		if (r.String("device", device, false) && !ParseTracerDevice(device, cfg.device))
+			diag.Add(r.Line("device"), "device must be cpu, gpu or auto; got '" + device + "'");
+		std::string precision;
+		if (r.String("gpu_precision", precision, false) && !ParseGpuPrecision(precision, cfg.gpuPrecision))
+			diag.Add(r.Line("gpu_precision"), "gpu_precision must be auto, single or double; got '" + precision + "'");
 	}
 
 	void ReadMaterial(SectionReader& r, SimulationConfig& cfg, Diagnostics& diag)
@@ -777,6 +783,24 @@ const char* ReceiverLayoutName(ReceiverLayout layout)
 	return "unknown";
 }
 
+bool ParseTracerDevice(const std::string& text, TracerDevice& out)
+{
+	const std::string v = ToLower(text);
+	if (v == "cpu") { out = TracerDevice::Cpu; return true; }
+	if (v == "gpu") { out = TracerDevice::Gpu; return true; }
+	if (v == "auto") { out = TracerDevice::Auto; return true; }
+	return false;
+}
+
+bool ParseGpuPrecision(const std::string& text, GpuPrecision& out)
+{
+	const std::string v = ToLower(text);
+	if (v == "auto") { out = GpuPrecision::Auto; return true; }
+	if (v == "single") { out = GpuPrecision::Single; return true; }
+	if (v == "double") { out = GpuPrecision::Double; return true; }
+	return false;
+}
+
 void PrintSimulationConfig(const SimulationConfig& c)
 {
 	using std::cout;
@@ -827,6 +851,8 @@ void PrintSimulationConfig(const SimulationConfig& c)
 	cout << "\t[ray_tracing] use_fresnel_coefficients -> " << (c.useFresnelCoefficients ? "true" : "false") << endl;
 	cout << "\t[ray_tracing] transmitter_sum   -> " << (c.powerSum ? "power" : "coherent") << endl;
 	cout << "\t[ray_tracing] threads           -> " << c.threads << (c.threads == 0 ? " (all hardware threads)" : "") << endl;
+	cout << "\t[ray_tracing] device            -> " << TracerDeviceName(c.device) << endl;
+	cout << "\t[ray_tracing] gpu_precision     -> " << GpuPrecisionName(c.gpuPrecision) << endl;
 	for (size_t i = 0; i < c.materials.size(); i++)
 	{
 		const MaterialProperties& p = c.materials[i].properties;
