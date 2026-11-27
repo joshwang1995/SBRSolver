@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Ray.h"
+#include "Tracer.h"
 #include "timer/Timer.h"
 #include "common/VecMatDef.h"
 #include "common/Constants.h"
@@ -9,8 +10,11 @@
 #include "Triangle.h"
 #include "Preprocessor.h"
 #include "FieldCompute.h"
+#include "gpu/GpuTypes.h"
 #include "viewer/SceneData.h"
 #include <mutex>
+
+namespace sbr { namespace gpu { class GpuContext; } }
 
 class RTSolver
 {
@@ -20,12 +24,15 @@ public:
 	int Init(MaterialProperties materialProperties[], int materialPropertiesCount, BVH<Triangle>& triangles);
 	// Threads used by ExecuteRayTracing (0 = one per hardware thread).
 	void SetThreadCount(int threads) { _threadCount = threads; }
+	// Traces on this Vulkan device instead of the CPU; the context must
+	// outlive the run.
+	void SetGpu(sbr::gpu::GpuContext* gpu, GpuPrecision precision) { _gpu = gpu; _gpuPrecision = precision; }
 	void Cleanup();
 	// Launches the rays of every transmitter together, finds the paths to
 	// every receiver and sums the fields of all transmitters at each one,
 	// as phasors or, with powerSum, as powers. Returns the number of
-	// (launch, receiver) path sets.
-	int ExecuteRayTracing
+	// candidate paths before the image-method correction.
+	size_t ExecuteRayTracing
 	(
 		const std::vector<TransmitterSource>& transmitters,
 		int maxReflectionCount,
@@ -44,13 +51,27 @@ public:
 	bool SavePathsAsVtk(std::string fname);
 	bool SaveReceiversAsVtk(std::string fname);
 	bool SaveFieldAsCsv(std::string fname);
+	// One row per path in the order of RayPath.vtk: receiver, launch,
+	// transmitter, the sequence of surfaces and interactions, the field.
+	bool SavePathsAsCsv(std::string fname);
+	// One row per traced segment, launch by launch in tree order, from
+	// whichever tracer ran; tools/compare_segments.py compares two runs.
+	bool SaveSegmentsAsCsv(std::string fname);
 	// The launch directions of every transmitter, as lines from its position.
 	bool SaveIcosahedronAsVtk(std::string fname);
 	void CmdLineDebug();
 protected:
 	MaterialProperties* _materialProperties = nullptr;
-	Paths** _rayPaths = nullptr;
+	// The paths of every receiver, in launch order and then in the order of
+	// the ray tree; the image-method correction and the duplicate removal
+	// prune them in place.
+	std::vector<std::vector<ReceiverPath>> _receiverPaths;
+	// Every segment and candidate of the last run, for Segments.csv.
+	TraceResult _trace;
 	BVH<Triangle>* _bvh = nullptr;
+	const std::vector<Triangle*>* _triangleMesh = nullptr;
+	sbr::gpu::GpuContext* _gpu = nullptr;
+	GpuPrecision _gpuPrecision = GpuPrecision::Single;
 	std::vector<Vec3>* _shootRayList = nullptr;
 	VecVec3* _receivers = nullptr;
 	std::vector<Vec3c>* _efield = nullptr;
@@ -59,41 +80,18 @@ protected:
 	std::vector<std::vector<Vec3c>> _pathFields;
 
 	// The transmitters of the last run and the transmitter of every launch
-	// direction in _shootRayList (the rows of _rayPaths).
+	// direction in _shootRayList.
 	std::vector<TransmitterSource> _transmitters;
 	std::vector<int> _launchTx;
 
 	bool _isSceneInitialized = false;
 	int _maxTransmissionCount = 0;
 	int _maxReflectionCount = 0;
-	int _pathsCount = 0;
 	int _receiverCount = 0;
 	int _threadCount = 0;
 	// Triangles of every coplanar surface, indexed by Triangle::coplanarId.
 	std::vector<std::vector<Triangle*>> _coplanarGroups;
 private:
-	void RayLaunch
-	(
-		PathTreeNode* rayTreeNode, 
-		Vec3& sourcePoint, 
-		Vec3& directionPoint, 
-		int transMaterialID,
-		int refMaterialID,
-		int reflectionCnt,
-		int transmissionCnt,
-		double totalPathLength,
-		bool isRoot, 
-		double lastAnglefromN
-	);
-	// `tessellation` is the launching transmitter's level plus one; it sets
-	// the reception sphere.
-	void RayCapture
-	(
-		PathTreeNode* rayTreeNode,
-		const Vec3& receiver, 
-		double totalPathLength,
-		int tessellation
-	);
 	// Replaces every captured path of a receiver by the exact path with the
 	// same interaction sequence (image method) from its own transmitter and
 	// drops the ones that do not exist: no intersection with the surface, or
@@ -108,13 +106,21 @@ private:
 	// surface; returns the triangle hit (or nullptr) and the point.
 	Triangle* IntersectSurface(int coplanarId, const Vec3& origin, const Vec3& target, Vec3& point) const;
 	void RemoveDuplicatePath(int receiverId);
-	void InitRayPaths();
-	void DeleteRayPaths();
+	// One path of _receiverPaths, as the outputs address it.
+	struct PathIndex
+	{
+		int launch;
+		int receiver;
+		size_t position;
+	};
+	// Every path of the run in the order the outputs list them: by launch,
+	// then by receiver, then in the receiver's own order.
+	std::vector<PathIndex> OutputOrder() const;
 };
 
-void PathsToVector
+void PathToVector
 (
-	const std::vector<std::vector<Ray>>& rayPaths,
+	const std::vector<Ray>& path,
 	std::vector<Vec3>& vertices,
 	std::vector<std::vector<int>>& lineIndex,
 	std::vector<int>& launchIds,
@@ -122,16 +128,6 @@ void PathsToVector
 	int launchId,
 	int receiverId,
 	int& totalLines
-);
-
-bool HitReceptionSphere
-(
-	const Vec3& sourcePoint,
-	const Vec3& targetPoint,
-	const Vec3& sphereCenter,
-	double pathLength,
-	int txTesslation,
-	Vec3& capturePoint
 );
 
 std::vector<int> GetHitSurfaceIds(const std::vector<Ray>& rayPaths);

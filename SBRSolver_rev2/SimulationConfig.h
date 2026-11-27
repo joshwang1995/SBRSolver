@@ -6,6 +6,7 @@
 
 #include "common/DataStructures.h"
 #include "common/VecMatDef.h"
+#include "gpu/GpuTypes.h"
 
 // Analytic transmitter patterns understood by FieldCompute::GetAnalyticEfieldPattern.
 enum class AntennaType
@@ -100,6 +101,8 @@ struct SimulationConfig
 	bool useFresnelCoefficients = true;
 	bool powerSum = false;       // transmitter_sum = power: the transmitters' powers add, not their fields
 	int threads = 0; // 0 = one per hardware thread
+	TracerDevice device = TracerDevice::Cpu;         // which tracer runs (also --device)
+	GpuPrecision gpuPrecision = GpuPrecision::Auto;  // precision of the GPU shaders (also --gpu-precision)
 
 	// [material] (one section per material, in order of material id; names are unique)
 	std::vector<MaterialConfig> materials;
@@ -109,6 +112,8 @@ struct SimulationConfig
 	bool writeReceivers = true;
 	bool writeFieldCsv = true;
 	bool writeIcosahedron = false;
+	bool writePathsCsv = false;     // Paths.csv: every path with its key and field (also --paths-csv)
+	bool writeSegmentsCsv = false;  // Segments.csv: every traced segment (also --segments-csv)
 	bool viewer = false;         // open the built-in viewer after the run (also --view)
 };
 
@@ -121,6 +126,11 @@ bool LoadSimulationConfig(const std::string& path, SimulationConfig& config, std
 
 const char* AntennaTypeName(AntennaType type);
 const char* ReceiverLayoutName(ReceiverLayout layout);
+
+// The values of the `device` and `gpu_precision` keys, also accepted by the
+// --device and --gpu-precision options; false for any other text.
+bool ParseTracerDevice(const std::string& text, TracerDevice& out);
+bool ParseGpuPrecision(const std::string& text, GpuPrecision& out);
 
 // Prints the loaded settings in the same key = value form as the file.
 void PrintSimulationConfig(const SimulationConfig& config);

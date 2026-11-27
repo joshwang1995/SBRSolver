@@ -35,10 +35,8 @@ namespace
 
 FieldCompute::FieldCompute()
 	:
-	_rayPaths(nullptr),
 	_triangleMesh(nullptr),
 	_receivers(nullptr),
-	_pathsCount(0),
 	_materials(nullptr),
 	_txCoordSys(Mat3::Identity()),
 	_frequency(0.0),
@@ -50,22 +48,6 @@ FieldCompute::FieldCompute()
 
 FieldCompute::~FieldCompute()
 {
-}
-
-Vec3c FieldCompute::FieldAtReceiver(int receiverId)
-{
-	Vec3c totalField{ cdouble(0,0), cdouble(0,0), cdouble(0,0) };
-
-	// Get all paths for the receiver
-	for (int i = 0; i < _pathsCount; i++)
-	{
-		int numRayPaths = int(_rayPaths[i][receiverId].rayPaths.size());
-		for (int j = 0; j < numRayPaths; j++)
-		{
-			totalField += FieldForPath(_rayPaths[i][receiverId].rayPaths[j]);
-		}
-	}
-	return totalField;
 }
 
 double FieldCompute::PatternAmplitude(int antennaType, double theta)

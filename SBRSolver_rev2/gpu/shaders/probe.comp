@@ -1,0 +1,34 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+
+// Probe of the host layer, run by sbr_gpu_tests: every item writes an exact
+// value of `real` and appends its index through an atomic counter.
+layout(local_size_x = 64) in;
+
+layout(push_constant) uniform Push
+{
+	SBR_DISPATCH_BASE
+	uint count;
+} push;
+
+layout(std430, set = 0, binding = 0) buffer Values
+{
+	real values[];
+};
+
+layout(std430, set = 0, binding = 1) buffer Appended
+{
+	uint counter;
+	uint items[];
+};
+
+void main()
+{
+	const uint i = gl_GlobalInvocationID.x + push.firstX;
+	if (i >= push.count) return;
+	precise real value = real(i) * real(0.25) + real(1.0);
+	values[i] = value;
+	const uint slot = atomicAdd(counter, 1u);
+	items[slot] = i;
+}

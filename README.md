@@ -54,6 +54,11 @@ viewer and the optional profiling.
 * Optional: Python 3 to run the regression test
 * Optional: the [Tracy profiler](https://github.com/wolfpld/tracy/releases) GUI (version 0.14.1, the
   version of the bundled client) to watch the solver's performance live
+* Optional, for the GPU tracer (`--device gpu`, Linux and Windows): a Vulkan driver for the graphics
+  card, on Linux with the loader package (`libvulkan1`; `mesa-vulkan-drivers` also installs lavapipe, a
+  Vulkan device that runs on the CPU and serves the tests), and a shader compiler, `glslang-tools` on
+  Ubuntu or the Vulkan SDK on Windows. Without an installed compiler the build compiles the bundled
+  one, which takes a few minutes longer
 
 ### Build
 
@@ -66,14 +71,17 @@ cmake --build build --config Release --parallel
 
 If you cloned without `--recurse-submodules`, fetch the submodules first with
 `git submodule update --init --recursive`: Eigen, Polyscope (the viewer's rendering library, with its
-own bundled GLFW, Dear ImGui and glm) and Tracy (the profiler client) are all git submodules, so
+own bundled GLFW, Dear ImGui and glm), Tracy (the profiler client) and, for the GPU tracer, the Vulkan
+headers, volk (the Vulkan loader) and glslang (the shader compiler) are all git submodules, so
 nothing has to be installed system-wide on any platform (on Linux the OpenGL/X11 development packages
 listed above are needed to build the viewer). Eigen alone can also come from a system-wide install
 (`apt install libeigen3-dev`, `brew install eigen`, `vcpkg install eigen3`).
 
-Two CMake options control the extras: `-DSBR_BUILD_VIEWER=OFF` builds the solver without the viewer
+Four CMake options control the extras: `-DSBR_BUILD_VIEWER=OFF` builds the solver without the viewer
 (no OpenGL needed at all), `-DSBR_ENABLE_TRACY=ON` adds the profiler instrumentation (off by default,
-see *Profiling with Tracy*).
+see *Profiling with Tracy*), `-DSBR_BUILD_GPU=OFF` builds without the GPU tracer (on by default on
+Linux and Windows, off on macOS, which has no Vulkan driver with the needed features), and
+`-DSBR_BUILD_GLSLANG=ON` compiles the bundled shader compiler even when one is installed.
 
 The executable is written to `build/sbrsolver` on Linux/macOS. On Windows the Visual Studio generator
 (CMake's default when Visual Studio is installed) puts it in `build\Release\sbrsolver.exe`; single-config
@@ -104,6 +112,16 @@ them. By default the fields add as phasors, which models antennas fed with one s
 transmitters such as separate access points. `office_two_tx.ini` and `office_two_tx_power.ini`
 show both.
 
+`--device gpu` (or `device = gpu` in `[ray_tracing]`) opens the Vulkan device before the run and
+prints its name and the precision of the shaders: with `gpu_precision = auto` they compute in 64-bit
+floats when the device supports them, else in 32-bit floats. `device = auto` takes a GPU when the
+machine has one and otherwise the CPU tracer. `SBR_VULKAN_DEVICE=<index or part of the name>` picks
+one of several Vulkan devices, and `SBR_VULKAN_VALIDATION=1` loads the Vulkan validation layer when
+it is installed. Without a usable device, `--device gpu` stops with exit code 77, so a test runner
+reports the run as skipped. The device traces the rays and finds the segments that reach each
+receiver; the image-method correction, the duplicate removal and the field stay on the CPU in double
+precision, so a path found by either tracer gives the same field.
+
 ### Dense receiver layouts
 
 The four scenes in `SBRSolver_rev2/data` carry the receiver layouts of the reference comparison (a
@@ -132,10 +150,9 @@ walls (`--region enclosure`) or a plain box (`--region bbox`), then drops candid
 `--margin` to a wall or `--tx-clearance` to a transmitter. `--tx` is repeated for a scene with
 several transmitters. `--spacing`, `--height`, `--bbox` and `--line` shape the grid; `--plot` writes
 a top-down PNG of walls, transmitters and receivers (needs Pillow). The first line of each
-`RX_*_fine.dat` records the command line it was made with. A denser
-layout costs memory: the solver keeps a path list per launched ray and receiver (24 bytes each), so
-the Bahen grid is 2562 × 6858 × 24 bytes, about 0.4 GB, and a 0.25 m grid would need four times
-that.
+`RX_*_fine.dat` records the command line it was made with. A denser layout costs little memory:
+the solver stores one record of about 100 bytes per traced ray segment and 8 bytes per candidate
+path, so the Bahen grid needs a few megabytes.
 
 ### A floor plan as a scene
 
@@ -209,7 +226,14 @@ the receivers with `|E|` and the field in dB(µV/m). With several transmitters t
 receiver is the sum over all of them, and every path in `RayPath.vtk` and every launch direction in
 `Icosahedron.vtk` carries a `TransmitterID`. With `transmitter_sum = power` the written field is the
 root of the summed squared components of the transmitters' fields. Then `|E|²` is the sum of their
-powers and the phase is zero.
+powers and the phase is zero. `Paths.csv` (`paths_csv = true` or `--paths-csv`) lists every path of
+`RayPath.vtk` as one row: receiver, launch, transmitter, the sequence of surfaces and interactions
+(`12:R;7:T` is a reflection at surface 12 and then a transmission through surface 7, `-` a direct
+path) and the path's field. `tools/compare_paths.py` compares two runs by these rows. `Segments.csv`
+(`segments_csv = true` or `--segments-csv`) lists every traced ray segment before the capture, launch
+by launch in tree order, with the surface it hit, its length and its unfolded start length;
+`tools/compare_segments.py` compares the segments of two runs, which tells a tracing difference from
+a capture difference.
 
 ### Viewer
 
@@ -287,16 +311,18 @@ required keys, values of the wrong type or range and missing files are reported 
 | | `tessellation` | icosahedron subdivision level 0 to 8; launches 10·4ⁿ+2 rays per transmitter (default `2`, 162 rays). A path is only found when a launched ray bounces close enough to it, so use the smallest level at which the number of paths stops changing: `ground.ini` and `office.ini` need `3`, `bahen.ini` `4` |
 | | `antenna_type` | `isotropic`, `hertzian_dipole` (default) or `half_wave_dipole` |
 | | `pattern_file` | optional measured pattern; read and validated, not applied yet |
-| `[receivers]` | `layout = line` | `line_start`, `line_end`, `resolution` (generated layouts are limited to 100 million receiver × launch-ray combinations, the launch rays of all transmitters added, about 3 GB) |
+| `[receivers]` | `layout = line` | `line_start`, `line_end`, `resolution` (generated layouts are limited to 100 million receivers) |
 | | `layout = plane` | `x_min`, `y_min`, `x_max`, `y_max`, `height`, `resolution` |
 | | `layout = file` | `file`, an `RX_*.dat` location file |
 | `[ray_tracing]` | `max_reflections`, `max_transmissions` | bounce limits (default `1` and `0`) |
 | | `use_fresnel_coefficients` | `true` (default): Fresnel reflection and transmission coefficients of a half space with the material's permittivity and conductivity; `false`: every surface is a perfect electric conductor (total reflection, no transmission) |
 | | `threads` | worker threads for ray launching and field computation; `0` (default) uses every hardware thread |
 | | `transmitter_sum` | how several transmitters add at a receiver. `coherent` (default) adds their fields as phasors, which models antennas fed with one signal. `power` adds their powers, which models independent transmitters, and writes the root of the summed squared components as the field, with no phase |
+| | `device` | `cpu` (default), `gpu` (the Vulkan device, exit code 77 without one) or `auto` (a GPU when the machine has one, else the CPU); `--device` on the command line overrides it |
+| | `gpu_precision` | `auto` (default: 64-bit floats when the device supports them), `single` or `double`; `--gpu-precision` overrides it |
 | `[material]` (repeatable) | `name`, `reflection_loss`, `transmission_loss`, `rel_conductivity`, `rel_permittivity_re`, `rel_permittivity_im`, `frequency_hz` | one section per material with a unique name; the first is the default for `stl_file`. The field computation uses the complex permittivity `rel_permittivity_re - j rel_conductivity / (2π f ε₀)` at the transmitter frequency; the other values are read but not applied. `frequency_hz` defaults to the first transmitter's frequency |
 | `[surface_materials]` | `<surface id> = <material name>` | override whole coplanar surfaces; ids are the `CoplanarID` field of `Faces.vtk`, written as plain decimal numbers, each at most once |
-| `[outputs]` | `ray_paths`, `receivers`, `field_csv`, `icosahedron` | which result files to write (defaults `true`, `true`, `true`, `false`) |
+| `[outputs]` | `ray_paths`, `receivers`, `field_csv`, `icosahedron`, `paths_csv`, `segments_csv` | which result files to write (defaults `true`, `true`, `true`, `false`, `false`, `false`); `--paths-csv` and `--segments-csv` on the command line also write `Paths.csv` and `Segments.csv` |
 | | `viewer` | open the built-in viewer after the run (default `false`; `--view` does the same) |
 
 The scene, receiver layout and material parameters are no longer set in the source code.
@@ -331,8 +357,20 @@ single fields and that every path carries its transmitter. `sbrsolver_fields_off
 `tools/check_fields.py` to the same result, with a bound on the receivers that neither transmitter
 reaches (21 of 108). `sbrsolver_run_office_two_tx_power` and `sbrsolver_two_tx_power_sum` do the
 same with `transmitter_sum = power`, where the field of the full run is the root of the summed
-squares of the single fields. `ctest` checks `ground` and `office` twice and `corner` and `bahen`
-once:
+squares of the single fields. `paths_tool_pass` and `paths_tool_fail` check `tools/compare_paths.py`
+itself: the office run against itself passes, and against the two-transmitter run it fails, as it
+must. `segments_tool_pass` and `segments_tool_fail` do the same for `tools/compare_segments.py`.
+`tracer_unit_tests` checks that the receiver grid of the capture stage finds the same
+candidates as a test of every receiver against every segment. `gpu_unit_tests` runs a probe shader
+through the Vulkan host layer in both precisions, with more items than one dispatch may hold. The
+`gpu_run_*` tests run the four scenes, `office_two_tx` and the dense `office` and `bahen` layouts on
+the GPU tracer, and the `gpu_paths_*` tests compare each run with the CPU run of the same scene: in
+double precision every receiver must get the same paths and the same field, in single precision a few
+receivers may differ. `gpu_repeat_office` checks that two GPU runs give the same file, and
+`gpu_batches_office` that a run in four small batches with a candidate buffer that overflows
+(`SBR_GPU_BATCH_BYTES` and `SBR_GPU_CANDIDATE_CAPACITY` shrink them) gives the same result as a run in
+one batch. Without a Vulkan device every `gpu_*` test reports itself as skipped. `ctest` checks
+`ground` and `office` twice and `corner` and `bahen` once:
 
 * `sbrsolver_reference_*`: the `ground` and `office` fields against the results committed in
   `SBRSolver_rev2/data/output/ElectricField.csv` and `SBRSolver_rev2/data/reference/office_ElectricField.csv`

@@ -23,6 +23,9 @@
 #if defined(SBR_HAS_VIEWER)
 #include "viewer/Viewer.h"
 #endif
+#if defined(SBR_HAS_GPU)
+#include "gpu/GpuContext.h"
+#endif
 
 // Directory that holds the reference configuration files, scenes and receiver
 // files. The build system points this at <repo>/SBRSolver_rev2/data so the
@@ -35,6 +38,10 @@
 
 namespace fs = std::filesystem;
 
+// Exit code when --device gpu finds no usable Vulkan device: ctest reports
+// the run as skipped instead of failed.
+static const int kExitDeviceUnavailable = 77;
+
 static void PrintUsage(const char* program)
 {
 	std::cout
@@ -44,6 +51,14 @@ static void PrintUsage(const char* program)
 		<< "  output_dir   directory for the generated VTK/CSV files\n"
 		<< "               (default: <config_file directory>/output, created if missing)\n"
 		<< "Options:\n"
+		<< "  --device cpu|gpu|auto  which tracer runs (same as device in [ray_tracing]);\n"
+		<< "                         gpu exits with " << kExitDeviceUnavailable << " when no Vulkan device exists\n"
+		<< "  --gpu-precision auto|single|double\n"
+		<< "                         precision of the GPU shaders (same as gpu_precision)\n"
+		<< "  --paths-csv            write Paths.csv, every path with its key and field\n"
+		<< "                         (same as paths_csv = true in [outputs])\n"
+		<< "  --segments-csv         write Segments.csv, every traced segment\n"
+		<< "                         (same as segments_csv = true in [outputs])\n"
 		<< "  --view                 open the built-in 3D viewer on the results\n"
 		<< "                         (same as viewer = true in [outputs])\n"
 		<< "  --screenshot FILE      render the viewer once into FILE (.png, .jpg or .jpeg) and exit\n"
@@ -57,6 +72,12 @@ static void PrintUsage(const char* program)
 struct CommandLine
 {
 	std::vector<std::string> positional;
+	bool deviceSet = false;
+	TracerDevice device = TracerDevice::Cpu;
+	bool precisionSet = false;
+	GpuPrecision precision = GpuPrecision::Auto;
+	bool pathsCsv = false;
+	bool segmentsCsv = false;
 	bool view = false;
 	std::string screenshotFile;
 	long viewerFrames = -1;
@@ -75,6 +96,30 @@ static bool ParseCommandLine(int argc, char* argv[], CommandLine& cl, std::strin
 			return true;
 		};
 		if (arg == "--view") cl.view = true;
+		else if (arg == "--paths-csv") cl.pathsCsv = true;
+		else if (arg == "--segments-csv") cl.segmentsCsv = true;
+		else if (arg == "--device")
+		{
+			std::string text;
+			if (!value(text)) return false;
+			if (!ParseTracerDevice(text, cl.device))
+			{
+				error = "--device must be cpu, gpu or auto, got '" + text + "'";
+				return false;
+			}
+			cl.deviceSet = true;
+		}
+		else if (arg == "--gpu-precision")
+		{
+			std::string text;
+			if (!value(text)) return false;
+			if (!ParseGpuPrecision(text, cl.precision))
+			{
+				error = "--gpu-precision must be auto, single or double, got '" + text + "'";
+				return false;
+			}
+			cl.precisionSet = true;
+		}
 		else if (arg == "--screenshot")
 		{
 			if (!value(cl.screenshotFile)) return false;
@@ -208,6 +253,10 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 
+	// The command line overrides the configuration file.
+	if (cl.deviceSet) config.device = cl.device;
+	if (cl.precisionSet) config.gpuPrecision = cl.precision;
+
 	// config.configFile is already absolute and normalised.
 	const fs::path outputDir = (cl.positional.size() > 1) ? fs::path(cl.positional[1]) : fs::path(config.configFile).parent_path() / "output";
 #if defined(SBR_HAS_VIEWER)
@@ -238,9 +287,75 @@ int main(int argc, char* argv[])
 	const std::string rayPathFileName = PathString(outputDir / "RayPath.vtk");
 	const std::string icosahedronFileName = PathString(outputDir / "Icosahedron.vtk");
 	const std::string csvFieldFileName = PathString(outputDir / "ElectricField.csv");
+	const std::string csvPathsFileName = PathString(outputDir / "Paths.csv");
+	const std::string csvSegmentsFileName = PathString(outputDir / "Segments.csv");
+
+	// A run that stops early must not leave the results of an earlier run
+	// behind for a comparison to pick up.
+	for (const char* name : { "RayPath.vtk", "Icosahedron.vtk", "RxLocations.vtk", "ElectricField.csv", "Paths.csv", "Segments.csv" })
+	{
+		std::error_code ignored;
+		fs::remove(outputDir / name, ignored);
+	}
 
 	std::cout << "\tOutput Directory         -> " << PathString(outputDir) << std::endl;
 	PrintSimulationConfig(config);
+
+#if defined(SBR_HAS_GPU)
+	// The GPU context opens the Vulkan device now, so a run without one
+	// stops before any work.
+	std::unique_ptr<sbr::gpu::GpuContext> gpu;
+	GpuPrecision gpuPrecision = GpuPrecision::Single;
+	if (config.device != TracerDevice::Cpu)
+	{
+		try
+		{
+			gpu = sbr::gpu::GpuContext::Create(config.device == TracerDevice::Auto);
+		}
+		catch (const sbr::gpu::DeviceUnavailable& e)
+		{
+			if (config.device == TracerDevice::Gpu)
+			{
+				std::cerr << "Error: " << e.what() << std::endl;
+				return kExitDeviceUnavailable;
+			}
+			std::cout << "\tnote: " << e.what() << "; tracing on the CPU" << std::endl;
+		}
+		catch (const std::exception& e)
+		{
+			std::cerr << "Error: " << e.what() << std::endl;
+			return 1;
+		}
+	}
+	if (gpu)
+	{
+		const sbr::gpu::DeviceInfo& info = gpu->Info();
+		if (!info.validation.empty()) std::cout << "\tnote: " << info.validation << std::endl;
+		std::cout << "\tGPU device -> " << info.name << " (" << info.type << ", Vulkan " << VK_VERSION_MAJOR(info.apiVersion)
+			<< "." << VK_VERSION_MINOR(info.apiVersion) << ", driver " << info.driver << ", storage range "
+			<< (info.storageRange >> 20) << " MiB, heap " << (info.heapBytes >> 30) << " GiB)" << std::endl;
+		try
+		{
+			gpuPrecision = gpu->Resolve(config.gpuPrecision);
+		}
+		catch (const std::exception& e)
+		{
+			std::cerr << "Error: " << e.what() << std::endl;
+			return 1;
+		}
+		std::cout << "\tGPU precision -> " << GpuPrecisionName(gpuPrecision) << " (" << gpu->PrecisionReason(config.gpuPrecision) << ")" << std::endl;
+	}
+#else
+	if (config.device == TracerDevice::Gpu)
+	{
+		std::cerr << "Error: this build has no GPU tracer (configure with -DSBR_BUILD_GPU=ON)" << std::endl;
+		return 1;
+	}
+	if (config.device == TracerDevice::Auto)
+	{
+		std::cout << "\tnote: this build has no GPU tracer, tracing on the CPU" << std::endl;
+	}
+#endif
 
 	Timer timer;
 
@@ -343,8 +458,11 @@ int main(int argc, char* argv[])
 	std::unique_ptr<RTSolver> rayTracer(new RTSolver());
 	rayTracer->Init(materials.data(), int(materials.size()), bvh);
 	rayTracer->SetThreadCount(config.threads);
+#if defined(SBR_HAS_GPU)
+	if (gpu) rayTracer->SetGpu(gpu.get(), gpuPrecision);
+#endif
 
-	int totalPaths = 0;
+	size_t totalPaths = 0;
 	try
 	{
 		totalPaths = rayTracer->ExecuteRayTracing
@@ -361,9 +479,9 @@ int main(int argc, char* argv[])
 	}
 	catch (const std::bad_alloc&)
 	{
-		std::cerr << "Error: out of memory while tracing " << rxLocation.size() << " receivers x "
-			<< launchRays << " launch rays; reduce the receiver count, "
-			<< "the tessellation, the number of transmitters or the number of threads" << std::endl;
+		std::cerr << "Error: out of memory while tracing " << launchRays << " launch rays towards "
+			<< rxLocation.size() << " receivers; reduce the tessellation, the bounce limits, "
+			<< "the number of transmitters or the receiver count" << std::endl;
 		return 1;
 	}
 	catch (const std::exception& e)
@@ -372,7 +490,7 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 
-	std::cout << "Total ray paths traced -> " << totalPaths << std::endl;
+	std::cout << "Total candidate paths -> " << totalPaths << std::endl;
 
 	{
 		SBR_ZONE_NAMED("Outputs");
@@ -381,6 +499,8 @@ int main(int argc, char* argv[])
 		if (config.writeIcosahedron) rayTracer->SaveIcosahedronAsVtk(icosahedronFileName);
 		if (config.writeReceivers) rayTracer->SaveReceiversAsVtk(rxLocationOutputFileName);
 		if (config.writeFieldCsv) rayTracer->SaveFieldAsCsv(csvFieldFileName);
+		if (config.writePathsCsv || cl.pathsCsv) rayTracer->SavePathsAsCsv(csvPathsFileName);
+		if (config.writeSegmentsCsv || cl.segmentsCsv) rayTracer->SaveSegmentsAsCsv(csvSegmentsFileName);
 	}
 
 #if defined(SBR_HAS_VIEWER)
